@@ -32,6 +32,8 @@ SQL e per la sorgente di completamento.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.9.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.9.0/Orabridge%20Setup%201.9.0.exe) (2026-07-27).
+
 ## v1.8.0 — 2026-07-27
 
 - **Nuovo:** aggiunge barra di ricerca per le connessioni Filtra le connessioni per nome, gruppo, utente o servizio; durante la
