@@ -255,7 +255,6 @@ function CodeTab({ loader }) {
 // Editable PL/SQL source with compile (CREATE OR REPLACE) + errors from ALL_ERRORS.
 function SourceTab({ tab }) {
   const { connId, owner, name, type } = tab;
-  const schema = useStore((s) => s.autocomplete[connId]);
   const toast = useStore((s) => s.toast);
   const [text, setText] = useState(null);
   const [loadErr, setLoadErr] = useState(null);
@@ -353,7 +352,7 @@ function SourceTab({ tab }) {
       </div>
       <Editor
         initialDoc={text}
-        schema={schema}
+        connId={connId}
         onChange={(t) => {
           draft.current = t;
           setDirty(true);

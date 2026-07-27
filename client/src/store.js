@@ -5,12 +5,17 @@ import { api } from './api.js';
 let wsCounter = 1;
 let toastId = 1;
 
+// Caricamenti di metadati in corso, per non ripetere la stessa richiesta.
+const pendingMeta = new Map();
+
 export const useStore = create(
   persist(
     (set, get) => ({
       conns: [],
       active: {}, // connId -> { status, user, currentSchema, version, txnOpen }
-      autocomplete: {}, // connId -> { TABLE: [cols] }
+      // connId -> { owner, schemas: [nomi], byOwner: { SCHEMA: metadati } }
+      // Metadati per l'autocomplete dell'editor (vedi completion.js).
+      sqlMeta: {},
       tabs: [],
       activeTabId: null,
       drafts: {}, // tabId -> sql text
@@ -61,22 +66,73 @@ export const useStore = create(
         set((s) => {
           const active = { ...s.active };
           delete active[id];
+          const sqlMeta = { ...s.sqlMeta };
+          delete sqlMeta[id];
           return {
             active,
+            sqlMeta,
             conns: s.conns.map((c) => (c.id === id ? { ...c, connected: false } : c)),
           };
         });
       },
 
+      // Metadati dello schema di lavoro: ricaricati alla connessione e dopo
+      // ogni DDL, così l'autocomplete resta allineato.
       async loadAutocomplete(id) {
+        const owner = get().active[id]?.currentSchema;
+        if (!owner) return;
+        pendingMeta.delete(`${id}:${owner}`);
         try {
-          const owner = get().active[id]?.currentSchema;
-          if (!owner) return;
           const data = await api.autocomplete(id, owner);
-          set((s) => ({ autocomplete: { ...s.autocomplete, [id]: data.tables } }));
+          set((s) => {
+            const cur = s.sqlMeta[id] || {};
+            return {
+              sqlMeta: {
+                ...s.sqlMeta,
+                [id]: { ...cur, owner, byOwner: { ...cur.byOwner, [owner]: data } },
+              },
+            };
+          });
         } catch {
           /* non-fatal */
         }
+        if (!get().sqlMeta[id]?.schemas) {
+          try {
+            const { schemas } = await api.schemas(id);
+            set((s) => ({
+              sqlMeta: { ...s.sqlMeta, [id]: { ...(s.sqlMeta[id] || {}), schemas } },
+            }));
+          } catch {
+            /* non-fatal */
+          }
+        }
+      },
+
+      // Metadati di un altro schema, caricati la prima volta che servono
+      // (quando si scrive "ALTRO_SCHEMA." nell'editor).
+      loadSchemaMeta(id, owner) {
+        const cached = get().sqlMeta[id]?.byOwner?.[owner];
+        if (cached) return Promise.resolve(cached);
+        const key = `${id}:${owner}`;
+        if (pendingMeta.has(key)) return pendingMeta.get(key);
+        const p = api
+          .autocomplete(id, owner)
+          .then((data) => {
+            set((s) => {
+              const cur = s.sqlMeta[id] || {};
+              return {
+                sqlMeta: {
+                  ...s.sqlMeta,
+                  [id]: { ...cur, byOwner: { ...cur.byOwner, [owner]: data } },
+                },
+              };
+            });
+            return data;
+          })
+          .catch(() => null)
+          .finally(() => pendingMeta.delete(key));
+        pendingMeta.set(key, p);
+        return p;
       },
 
       // Incremented after DDL so open tree folders reload their contents.
@@ -97,8 +153,11 @@ export const useStore = create(
         set((s) => {
           const active = { ...s.active };
           delete active[connId];
+          const sqlMeta = { ...s.sqlMeta };
+          delete sqlMeta[connId];
           return {
             active,
+            sqlMeta,
             conns: s.conns.map((c) => (c.id === connId ? { ...c, connected: false } : c)),
           };
         });

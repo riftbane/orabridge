@@ -2,12 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, Compartment, Prec } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { autocompletion, acceptCompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, LanguageSupport } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { PLSQL, keywordCompletionSource } from '@codemirror/lang-sql';
+import { PLSQL } from '@codemirror/lang-sql';
 import { tags as t } from '@lezer/highlight';
-import { schemaCompletionSource } from '../completion.js';
+import { sqlCompletionSource } from '../completion.js';
 
 const theme = EditorView.theme(
   {
@@ -39,6 +39,23 @@ const theme = EditorView.theme(
       backgroundColor: 'var(--accent)',
       color: '#fff',
     },
+    '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail': { color: '#e8ecf3' },
+    '.cm-completionDetail': { color: '#8b93a1', fontStyle: 'normal', marginLeft: '1em' },
+    '.cm-completionInfo': {
+      backgroundColor: 'var(--bg-panel)',
+      border: '1px solid var(--border)',
+      color: '#c8cfdb',
+      maxWidth: '32em',
+    },
+    '.cm-tooltip-autocomplete > ul > completion-section': {
+      backgroundColor: '#ffffff0d',
+      color: '#8b93a1',
+      fontSize: '10px',
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      padding: '2px 6px',
+      borderBottom: '1px solid var(--border)',
+    },
   },
   { dark: true }
 );
@@ -57,17 +74,18 @@ const highlight = syntaxHighlighting(
   ])
 );
 
-function sqlExt(schema) {
+// Un'unica sorgente di completamento (parole chiave incluse): così può
+// ordinare fra loro colonne, tabelle e keyword in base al contesto.
+function sqlExt(connId) {
   return new LanguageSupport(PLSQL.language, [
-    PLSQL.language.data.of({ autocomplete: keywordCompletionSource(PLSQL, true) }),
-    PLSQL.language.data.of({ autocomplete: schemaCompletionSource(schema) }),
+    PLSQL.language.data.of({ autocomplete: sqlCompletionSource(connId) }),
   ]);
 }
 
 export default function Editor({
   initialDoc = '',
   value,
-  schema,
+  connId,
   readOnly = false,
   onChange,
   onRun,
@@ -107,7 +125,7 @@ export default function Editor({
         indentOnInput(),
         bracketMatching(),
         closeBrackets(),
-        autocompletion(),
+        autocompletion({ icons: true, maxRenderedOptions: 60 }),
         highlightActiveLine(),
         highlightSelectionMatches(),
         keymap.of([
@@ -116,9 +134,11 @@ export default function Editor({
           ...searchKeymap,
           ...historyKeymap,
           ...completionKeymap,
+          // Tab accetta il suggerimento; se il popup è chiuso indenta.
+          { key: 'Tab', run: acceptCompletion },
           indentWithTab,
         ]),
-        schemaComp.current.of(sqlExt(schema)),
+        schemaComp.current.of(sqlExt(connId)),
         highlight,
         theme,
         EditorState.readOnly.of(readOnly),
@@ -135,14 +155,16 @@ export default function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // live schema updates for autocomplete
+  // I metadati vengono letti dallo store a ogni completamento: qui basta
+  // riconfigurare se cambia la connessione dell'editor.
   useEffect(() => {
-    if (viewRef.current && schema) {
+    if (viewRef.current) {
       viewRef.current.dispatch({
-        effects: schemaComp.current.reconfigure(sqlExt(schema)),
+        effects: schemaComp.current.reconfigure(sqlExt(connId)),
       });
     }
-  }, [schema]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connId]);
 
   // controlled content (read-only viewers with async loading)
   useEffect(() => {

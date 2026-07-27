@@ -60,23 +60,146 @@ router.get(
   })
 );
 
-// Table/view names + columns of a schema, feeds the editor autocomplete.
+// Metadati di uno schema per l'autocomplete dell'editor. Formato compatto
+// (il payload viaggia intero al client):
+//   tables    { NOME: { k: 'T'|'V'|'M', c: [[colonna, tipo, notNull, pk], …] } }
+//   fks       [ [tabella, [colonne], schemaRif, tabellaRif, [colonneRif]], … ]
+//   routines  [ [nome, 'P'|'F'|'K'], … ]   (Procedure, Function, pacKage)
+//   members   { PACKAGE: [membri…] }
+//   sequences [ nome, … ]
+//   synonyms  { NOME: [schema, oggetto] }
+// Tutto tranne le colonne è best-effort: se una vista del dizionario non è
+// leggibile dall'utenza si restituisce una lista vuota invece di fallire.
 router.get(
   '/autocomplete',
   a(async (req, res) => {
     const { owner } = req.query;
-    const entry = req.oraEntry;
-    const r = await withPooled(entry, (c) =>
-      c.execute(
-        `SELECT table_name, column_name FROM all_tab_columns
-          WHERE owner = :owner ORDER BY table_name, column_id`,
-        { owner },
-        { outFormat: oracledb.OUT_FORMAT_ARRAY, maxRows: 30000 }
-      )
-    );
-    const tables = {};
-    for (const [t, col] of r.rows) (tables[t] ??= []).push(col);
-    res.json({ tables });
+    if (!owner) return res.status(400).json({ error: 'Schema mancante' });
+    const data = await withPooled(req.oraEntry, async (c) => {
+      const run = async (sql, maxRows) => {
+        const r = await c.execute(
+          sql,
+          { owner },
+          { outFormat: oracledb.OUT_FORMAT_ARRAY, maxRows }
+        );
+        return r.rows;
+      };
+      const optional = (sql, maxRows) => run(sql, maxRows).catch(() => []);
+
+      const colRows = await run(
+        `SELECT c.table_name, c.column_name,
+                c.data_type ||
+                  CASE
+                    WHEN c.data_type IN ('VARCHAR2','CHAR','NVARCHAR2','NCHAR','RAW')
+                      THEN '(' || c.char_length || ')'
+                    WHEN c.data_type = 'NUMBER' AND c.data_precision IS NOT NULL
+                      THEN '(' || c.data_precision ||
+                           CASE WHEN c.data_scale > 0 THEN ',' || c.data_scale END || ')'
+                  END,
+                c.nullable
+           FROM all_tab_columns c
+          WHERE c.owner = :owner AND c.table_name NOT LIKE 'BIN$%'
+          ORDER BY c.table_name, c.column_id`,
+        50000
+      );
+
+      const objRows = await optional(
+        `SELECT object_name, object_type FROM all_objects
+          WHERE owner = :owner AND object_name NOT LIKE 'BIN$%'
+            AND object_type IN ('VIEW','MATERIALIZED VIEW','PACKAGE',
+                                'FUNCTION','PROCEDURE','SEQUENCE')`,
+        20000
+      );
+
+      const pkRows = await optional(
+        `SELECT cc.table_name, cc.column_name
+           FROM all_constraints k
+           JOIN all_cons_columns cc
+             ON cc.owner = k.owner AND cc.constraint_name = k.constraint_name
+          WHERE k.owner = :owner AND k.constraint_type = 'P'`,
+        20000
+      );
+
+      const fkRows = await optional(
+        `SELECT c.constraint_name, c.table_name, cc.column_name,
+                r.owner, r.table_name, rc.column_name
+           FROM all_constraints c
+           JOIN all_cons_columns cc
+             ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+           JOIN all_constraints r
+             ON r.owner = c.r_owner AND r.constraint_name = c.r_constraint_name
+           JOIN all_cons_columns rc
+             ON rc.owner = r.owner AND rc.constraint_name = r.constraint_name
+            AND rc.position = cc.position
+          WHERE c.owner = :owner AND c.constraint_type = 'R'
+          ORDER BY c.constraint_name, cc.position`,
+        20000
+      );
+
+      const memberRows = await optional(
+        `SELECT object_name, procedure_name FROM all_procedures
+          WHERE owner = :owner AND procedure_name IS NOT NULL
+            AND object_name NOT LIKE 'BIN$%'`,
+        20000
+      );
+
+      const synRows = await optional(
+        `SELECT synonym_name, table_owner, table_name FROM all_synonyms
+          WHERE owner = :owner AND table_owner IS NOT NULL`,
+        10000
+      );
+
+      const tables = {};
+      for (const [t, col, type, nullable] of colRows) {
+        (tables[t] ??= { k: 'T', c: [] }).c.push([col, type, nullable === 'N' ? 1 : 0, 0]);
+      }
+
+      const KIND = { VIEW: 'V', 'MATERIALIZED VIEW': 'M' };
+      const routines = [];
+      const sequences = [];
+      const packages = new Set();
+      for (const [name, type] of objRows) {
+        if (KIND[type]) {
+          if (tables[name]) tables[name].k = KIND[type];
+        } else if (type === 'SEQUENCE') {
+          sequences.push(name);
+        } else {
+          routines.push([name, type === 'PACKAGE' ? 'K' : type === 'FUNCTION' ? 'F' : 'P']);
+          if (type === 'PACKAGE') packages.add(name);
+        }
+      }
+
+      for (const [t, col] of pkRows) {
+        const entry = tables[t]?.c.find((x) => x[0] === col);
+        if (entry) entry[3] = 1;
+      }
+
+      const fks = [];
+      let last = null;
+      for (const [cons, table, col, rOwner, rTable, rCol] of fkRows) {
+        if (last?.cons === cons) {
+          last.fk[1].push(col);
+          last.fk[4].push(rCol);
+        } else {
+          const fk = [table, [col], rOwner, rTable, [rCol]];
+          fks.push(fk);
+          last = { cons, fk };
+        }
+      }
+
+      const members = {};
+      for (const [pkg, member] of memberRows) {
+        if (packages.has(pkg)) (members[pkg] ??= []).push(member);
+      }
+
+      const synonyms = {};
+      for (const [name, synOwner, synName] of synRows) synonyms[name] = [synOwner, synName];
+
+      sequences.sort();
+      routines.sort((x, y) => (x[0] < y[0] ? -1 : 1));
+      return { owner, tables, fks, routines, members, sequences, synonyms };
+    });
+    res.json(data);
   })
 );
 

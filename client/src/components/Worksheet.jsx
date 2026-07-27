@@ -15,7 +15,6 @@ export default function Worksheet({ tab }) {
   const connId = tab.connId;
   const conn = useStore((s) => s.conns.find((c) => c.id === connId));
   const active = useStore((s) => s.active[connId]);
-  const schema = useStore((s) => s.autocomplete[connId]);
   const maxRows = useStore((s) => s.maxRows);
   const { setDraft, setMaxRows, setTxnOpen, toast, connect, openHistory } = useStore.getState();
   const draft = useRef(useStore.getState().drafts[tab.id] ?? '');
@@ -247,7 +246,7 @@ export default function Worksheet({ tab }) {
       <div className="ws-editor">
         <Editor
           initialDoc={draft.current}
-          schema={schema}
+          connId={connId}
           onChange={(text) => setDraft(tab.id, text)}
           onRun={run}
           onRunScript={runScript}

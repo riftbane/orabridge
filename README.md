@@ -4,9 +4,17 @@ SQL veloce per Oracle, senza zavorra. Una piattaforma web leggera e dockerizzata
 con database Oracle: pensata per developer che non vogliono la pesantezza di SQL Developer.
 
 - **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM)
-- **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto: colonne delle
-  tabelle citate nell'istruzione (alias inclusi: `c.` suggerisce le colonne di `clienti c`),
-  tabelle/viste dello schema, parole chiave
+- **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto — i suggerimenti
+  sono raggruppati in sezioni e ordinati in base alla clausola in cui si trova il cursore:
+  - colonne delle tabelle citate nell'istruzione con il loro tipo, alias inclusi
+    (`c.` suggerisce le colonne di `clienti c`), più CTE (`WITH`) e subquery
+  - tabelle, viste, sinonimi, sequenze (`.NEXTVAL`), package e procedure dello schema;
+    gli **altri schemi** vengono caricati al volo scrivendo `ALTRO_SCHEMA.`
+  - **condizioni di join dalle foreign key**: dopo `JOIN` propone la tabella collegata
+    già completa di alias e `ON`, dentro `ON` la sola condizione
+  - espansione di `*` e `alias.*` nell'elenco delle colonne
+  - funzioni built-in di Oracle (con firma) e parole chiave del dialetto PL/SQL
+  - i nomi seguono lo stile di chi scrive: se digiti in minuscolo li inserisce in minuscolo
 - **Browser oggetti** stile SQL Developer: tabelle, viste, viste materializzate, indici,
   sequenze, procedure, funzioni, package, trigger, tipi, sinonimi + altri schemi
 - **Creazione guidata** (pulsante «＋» sulle cartelle dell'albero): designer tabella con
