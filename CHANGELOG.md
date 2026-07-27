@@ -22,6 +22,8 @@ bottone a spina per chiuderla.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.6.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.6.0/Orabridge%20Setup%201.6.0.exe) (2026-07-27).
+
 ## v1.5.2 — 2026-07-27
 
 - **Fix:** includi preload.cjs nel pacchetto Electron electron/package.json limitava "files" a main.cjs e build/icon.ico:
