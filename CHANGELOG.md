@@ -2,6 +2,29 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.5.1 — 2026-07-27
+
+- **Fix:** elimina la doppia GitHub Release creata da electron-builder electron-builder risolve la configurazione di publish da più punti interni
+(pubblicazione artefatti principale vs generazione di latest.yml per
+electron-updater) e, se nessuna release esiste ancora per il tag, ciascuno di
+questi può decidere in parallelo di crearne una: risultato, due release
+duplicate per lo stesso tag con gli asset (exe, blockmap, latest.yml) sparsi
+in modo incoerente tra le due. prepare-release.mjs ora precrea la release
+(vuota) subito dopo aver pushato il tag, cosi' electron-builder la trova
+sempre gia' esistente e vi carica solo gli asset sopra, senza race.
+
+feat(desktop): pannello "Informazioni" con verifica manuale aggiornamenti
+
+Aggiunge un bottone nella sidebar che apre le info sull'app (versione) e
+permette di forzare un controllo aggiornamenti; usa lo stesso electron-updater
+gia' collegato in background, tramite un preload.cjs con contextBridge
+(main.cjs trasmette lo stato — checking/available/downloading/downloaded/
+errore — al renderer via IPC). Al termine del download parte comunque la
+finestra di conferma nativa per riavviare e installare, per non chiudere
+l'app a sorpresa con fogli SQL o transazioni aperte.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
 ## v1.5.0 — 2026-07-27
 
 - Migliorata: tutte le icone dell'interfaccia (modifica, elimina, cronologia,
