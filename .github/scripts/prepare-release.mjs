@@ -15,6 +15,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const changelogPath = path.join(repoRoot, 'CHANGELOG.md');
 const pkgPaths = ['client', 'server', 'electron'].map((d) => path.join(repoRoot, d, 'package.json'));
 
+const REPO = 'riftbane/orabridge';
 const REBUILD_ONLY = process.env.REBUILD_ONLY === 'true';
 
 function run(cmd) {
@@ -50,6 +51,27 @@ function tagExists(tag) {
     return Boolean(remote);
   } catch {
     return false;
+  }
+}
+
+// electron-builder crea la GitHub Release "al volo" durante la pubblicazione
+// e, per un tag nuovo, lo fa da più punti interni con config leggermente
+// diverse tra loro: se nessuna release esiste ancora, due chiamate quasi
+// simultanee possono ciascuna decidere "non esiste, la creo" e finire per
+// creare DUE release duplicate per lo stesso tag, con gli asset (exe,
+// blockmap, latest.yml) sparsi in modo incoerente tra le due. Precreando qui
+// la release (vuota, senza asset) subito dopo il push del tag, ogni chiamata
+// di electron-builder la trova già esistente e vi carica solo gli asset
+// sopra, senza race.
+function ensureGithubRelease(tag) {
+  try {
+    execSync(`gh release view ${tag} --repo ${REPO}`, { cwd: repoRoot, stdio: 'ignore' });
+    console.log(`Release ${tag} già presente su GitHub, riuso.`);
+  } catch {
+    run(
+      `gh release create ${tag} --repo ${REPO} --title ${tag} --verify-tag ` +
+        `--notes "Release in preparazione: l'installer viene caricato a build completata."`
+    );
   }
 }
 
@@ -89,6 +111,7 @@ if (REBUILD_ONLY) {
   } else {
     console.log(`Tag ${tag} già presente, riuso.`);
   }
+  ensureGithubRelease(tag);
   setOutputs({ 'should-release': 'true', version, tag });
   process.exit(0);
 }
@@ -124,6 +147,7 @@ if (!lastTag) {
     run(`git tag ${tag}`);
     run(`git push origin ${tag}`);
   }
+  ensureGithubRelease(tag);
   setOutputs({ 'should-release': 'true', version, tag });
   process.exit(0);
 }
@@ -204,5 +228,6 @@ run(`git commit -m "chore(release): v${version} [skip ci]"`);
 run(`git tag ${tag}`);
 run('git push origin HEAD:main');
 run(`git push origin ${tag}`);
+ensureGithubRelease(tag);
 
 setOutputs({ 'should-release': 'true', version, tag });

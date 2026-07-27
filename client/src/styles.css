@@ -1113,6 +1113,34 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
+.about-modal {
+  min-width: 320px;
+  max-width: 360px;
+}
+.about-logo {
+  font-size: 24px;
+  font-weight: 700;
+}
+.about-version {
+  color: var(--fg-dim);
+  font-size: 12.5px;
+  margin: -4px 0 4px;
+}
+.about-modal .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .value-modal {
   min-width: 480px;
 }

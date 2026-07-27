@@ -12,7 +12,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   SVG monocromatiche di [lucide-react](https://lucide.dev), coerenti in ogni
   ambiente e che ereditano il colore (incluso lo stato hover/danger dei
   pulsanti). Nessun cambiamento funzionale.
-- Build: electron/release/Orabridge Setup 1.5.0.exe (2026-07-27).
+- Build: nessun installer pubblicato per questa versione (release manuale
+  pre-automazione); la prima build scaricabile da GitHub Releases è la v1.6.0.
 
 ## v1.4.0 — 2026-07-24
 

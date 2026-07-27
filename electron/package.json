@@ -4,7 +4,6 @@
   "private": true,
   "description": "Orabridge come app desktop (Electron): avvia il backend Express/Oracle in-process, nessun Docker richiesto.",
   "main": "main.cjs",
-  "repository": "https://github.com/riftbane/orabridge",
   "scripts": {
     "gen-icon": "node scripts/gen-icon.mjs",
     "prepare-resources": "node scripts/prepare-resources.mjs",

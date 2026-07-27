@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -58,6 +58,7 @@ async function createWindow(port) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
   mainWindow.on('closed', () => {
@@ -85,16 +86,36 @@ function fatalStartupError(err) {
   app.exit(1);
 }
 
+function broadcastUpdateStatus(status, extra) {
+  if (mainWindow) mainWindow.webContents.send('orabridge:update-status', { status, ...extra });
+}
+
 function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('checking-for-update', () => log('aggiornamenti: controllo in corso'));
-  autoUpdater.on('update-available', (info) => log('aggiornamenti: disponibile la versione', info.version));
-  autoUpdater.on('update-not-available', () => log('aggiornamenti: nessun aggiornamento disponibile'));
-  autoUpdater.on('error', (err) => log('aggiornamenti: errore,', err && err.stack ? err.stack : err));
+  autoUpdater.on('checking-for-update', () => {
+    log('aggiornamenti: controllo in corso');
+    broadcastUpdateStatus('checking');
+  });
+  autoUpdater.on('update-available', (info) => {
+    log('aggiornamenti: disponibile la versione', info.version);
+    broadcastUpdateStatus('available', { version: info.version });
+  });
+  autoUpdater.on('update-not-available', () => {
+    log('aggiornamenti: nessun aggiornamento disponibile');
+    broadcastUpdateStatus('not-available');
+  });
+  autoUpdater.on('error', (err) => {
+    log('aggiornamenti: errore,', err && err.stack ? err.stack : err);
+    broadcastUpdateStatus('error', { message: err && err.message ? err.message : String(err) });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    broadcastUpdateStatus('downloading', { percent: Math.round(progress.percent) });
+  });
   autoUpdater.on('update-downloaded', async (info) => {
     log('aggiornamenti: scaricata la versione', info.version);
+    broadcastUpdateStatus('downloaded', { version: info.version });
     if (!mainWindow) return;
     const { response } = await dialog.showMessageBox(mainWindow, {
       type: 'info',
@@ -115,6 +136,26 @@ function setupAutoUpdater() {
   check();
   setInterval(check, UPDATE_CHECK_INTERVAL_MS);
 }
+
+ipcMain.handle('orabridge:app-info', () => ({
+  version: app.getVersion(),
+  isPackaged: app.isPackaged,
+}));
+
+ipcMain.handle('orabridge:check-for-updates', async () => {
+  if (!app.isPackaged) {
+    broadcastUpdateStatus('unsupported');
+    return { ok: false, reason: 'not-packaged' };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    log('aggiornamenti: controllo manuale fallito,', err && err.stack ? err.stack : err);
+    broadcastUpdateStatus('error', { message: err && err.message ? err.message : String(err) });
+    return { ok: false, reason: 'error' };
+  }
+});
 
 app.whenReady().then(async () => {
   try {

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { History, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { History, Info, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
 import ObjectTree from './ObjectTree.jsx';
 import ConnectionModal from './ConnectionModal.jsx';
+import AboutModal from './AboutModal.jsx';
 
 function ConnectionRow({ conn }) {
   const active = useStore((s) => s.active[conn.id]);
@@ -75,6 +76,7 @@ function ConnectionRow({ conn }) {
 export default function Sidebar() {
   const conns = useStore((s) => s.conns);
   const [creating, setCreating] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const openHistory = useStore((s) => s.openHistory);
 
   return (
@@ -83,6 +85,9 @@ export default function Sidebar() {
         <span className="logo">
           <span className="logo-ora">Ora</span>bridge
         </span>
+        <button className="icon-btn" title="Informazioni su Orabridge" onClick={() => setAboutOpen(true)}>
+          <Info size={14} />
+        </button>
         <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
           <History size={14} />
         </button>
@@ -104,6 +109,7 @@ export default function Sidebar() {
         ))}
       </div>
       {creating && <ConnectionModal onClose={() => setCreating(false)} />}
+      {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
     </aside>
   );
 }
