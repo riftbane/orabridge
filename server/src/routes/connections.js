@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { store } from '../store.js';
 import { pools, friendlyError } from '../pools.js';
+import { parseExport, decryptWithKey } from '../importers/sqlDeveloper.js';
 
 const router = Router();
 const a = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -38,6 +39,71 @@ router.post(
     } catch (err) {
       res.json({ ok: false, error: friendlyError(err) });
     }
+  })
+);
+
+// Analizza un export di connessioni (per ora solo JSON di SQL Developer) e
+// restituisce un'anteprima senza decifrare le password.
+router.post(
+  '/import/preview',
+  a(async (req, res) => {
+    const { content } = req.body;
+    if (typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Nessun file fornito' });
+    }
+    let list;
+    try {
+      list = parseExport(content);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.json({ connections: list.map(({ _rawPassword, ...c }) => c) });
+  })
+);
+
+router.post(
+  '/import',
+  a(async (req, res) => {
+    const { content, key, group, selected } = req.body;
+    if (typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Nessun file fornito' });
+    }
+    let list;
+    try {
+      list = parseExport(content);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const indexes = Array.isArray(selected) ? selected : list.map((_, i) => i);
+    const chosen = indexes.map((i) => list[i]).filter(Boolean);
+    if (!chosen.length) {
+      return res.status(400).json({ error: 'Nessuna connessione selezionata' });
+    }
+    const needsKey = chosen.some((c) => c.hasPassword);
+    if (needsKey && !key) {
+      return res.status(400).json({ error: 'Chiave di cifratura richiesta' });
+    }
+    const resolved = needsKey ? decryptWithKey(chosen, key) : chosen.map((c) => ({ ...c, password: '' }));
+    const keyError = resolved.find((c) => c.error);
+    if (keyError) {
+      return res.status(400).json({ error: keyError.error });
+    }
+    const created = resolved.map((c) =>
+      store.create({
+        name: c.name,
+        host: c.host,
+        port: c.port,
+        serviceType: c.serviceType,
+        service: c.service,
+        user: c.user,
+        password: c.password,
+        group: group || '',
+      })
+    );
+    res.json({
+      created,
+      warnings: resolved.filter((c) => c.warning).map((c) => ({ name: c.name, warning: c.warning })),
+    });
   })
 );
 

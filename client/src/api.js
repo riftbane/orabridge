@@ -37,6 +37,8 @@ export const api = {
   updateConnection: (id, body) => j('PUT', `/api/connections/${id}`, body),
   deleteConnection: (id) => j('DELETE', `/api/connections/${id}`),
   testConnection: (body) => j('POST', '/api/connections/test', body),
+  previewImportConnections: (content) => j('POST', '/api/connections/import/preview', { content }),
+  importConnections: (body) => j('POST', '/api/connections/import', body),
   connect: (id) => j('POST', `/api/connections/${id}/connect`),
   disconnect: (id) => j('POST', `/api/connections/${id}/disconnect`),
 

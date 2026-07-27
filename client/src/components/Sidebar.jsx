@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, History, Info, Pencil, Plus, Trash2, Unplug } from 'lucide-react';
+import { ChevronRight, History, Info, Pencil, Plus, Trash2, Unplug, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
 import ObjectTree from './ObjectTree.jsx';
 import ConnectionModal from './ConnectionModal.jsx';
+import ImportConnectionsModal from './ImportConnectionsModal.jsx';
 import AboutModal from './AboutModal.jsx';
 
 function statusInfo(active) {
@@ -113,6 +114,7 @@ export default function Sidebar() {
   const conns = useStore((s) => s.conns);
   const active = useStore((s) => s.active);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [collapsed, setCollapsed] = useState({});
   const openHistory = useStore((s) => s.openHistory);
@@ -148,6 +150,9 @@ export default function Sidebar() {
         <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
           <History size={14} />
         </button>
+        <button className="icon-btn" title="Importa connessioni" onClick={() => setImporting(true)}>
+          <Upload size={14} />
+        </button>
         <button className="icon-btn add-conn" title="Nuova connessione" onClick={() => setCreating(true)}>
           <Plus size={16} />
         </button>
@@ -158,6 +163,9 @@ export default function Sidebar() {
             Nessuna connessione.
             <button className="btn primary" onClick={() => setCreating(true)}>
               Crea la prima
+            </button>
+            <button className="btn" onClick={() => setImporting(true)}>
+              Importa da file
             </button>
           </div>
         )}
@@ -181,6 +189,7 @@ export default function Sidebar() {
         ))}
       </div>
       {creating && <ConnectionModal onClose={() => setCreating(false)} />}
+      {importing && <ImportConnectionsModal onClose={() => setImporting(false)} />}
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
     </aside>
   );
