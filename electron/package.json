@@ -4,11 +4,13 @@
   "private": true,
   "description": "Orabridge come app desktop (Electron): avvia il backend Express/Oracle in-process, nessun Docker richiesto.",
   "main": "main.cjs",
+  "repository": "https://github.com/riftbane/orabridge",
   "scripts": {
     "gen-icon": "node scripts/gen-icon.mjs",
     "prepare-resources": "node scripts/prepare-resources.mjs",
     "start": "node scripts/prepare-resources.mjs --skip-instantclient && electron .",
-    "dist:win": "node scripts/prepare-resources.mjs && electron-builder --win nsis --x64"
+    "dist:win": "node scripts/prepare-resources.mjs && electron-builder --win nsis --x64",
+    "dist:win:publish": "node scripts/prepare-resources.mjs && electron-builder --win nsis --x64 --publish always"
   },
   "devDependencies": {
     "electron": "^43.2.0",
@@ -28,10 +30,18 @@
       "build/icon.ico"
     ],
     "extraResources": [
-      { "from": "resources", "to": ".", "filter": ["**/*"] }
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/icon.ico"
     },
     "nsis": {
@@ -39,6 +49,15 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "riftbane",
+      "repo": "orabridge",
+      "releaseType": "release"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

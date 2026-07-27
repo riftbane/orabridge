@@ -1,0 +1,95 @@
+name: Release
+
+# Pipeline di release automatica:
+# 1) job "version" (ubuntu) analizza i commit dall'ultimo tag, decide se e come
+#    bumpare la versione (semver da conventional commits), aggiorna in lockstep
+#    client/server/electron/package.json e CHANGELOG.md, poi committa e taggga.
+# 2) job "build" (windows, serve NSIS + binari nativi corretti) installa le
+#    dipendenze, builda l'installer con electron-builder e lo pubblica come
+#    GitHub Release (electron-builder carica anche latest.yml, usato da
+#    electron-updater dentro l'app per l'aggiornamento automatico). Infine
+#    registra la riga "Build:" nel changelog con il link all'asset pubblicato.
+#
+# Un push che non contiene commit "feat:"/"fix:"/"perf:" (o con BREAKING
+# CHANGE/!) dall'ultimo tag non genera nessuna release: il job "build" viene
+# saltato. Vedi CLAUDE.md per la convenzione dei messaggi di commit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rebuild_only:
+        description: >-
+          Salta il bump di versione: ricompila e ripubblica solo la versione
+          già presente in electron/package.json. Utile per recuperare una
+          build fallita senza creare una nuova versione.
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.prep.outputs.should-release }}
+      version: ${{ steps.prep.outputs.version }}
+      tag: ${{ steps.prep.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - id: prep
+        name: Determina versione e aggiorna changelog
+        env:
+          REBUILD_ONLY: ${{ github.event.inputs.rebuild_only }}
+        run: node .github/scripts/prepare-release.mjs
+
+  build:
+    needs: version
+    if: needs.version.outputs.should-release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Installa dipendenze client
+        run: npm install
+        working-directory: client
+
+      - name: Installa dipendenze server
+        run: npm install
+        working-directory: server
+
+      - name: Installa dipendenze electron
+        run: npm install
+        working-directory: electron
+
+      - name: Build e pubblicazione installer Windows
+        run: npm run dist:win:publish
+        working-directory: electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Registra la build nel changelog e nelle note della release
+        run: node .github/scripts/finalize-release.mjs "${{ needs.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

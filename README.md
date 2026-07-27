@@ -68,6 +68,20 @@ desktop Windows (Electron): un installer `.exe` che al doppio clic avvia
 anche il backend al proprio interno, senza Docker né comandi da lanciare a
 parte.
 
+### Scaricare o aggiornare
+
+L'installer di ogni versione rilasciata è pubblicato automaticamente su
+**[GitHub Releases](https://github.com/riftbane/orabridge/releases/latest)**:
+scarica `Orabridge Setup <versione>.exe` da lì per una prima installazione.
+
+Una volta installata, l'app **si aggiorna da sola**: ad ogni avvio (e ogni
+poche ore mentre resta aperta) controlla in background se c'è una versione
+più recente su GitHub Releases, la scarica, e quando è pronta chiede se
+riavviare subito per installarla o farlo più tardi. Non serve rieseguire
+l'installer manualmente per restare aggiornati.
+
+### Buildare l'installer localmente (sviluppo/test)
+
 ```bash
 cd electron
 npm install
@@ -77,7 +91,8 @@ npm run dist:win
 Il primo `dist:win` scarica anche l'Oracle Instant Client per Windows
 (~40 MB, messo in cache in `electron/.cache`) e lo include nell'installer per
 la modalità thick (stessi verifier 10G supportati dal deployment Docker).
-L'installer viene generato in `electron/release/`.
+L'installer viene generato in `electron/release/` — è solo locale, non viene
+pubblicato da nessuna parte (per quello serve la pipeline CI, vedi sotto).
 
 Per iterare rapidamente durante lo sviluppo (solo modalità thin, senza
 scaricare l'Instant Client):
@@ -99,6 +114,15 @@ Note:
   `electron-builder --win` può fallire — in tal caso lanciare `npm run dist:win`
   da un vero ambiente Windows (anche puntando alla stessa cartella via
   `\\wsl.localhost\...`).
+
+### Pipeline di rilascio (CI)
+
+Ogni push su `main` con almeno un commit `feat:`/`fix:`/`perf:` (o con una
+modifica "breaking", vedi `CLAUDE.md`) fa scattare
+`.github/workflows/release.yml`: la versione viene bumpata automaticamente
+nei tre `package.json`, il CHANGELOG aggiornato, e l'installer buildato e
+pubblicato su GitHub Releases da un runner Windows nativo (non serve Wine in
+CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 
 ## Scorciatoie
 

@@ -1,7 +1,10 @@
 const { app, BrowserWindow, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 app.setName('Orabridge');
 
@@ -82,6 +85,37 @@ function fatalStartupError(err) {
   app.exit(1);
 }
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => log('aggiornamenti: controllo in corso'));
+  autoUpdater.on('update-available', (info) => log('aggiornamenti: disponibile la versione', info.version));
+  autoUpdater.on('update-not-available', () => log('aggiornamenti: nessun aggiornamento disponibile'));
+  autoUpdater.on('error', (err) => log('aggiornamenti: errore,', err && err.stack ? err.stack : err));
+  autoUpdater.on('update-downloaded', async (info) => {
+    log('aggiornamenti: scaricata la versione', info.version);
+    if (!mainWindow) return;
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Aggiornamento disponibile',
+      message: `È stata scaricata la versione ${info.version} di Orabridge.`,
+      detail:
+        "Riavvia ora per installarla, oppure verrà installata automaticamente alla prossima chiusura dell'app.",
+      buttons: ['Riavvia e installa', 'Più tardi'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+
+  const check = () => {
+    autoUpdater.checkForUpdates().catch((err) => log('aggiornamenti: controllo fallito,', err && err.stack ? err.stack : err));
+  };
+  check();
+  setInterval(check, UPDATE_CHECK_INTERVAL_MS);
+}
+
 app.whenReady().then(async () => {
   try {
     fs.mkdirSync(app.getPath('userData'), { recursive: true });
@@ -90,6 +124,8 @@ app.whenReady().then(async () => {
 
     const port = await startBackend();
     await createWindow(port);
+
+    if (app.isPackaged) setupAutoUpdater();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow(port);

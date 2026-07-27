@@ -7,3 +7,4 @@ data/
 electron/resources/
 electron/release/
 electron/.cache/
+.release-notes.md
