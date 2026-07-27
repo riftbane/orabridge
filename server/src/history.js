@@ -43,6 +43,8 @@ export const history = {
       rows: entry.rows,
       rowsAffected: entry.rowsAffected,
       elapsedMs: entry.elapsedMs,
+      // Chi ha lanciato l'istruzione: foglio SQL ('sql') o assistente ('ai').
+      source: entry.source === 'ai' ? 'ai' : 'sql',
       ts: new Date().toISOString(),
     });
     save(list.length > MAX_ENTRIES ? list.slice(list.length - MAX_ENTRIES) : list);

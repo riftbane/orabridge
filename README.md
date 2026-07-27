@@ -38,6 +38,27 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - lo **script di sincronizzazione** (CREATE/ALTER, con i DROP opzionali) si
     genera per gli oggetti spuntati e si apre in un foglio SQL sulla
     destinazione — Orabridge non esegue mai nulla da sé
+- **Assistente AI** (icona ✨ o `Ctrl+Alt+I`): un pannello di chat che lavora
+  davvero sul database, non solo sul testo della domanda
+  - piattaforme supportate: **OpenRouter, Anthropic, Google Gemini, OpenAI** —
+    si sceglie la piattaforma e si incolla la sua API key nelle impostazioni
+  - **elenco dei modelli in tempo reale** letto dalla piattaforma scelta
+    (OpenRouter compreso, con finestra di contesto), con ricerca nella tendina
+  - **più sessioni in parallelo**, ognuna con la sua connessione, il suo modello
+    e i suoi permessi; girano **in background** sul server, quindi continuano
+    anche a pannello chiuso, cambiando scheda o ricaricando la pagina
+  - **permessi di esecuzione** per sessione: *Lettura* (struttura, DDL, SELECT),
+    *Scrittura* (INSERT/UPDATE/CREATE/ALTER) e, a parte, *DELETE e DROP*
+  - quello che manca viene **chiesto in chat** mostrando l'SQL esatto, con
+    «Consenti una volta / Consenti sempre / Rifiuta»
+  - ogni passaggio è ispezionabile: si apre la chiamata e si vede l'SQL eseguito
+    e la risposta arrivata dal database; l'SQL proposto si apre in un foglio con
+    un clic e le istruzioni eseguite finiscono in cronologia, marcate ✨
+  - le API key restano **cifrate sul server** (AES-256-GCM, come le password
+    delle connessioni) e non vengono mai inviate al browser
+- **Pannelli ridimensionabili e richiudibili**: barra laterale, risultati del
+  foglio SQL e pannello AI si trascinano dal bordo (doppio clic per tornare alla
+  misura predefinita) e si nascondono dagli interruttori in alto a destra
 - Dettaglio tabella: colonne, dati (con filtro WHERE e paginazione), vincoli, indici, trigger, DDL
 - Sorgente e DDL di procedure/funzioni/package (via `DBMS_METADATA`)
 - Esecuzione istruzione al cursore (`Ctrl+Invio` / `F9`), script completo (`F5`),
@@ -160,6 +181,10 @@ CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 | `Ctrl+Alt+F` | Formatta tutto il foglio |
 | doppio clic su cella | Visualizza valore completo (CLOB, testi lunghi) |
 | clic su intestazione colonna | Ordina risultati |
+| `Ctrl+B` | Mostra/nascondi la barra laterale |
+| `Ctrl+J` | Mostra/nascondi i risultati del foglio SQL |
+| `Ctrl+Alt+I` | Mostra/nascondi l'assistente AI |
+| `Ctrl+,` | Impostazioni |
 
 Ricerca, sostituzione e formattazione valgono in tutti gli editor: fogli SQL,
 sorgenti PL/SQL (package body, funzioni, trigger) e viste in sola lettura
@@ -173,19 +198,59 @@ Le connessioni si organizzano in gruppi: clic destro su una connessione →
 Gli statement si separano con `;`. I blocchi PL/SQL (`DECLARE`/`BEGIN`/`CREATE PROCEDURE`…)
 terminano con `/` su riga a sé, come in SQL*Plus.
 
+## Assistente AI
+
+Si configura da **Impostazioni** (`Ctrl+,`, o l'ingranaggio in alto a destra —
+lì dentro è finita anche la scheda «Informazioni» con gli aggiornamenti):
+si sceglie la piattaforma, si incolla la sua API key e si seleziona il modello
+predefinito. Ogni piattaforma può avere la sua chiave: si passa dall'una
+all'altra senza reinserirle.
+
+Le chiavi vengono cifrate con AES-256-GCM nella stessa cartella dati delle
+connessioni (`data/settings.json`, chiave in `data/.key`) e **non escono mai dal
+server**: il browser riceve solo l'informazione che una chiave è presente. Anche
+il dialogo con la piattaforma parte dal server, non dal browser — è quello che
+permette alle sessioni di continuare a lavorare in background.
+
+**Come lavora.** L'assistente non tira a indovinare sullo schema: ha degli
+strumenti per elencare schemi e oggetti, leggere la struttura di una tabella
+(colonne, vincoli, foreign key, indici, commenti), leggere sorgenti e DDL,
+eseguire SELECT ed eseguire istruzioni di modifica. Le esecuzioni passano dalla
+**stessa sessione del foglio SQL**, quindi vedono la transazione aperta e non
+fanno commit da sole: il commit resta un gesto esplicito.
+
+**Permessi.** Ogni sessione ha tre interruttori — *Lettura*, *Scrittura* e
+*DELETE/DROP* — che partono dai valori predefiniti delle impostazioni. Prima di
+eseguire, il server classifica l'istruzione e la confronta con i permessi
+concessi; se non bastano, l'esecuzione si ferma e in chat compare l'SQL esatto
+con «Consenti una volta / Consenti sempre / Rifiuta». La classificazione ignora
+commenti e stringhe (un `DROP` dentro un letterale non è un DROP), ma nei
+blocchi PL/SQL guarda **anche** dentro le stringhe, perché è lì che si nasconde
+l'SQL dinamico: nel dubbio chiede conferma. Un rifiuto viene spiegato al
+modello, che non ci riprova e propone l'SQL da lanciare a mano.
+
 ## Architettura
 
 ```
 docker-compose.yml       porta 127.0.0.1:7521 → container :3000
 Dockerfile               build multi-stage (vite build → node:22-alpine)
 server/                  Express + node-oracledb (thin)
+  src/secret.js          cartella dati e cifratura AES-256-GCM condivise
   src/store.js           connessioni salvate in /data (password cifrate)
+  src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
-  src/routes/            /api/connections, /api/conn/:id/…, /api/diff
+  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
+  src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI (solo fetch)
+  src/ai/tools.js        strumenti sul database esposti al modello
+  src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
+  src/ai/sessions.js     ciclo dell'agente, approvazioni, stream SSE verso il client
 client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
 ```
+
+L'assistente non aggiunge dipendenze: i quattro provider parlano HTTP con
+`fetch` nativo e lo streaming arriva al browser via SSE (`EventSource`).
 
 Ogni connessione attiva ha **una sessione dedicata** per i fogli SQL (le transazioni
 restano aperte tra un'esecuzione e l'altra, commit/rollback espliciti) più un piccolo
@@ -198,7 +263,8 @@ una per oggetto), tiene in memoria le ultime fotografie e su quelle calcola sia
 il dettaglio dei singoli oggetti sia lo script — che viene generato dagli
 snapshot, senza `DBMS_METADATA`, quindi funziona anche con privilegi minimi.
 Confronto e generazione dello script sono funzioni pure, coperte da test
-(`npm test` in `server/` e in `client/`).
+(`npm test` in `server/` e in `client/`). Anche la classificazione delle
+istruzioni che regola i permessi dell'assistente è coperta da test.
 
 ## Risoluzione problemi
 

@@ -84,6 +84,21 @@ export const api = {
     j('GET', `/api/diff/${runId}/detail?${q({ type, name })}`),
   diffScript: (runId, body) => j('POST', `/api/diff/${runId}/script`, body),
 
+  // assistente AI
+  aiSettings: () => j('GET', '/api/ai/settings'),
+  saveAiSettings: (body) => j('PUT', '/api/ai/settings', body),
+  aiModels: (provider, refresh) =>
+    j('GET', `/api/ai/models?${q({ provider, refresh: refresh ? '1' : '' })}`),
+  aiSessions: () => j('GET', '/api/ai/sessions'),
+  aiCreateSession: (body) => j('POST', '/api/ai/sessions', body),
+  aiSession: (id) => j('GET', `/api/ai/sessions/${id}`),
+  aiUpdateSession: (id, body) => j('PATCH', `/api/ai/sessions/${id}`, body),
+  aiDeleteSession: (id) => j('DELETE', `/api/ai/sessions/${id}`),
+  aiSend: (id, text) => j('POST', `/api/ai/sessions/${id}/messages`, { text }),
+  aiApprove: (id, body) => j('POST', `/api/ai/sessions/${id}/approve`, body),
+  aiStop: (id) => j('POST', `/api/ai/sessions/${id}/stop`, {}),
+  aiEventsUrl: (id) => `/api/ai/sessions/${id}/events`,
+
   // cronologia query
   history: (params) => j('GET', `/api/history?${q(params)}`),
   deleteHistoryEntry: (entryId) => j('DELETE', `/api/history/${entryId}`),

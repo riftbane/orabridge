@@ -1,11 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, GitCompare, History, Info, Pencil, Plus, Search, Trash2, Unplug, Upload } from 'lucide-react';
+import {
+  ChevronRight,
+  GitCompare,
+  History,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Unplug,
+  Upload,
+} from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
 import ObjectTree from './ObjectTree.jsx';
 import ConnectionModal from './ConnectionModal.jsx';
 import ImportConnectionsModal from './ImportConnectionsModal.jsx';
-import AboutModal from './AboutModal.jsx';
 import ContextMenu from './ContextMenu.jsx';
 
 function statusInfo(active) {
@@ -168,11 +178,12 @@ export default function Sidebar() {
   const conns = useStore((s) => s.conns);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [collapsed, setCollapsed] = useState({});
   const [search, setSearch] = useState('');
   const openHistory = useStore((s) => s.openHistory);
   const openDiff = useStore((s) => s.openDiff);
+  const width = useStore((s) => s.ui.sidebarWidth);
+  const toggleUi = useStore((s) => s.toggleUi);
 
   const searching = !!search.trim();
 
@@ -206,13 +217,17 @@ export default function Sidebar() {
   const toggleGroup = (key) => setCollapsed((s) => ({ ...s, [key]: !s[key] }));
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width, minWidth: width }}>
       <div className="sidebar-head">
         <span className="logo">
           <span className="logo-ora">Ora</span>bridge
         </span>
-        <button className="icon-btn" title="Informazioni su Orabridge" onClick={() => setAboutOpen(true)}>
-          <Info size={14} />
+        <button
+          className="icon-btn"
+          title="Assistente AI (Ctrl+Alt+I)"
+          onClick={() => toggleUi('ai')}
+        >
+          <Sparkles size={14} />
         </button>
         <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
           <GitCompare size={14} />
@@ -267,7 +282,6 @@ export default function Sidebar() {
       </div>
       {creating && <ConnectionModal onClose={() => setCreating(false)} />}
       {importing && <ImportConnectionsModal onClose={() => setImporting(false)} />}
-      {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
     </aside>
   );
 }

@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { FastForward, History, Play, Square } from 'lucide-react';
+import { ChevronDown, FastForward, History, Play, Square } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 import { splitStatements, statementAt, executableSql } from '../sqlSplit.js';
 import Editor from './Editor.jsx';
 import Grid, { exportCsv } from './Grid.jsx';
+import Resizer from './Resizer.jsx';
 
 function firstLine(sql) {
   const l = sql.trim().split('\n')[0];
@@ -16,6 +17,8 @@ export default function Worksheet({ tab }) {
   const conn = useStore((s) => s.conns.find((c) => c.id === connId));
   const active = useStore((s) => s.active[connId]);
   const maxRows = useStore((s) => s.maxRows);
+  const ui = useStore((s) => s.ui);
+  const setUi = useStore((s) => s.setUi);
   const { setDraft, setMaxRows, setTxnOpen, toast, connect, openHistory } = useStore.getState();
   const draft = useRef(useStore.getState().drafts[tab.id] ?? '');
 
@@ -254,7 +257,18 @@ export default function Worksheet({ tab }) {
         />
       </div>
 
-      <div className="ws-results">
+      {ui.results && (
+        <Resizer
+          direction="up"
+          value={ui.resultsHeight}
+          onChange={(v) => setUi({ resultsHeight: v })}
+          onReset={() => setUi({ resultsHeight: 280 })}
+          min={90}
+          max={900}
+        />
+      )}
+
+      <div className="ws-results" style={{ height: ui.results ? ui.resultsHeight : undefined }}>
         <div className="pane-tabs">
           <button className={pane === 'results' ? 'on' : ''} onClick={() => setPane('results')}>
             Risultati
@@ -289,8 +303,15 @@ export default function Worksheet({ tab }) {
               Pulisci
             </button>
           )}
+          <button
+            className="icon-btn"
+            title={ui.results ? 'Riduci i risultati (Ctrl+J)' : 'Mostra i risultati (Ctrl+J)'}
+            onClick={() => setUi({ results: !ui.results })}
+          >
+            <ChevronDown size={13} className={`ai-chev ${ui.results ? '' : 'open'}`} />
+          </button>
         </div>
-        <div className="pane-body">
+        <div className="pane-body" hidden={!ui.results}>
           {pane === 'results' &&
             (res ? (
               <Grid columns={res.columns} rows={res.rows} />

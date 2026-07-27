@@ -22,6 +22,35 @@ export const useStore = create(
       toasts: [],
       maxRows: 500,
 
+      // ---- disposizione delle finestre ----
+      // Larghezze/altezze dei pannelli e quali sono visibili: persistite, così
+      // l'area di lavoro si ritrova com'era all'avvio successivo.
+      ui: {
+        sidebar: true,
+        sidebarWidth: 280,
+        ai: false,
+        aiWidth: 400,
+        aiFull: false,
+        results: true,
+        resultsHeight: 280,
+      },
+      setUi(patch) {
+        set((s) => ({ ui: { ...s.ui, ...patch } }));
+      },
+      toggleUi(key) {
+        set((s) => ({ ui: { ...s.ui, [key]: !s.ui[key] } }));
+      },
+
+      // Sessione dell'assistente aperta nel pannello.
+      aiSessionId: null,
+      setAiSession(id) {
+        set({ aiSessionId: id });
+      },
+      // Apre il pannello AI (e lo mette in primo piano se era nascosto).
+      openAi() {
+        set((s) => ({ ui: { ...s.ui, ai: true } }));
+      },
+
       // ---- toasts ----
       toast(text, type = 'info') {
         const id = toastId++;
@@ -246,6 +275,15 @@ export const useStore = create(
         activeTabId: s.activeTabId,
         drafts: s.drafts,
         maxRows: s.maxRows,
+        ui: s.ui,
+        aiSessionId: s.aiSessionId,
+      }),
+      // Una versione salvata prima dell'introduzione dei pannelli non ha `ui`:
+      // si completa con i valori di default invece di partire con campi vuoti.
+      merge: (persisted, current) => ({
+        ...current,
+        ...persisted,
+        ui: { ...current.ui, ...(persisted?.ui || {}) },
       }),
     }
   )

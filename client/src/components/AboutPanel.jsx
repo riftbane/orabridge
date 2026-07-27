@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Download, RefreshCw, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, RefreshCw, XCircle } from 'lucide-react';
 
 function statusLine(status, info) {
   switch (status) {
@@ -22,7 +22,9 @@ function statusLine(status, info) {
   }
 }
 
-export default function AboutModal({ onClose }) {
+// Contenuto della scheda «Informazioni» delle impostazioni: versione dell'app
+// e aggiornamenti (questi ultimi solo nella versione desktop).
+export default function AboutPanel() {
   const isDesktop = typeof window !== 'undefined' && !!window.orabridge;
   const [version, setVersion] = useState(null);
   const [status, setStatus] = useState(null);
@@ -47,38 +49,27 @@ export default function AboutModal({ onClose }) {
   const line = status ? statusLine(status, statusInfo) : null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal about-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <span>Informazioni su Orabridge</span>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={14} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="about-logo">
-            <span className="logo-ora">Ora</span>bridge
-          </div>
-          <p className="about-version">
-            {isDesktop ? `Versione desktop ${version || '…'}` : 'Client web'}
-          </p>
-          {isDesktop && (
-            <>
-              <button className="btn primary" onClick={checkForUpdates} disabled={busy}>
-                <RefreshCw size={14} className={busy ? 'spin' : ''} /> Verifica aggiornamenti
-              </button>
-              {line && (
-                <div className={`test-result ${line.kind === 'err' ? 'err' : line.kind === 'ok' ? 'ok' : ''}`}>
-                  {line.kind === 'ok' && <CheckCircle2 size={15} />}
-                  {line.kind === 'err' && <XCircle size={15} />}
-                  {line.kind === 'info' && <Download size={15} />}
-                  <span>{line.text}</span>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+    <div className="about-panel">
+      <div className="about-logo">
+        <span className="logo-ora">Ora</span>bridge
       </div>
+      <p className="about-version">{isDesktop ? `Versione desktop ${version || '…'}` : 'Client web'}</p>
+      <p className="settings-hint">SQL veloce per Oracle, senza zavorra.</p>
+      {isDesktop && (
+        <>
+          <button className="btn primary" onClick={checkForUpdates} disabled={busy}>
+            <RefreshCw size={14} className={busy ? 'spin' : ''} /> Verifica aggiornamenti
+          </button>
+          {line && (
+            <div className={`test-result ${line.kind === 'err' ? 'err' : line.kind === 'ok' ? 'ok' : ''}`}>
+              {line.kind === 'ok' && <CheckCircle2 size={15} />}
+              {line.kind === 'err' && <XCircle size={15} />}
+              {line.kind === 'info' && <Download size={15} />}
+              <span>{line.text}</span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

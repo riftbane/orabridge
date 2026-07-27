@@ -1,11 +1,22 @@
-import React, { useEffect } from 'react';
-import { GitCompare, History, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  GitCompare,
+  History,
+  PanelBottom,
+  PanelLeft,
+  PanelRight,
+  Settings,
+  X,
+} from 'lucide-react';
 import { useStore } from './store.js';
 import Sidebar from './components/Sidebar.jsx';
 import Worksheet from './components/Worksheet.jsx';
 import ObjectDetail from './components/ObjectDetail.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
 import DbDiff from './components/DbDiff.jsx';
+import AiPanel from './components/AiPanel.jsx';
+import Resizer from './components/Resizer.jsx';
+import SettingsModal from './components/SettingsModal.jsx';
 import { TypeIcon } from './components/ObjectTree.jsx';
 
 function TabBar() {
@@ -50,6 +61,44 @@ function TabBar() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Interruttori dei pannelli, in alto a destra come in VS Code.
+function LayoutActions({ onOpenSettings }) {
+  const ui = useStore((s) => s.ui);
+  const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
+  const toggleUi = useStore((s) => s.toggleUi);
+
+  return (
+    <div className="layout-actions">
+      <button
+        className={`icon-btn ${ui.sidebar ? 'on' : ''}`}
+        title="Mostra/nascondi la barra laterale (Ctrl+B)"
+        onClick={() => toggleUi('sidebar')}
+      >
+        <PanelLeft size={14} />
+      </button>
+      <button
+        className={`icon-btn ${ui.results ? 'on' : ''}`}
+        title="Mostra/nascondi il pannello dei risultati (Ctrl+J)"
+        onClick={() => toggleUi('results')}
+        disabled={activeTab?.kind !== 'worksheet'}
+      >
+        <PanelBottom size={14} />
+      </button>
+      <button
+        className={`icon-btn ${ui.ai ? 'on' : ''}`}
+        title="Mostra/nascondi l'assistente AI (Ctrl+Alt+I)"
+        onClick={() => toggleUi('ai')}
+      >
+        <PanelRight size={14} />
+      </button>
+      <span className="layout-sep" />
+      <button className="icon-btn" title="Impostazioni (Ctrl+,)" onClick={onOpenSettings}>
+        <Settings size={14} />
+      </button>
     </div>
   );
 }
@@ -111,19 +160,61 @@ function EmptyState() {
 export default function App() {
   const tabs = useStore((s) => s.tabs);
   const activeTabId = useStore((s) => s.activeTabId);
+  const ui = useStore((s) => s.ui);
   const refreshConnections = useStore((s) => s.refreshConnections);
   const toast = useStore((s) => s.toast);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     refreshConnections().catch((err) => toast(`Server non raggiungibile: ${err.message}`, 'error'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Scorciatoie sui pannelli, nello spirito di VS Code.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const { toggleUi } = useStore.getState();
+      if (e.key === 'b' && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        toggleUi('sidebar');
+      } else if (e.key === 'j' && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        toggleUi('results');
+      } else if (e.altKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        toggleUi('ai');
+      } else if (e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const setUi = useStore((s) => s.setUi);
+
   return (
     <div className="app">
-      <Sidebar />
+      {ui.sidebar && (
+        <>
+          <Sidebar />
+          <Resizer
+            direction="left"
+            value={ui.sidebarWidth}
+            onChange={(v) => setUi({ sidebarWidth: v })}
+            onReset={() => setUi({ sidebarWidth: 280 })}
+            min={200}
+            max={640}
+          />
+        </>
+      )}
       <main className="main">
-        <TabBar />
+        <div className="tabbar-row">
+          <TabBar />
+          <LayoutActions onOpenSettings={() => setSettingsOpen(true)} />
+        </div>
         <div className="tab-panels">
           {!tabs.length && <EmptyState />}
           {tabs.map((t) => (
@@ -141,7 +232,21 @@ export default function App() {
           ))}
         </div>
       </main>
+      {ui.ai && !ui.aiFull && (
+        <Resizer
+          direction="right"
+          value={ui.aiWidth}
+          onChange={(v) => setUi({ aiWidth: v })}
+          onReset={() => setUi({ aiWidth: 400 })}
+          min={280}
+          max={900}
+        />
+      )}
+      {/* Sempre montato: lo streaming della sessione prosegue anche a pannello
+          chiuso, e riaprendolo si ritrova la conversazione già aggiornata. */}
+      <AiPanel hidden={!ui.ai} onOpenSettings={() => setSettingsOpen(true)} />
       <Toasts />
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
