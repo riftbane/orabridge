@@ -31,6 +31,8 @@ Test: 18 sul motore di confronto (server), 9 sul diff testuale (client).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.10.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.10.0/Orabridge%20Setup%201.10.0.exe) (2026-07-27).
+
 ## v1.9.0 — 2026-07-27
 
 - **Nuovo:** completamento SQL consapevole del contesto L'autocomplete dell'editor ora capisce in che clausola si trova il cursore e
