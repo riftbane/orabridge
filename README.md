@@ -25,6 +25,19 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
 - **Sorgente PL/SQL modificabile**: scheda «Sorgente» con «Compila» (`Ctrl+Invio`) ed
   elenco errori di compilazione cliccabili (da `ALL_ERRORS`)
 - **Drop guidato** dal menu contestuale (clic destro su un oggetto nell'albero)
+- **DB Diff** (icona ⇄ in alto nella barra laterale): confronta due schemi — su
+  connessioni diverse o sulla stessa — e genera lo script di allineamento
+  - confronta tabelle (colonne, vincoli, indici, commenti), viste, viste
+    materializzate, sequenze, sinonimi, procedure, funzioni, package, trigger e tipi
+  - per ogni oggetto dice se è **solo in origine**, **solo in destinazione** o
+    **diverso**; le differenze strutturali si leggono in tabella, quelle di
+    codice in un **confronto affiancato riga per riga**
+  - i vincoli e gli indici con nome generato (`SYS_C…`) si accoppiano per
+    definizione invece che per nome, e i riferimenti allo schema di origine
+    valgono come quelli allo schema di destinazione: niente differenze finte
+  - lo **script di sincronizzazione** (CREATE/ALTER, con i DROP opzionali) si
+    genera per gli oggetti spuntati e si apre in un foglio SQL sulla
+    destinazione — Orabridge non esegue mai nulla da sé
 - Dettaglio tabella: colonne, dati (con filtro WHERE e paginazione), vincoli, indici, trigger, DDL
 - Sorgente e DDL di procedure/funzioni/package (via `DBMS_METADATA`)
 - Esecuzione istruzione al cursore (`Ctrl+Invio` / `F9`), script completo (`F5`),
@@ -154,7 +167,8 @@ server/                  Express + node-oracledb (thin)
   src/store.js           connessioni salvate in /data (password cifrate)
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
-  src/routes/            /api/connections, /api/conn/:id/…
+  src/routes/            /api/connections, /api/conn/:id/…, /api/diff
+  src/diff/              snapshot dello schema, confronto, script di sincronizzazione
 client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
 ```
 
@@ -162,6 +176,14 @@ Ogni connessione attiva ha **una sessione dedicata** per i fogli SQL (le transaz
 restano aperte tra un'esecuzione e l'altra, commit/rollback espliciti) più un piccolo
 pool separato per metadata e browsing dati, così l'albero resta reattivo anche durante
 una query lunga.
+
+Il **DB Diff** sta fuori da `/api/conn/:id` perché tocca due connessioni insieme.
+Legge i due schemi con una manciata di query sul dizionario (una per vista, non
+una per oggetto), tiene in memoria le ultime fotografie e su quelle calcola sia
+il dettaglio dei singoli oggetti sia lo script — che viene generato dagli
+snapshot, senza `DBMS_METADATA`, quindi funziona anche con privilegi minimi.
+Confronto e generazione dello script sono funzioni pure, coperte da test
+(`npm test` in `server/` e in `client/`).
 
 ## Risoluzione problemi
 

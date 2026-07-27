@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { History, X } from 'lucide-react';
+import { GitCompare, History, X } from 'lucide-react';
 import { useStore } from './store.js';
 import Sidebar from './components/Sidebar.jsx';
 import Worksheet from './components/Worksheet.jsx';
 import ObjectDetail from './components/ObjectDetail.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
+import DbDiff from './components/DbDiff.jsx';
 import { TypeIcon } from './components/ObjectTree.jsx';
 
 function TabBar() {
@@ -28,6 +29,10 @@ function TabBar() {
             ) : t.kind === 'history' ? (
               <span className="type-icon" style={{ color: '#888', borderColor: '#888' }}>
                 <History size={10} />
+              </span>
+            ) : t.kind === 'diff' ? (
+              <span className="type-icon" style={{ color: '#e8734a', borderColor: '#e8734a' }}>
+                <GitCompare size={10} />
               </span>
             ) : (
               <TypeIcon type={t.type} />
@@ -81,6 +86,9 @@ function EmptyState() {
               Nuovo foglio SQL — {c.name}
             </button>
           ))}
+          <button className="btn" onClick={() => useStore.getState().openDiff()}>
+            <GitCompare size={13} /> Confronta due database
+          </button>
         </div>
       ) : (
         <p className="hint">Connettiti a un database dalla barra laterale per iniziare.</p>
@@ -124,6 +132,8 @@ export default function App() {
                 <Worksheet tab={t} />
               ) : t.kind === 'history' ? (
                 <HistoryPanel />
+              ) : t.kind === 'diff' ? (
+                <DbDiff tab={t} />
               ) : (
                 <ObjectDetail tab={t} />
               )}

@@ -78,6 +78,12 @@ export const api = {
   cancel: (id) => j('POST', `/api/conn/${id}/cancel`, {}),
   status: (id) => j('GET', `/api/conn/${id}/status`),
 
+  // confronto fra due database
+  diffRun: (body) => j('POST', '/api/diff/run', body),
+  diffDetail: (runId, type, name) =>
+    j('GET', `/api/diff/${runId}/detail?${q({ type, name })}`),
+  diffScript: (runId, body) => j('POST', `/api/diff/${runId}/script`, body),
+
   // cronologia query
   history: (params) => j('GET', `/api/history?${q(params)}`),
   deleteHistoryEntry: (entryId) => j('DELETE', `/api/history/${entryId}`),

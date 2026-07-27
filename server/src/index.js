@@ -6,6 +6,7 @@ import connectionsRouter from './routes/connections.js';
 import metadataRouter from './routes/metadata.js';
 import sqlRouter from './routes/sql.js';
 import historyRouter from './routes/history.js';
+import diffRouter from './routes/diff.js';
 import { pools } from './pools.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,6 +28,8 @@ function createApp() {
 
   app.use('/api/connections', connectionsRouter);
   app.use('/api/history', historyRouter);
+  // Il confronto fra due database tocca due connessioni: sta fuori da /api/conn/:id.
+  app.use('/api/diff', diffRouter);
 
   // Everything under /api/conn/:id requires an active connection.
   const requireConn = (req, res, next) => {

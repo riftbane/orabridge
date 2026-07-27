@@ -191,6 +191,17 @@ export const useStore = create(
         set({ historyFilterConnId: connId });
       },
 
+      // Confronto fra due database: più schede insieme sono legittime
+      // (confronti diversi), quindi niente singleton.
+      openDiff() {
+        const id = `diff-${Date.now()}-${wsCounter++}`;
+        set((s) => ({ tabs: [...s.tabs, { id, kind: 'diff', title: 'DB Diff' }], activeTabId: id }));
+      },
+
+      setTabTitle(id, title) {
+        set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)) }));
+      },
+
       openObject(connId, owner, name, type) {
         const id = `obj-${connId}-${owner}.${name}-${type}`;
         const exists = get().tabs.find((t) => t.id === id);
