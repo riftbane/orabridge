@@ -195,6 +195,24 @@ kbd {
   font-size: 16px;
 }
 
+.sidebar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 8px 10px 0;
+}
+.sidebar-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--fg-dim);
+  pointer-events: none;
+}
+.sidebar-search-input {
+  width: 100%;
+  padding: 5px 8px 5px 26px;
+  font-size: 11.5px;
+}
+
 .conn-list {
   flex: 1;
   overflow-y: auto;

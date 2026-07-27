@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, History, Info, Pencil, Plus, Trash2, Unplug, Upload } from 'lucide-react';
+import { ChevronRight, History, Info, Pencil, Plus, Search, Trash2, Unplug, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
 import ObjectTree from './ObjectTree.jsx';
@@ -117,16 +117,28 @@ export default function Sidebar() {
   const [importing, setImporting] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [collapsed, setCollapsed] = useState({});
+  const [search, setSearch] = useState('');
   const openHistory = useStore((s) => s.openHistory);
 
+  const searching = !!search.trim();
+
+  const filteredConns = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return conns;
+    return conns.filter((c) => {
+      const service = c.serviceType === 'custom' ? c.service : `${c.host}:${c.port}/${c.service}`;
+      return [c.name, c.group, c.user, service].some((v) => v?.toLowerCase().includes(q));
+    });
+  }, [conns, search]);
+
   const activeConns = useMemo(
-    () => conns.filter((c) => active[c.id]?.status === 'connected'),
-    [conns, active]
+    () => filteredConns.filter((c) => active[c.id]?.status === 'connected'),
+    [filteredConns, active]
   );
 
   const groups = useMemo(() => {
     const map = new Map();
-    for (const c of conns) {
+    for (const c of filteredConns) {
       const key = c.group?.trim() || '';
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(c);
@@ -134,7 +146,7 @@ export default function Sidebar() {
     const named = [...map.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b));
     const keys = map.has('') ? [...named, ''] : named;
     return keys.map((key) => ({ key: key || '__none__', title: key || 'Senza gruppo', items: map.get(key) }));
-  }, [conns]);
+  }, [filteredConns]);
 
   const toggleGroup = (key) => setCollapsed((s) => ({ ...s, [key]: !s[key] }));
 
@@ -157,6 +169,17 @@ export default function Sidebar() {
           <Plus size={16} />
         </button>
       </div>
+      {!!conns.length && (
+        <div className="sidebar-search">
+          <Search size={13} className="sidebar-search-icon" />
+          <input
+            className="sidebar-search-input"
+            placeholder="Cerca connessioni…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
       <div className="conn-list">
         {!conns.length && (
           <div className="empty-conns">
@@ -169,21 +192,24 @@ export default function Sidebar() {
             </button>
           </div>
         )}
-        {!!conns.length && (
+        {!!conns.length && (!searching || !!activeConns.length) && (
           <ConnGroup
             title="Attivi"
             items={activeConns}
-            collapsed={!!collapsed.__active__}
+            collapsed={!searching && !!collapsed.__active__}
             onToggle={() => toggleGroup('__active__')}
             emptyLabel="Nessuna connessione attiva"
           />
+        )}
+        {!!conns.length && searching && !filteredConns.length && (
+          <div className="conn-group-empty">Nessuna connessione trovata</div>
         )}
         {groups.map((g) => (
           <ConnGroup
             key={g.key}
             title={g.title}
             items={g.items}
-            collapsed={!!collapsed[g.key]}
+            collapsed={!searching && !!collapsed[g.key]}
             onToggle={() => toggleGroup(g.key)}
           />
         ))}
