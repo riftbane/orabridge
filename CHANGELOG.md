@@ -2,6 +2,26 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.6.0 — 2026-07-27
+
+- **Nuovo:** raggruppamento connessioni e stato al posto del colore Sostituisce la selezione manuale del colore per ogni connessione con un
+campo "Gruppo" (con suggerimenti dai gruppi esistenti): la lista delle
+connessioni in barra laterale ora è raggruppabile e mostra sempre in
+cima una sezione "Attivi" con le connessioni già aperte, per accesso
+rapido.
+
+Il vecchio pallino colorato diventa un indicatore di stato della
+connessione: grigio (non connessa), arancione (in connessione), verde
+(connessa), rosso (errore, con messaggio al passaggio del mouse).
+
+Rimosso il bottone di accensione: doppio click su una connessione non
+attiva la apre, singolo click non fa nulla; su una connessione già
+attiva il singolo click apre/chiude l'albero degli oggetti come prima,
+e una nuova azione "Disconnetti" nella riga sostituisce il vecchio
+bottone a spina per chiuderla.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
 ## v1.5.2 — 2026-07-27
 
 - **Fix:** includi preload.cjs nel pacchetto Electron electron/package.json limitava "files" a main.cjs e build/icon.ico:
