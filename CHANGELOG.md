@@ -2,6 +2,14 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.8.0 — 2026-07-27
+
+- **Nuovo:** aggiunge barra di ricerca per le connessioni Filtra le connessioni per nome, gruppo, utente o servizio; durante la
+ricerca i gruppi vengono espansi automaticamente per mostrare i
+risultati.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
 ## v1.7.0 — 2026-07-27
 
 - **Nuovo:** importa connessioni da export JSON di SQL Developer Aggiunge un'importazione guidata delle connessioni a partire da file di
