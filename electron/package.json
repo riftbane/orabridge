@@ -1,0 +1,44 @@
+{
+  "name": "orabridge-desktop",
+  "version": "1.5.0",
+  "private": true,
+  "description": "Orabridge come app desktop (Electron): avvia il backend Express/Oracle in-process, nessun Docker richiesto.",
+  "main": "main.cjs",
+  "scripts": {
+    "gen-icon": "node scripts/gen-icon.mjs",
+    "prepare-resources": "node scripts/prepare-resources.mjs",
+    "start": "node scripts/prepare-resources.mjs --skip-instantclient && electron .",
+    "dist:win": "node scripts/prepare-resources.mjs && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "extract-zip": "^2.0.1",
+    "png-to-ico": "^3.0.2"
+  },
+  "build": {
+    "appId": "com.orabridge.desktop",
+    "productName": "Orabridge",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      { "from": "resources", "to": ".", "filter": ["**/*"] }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

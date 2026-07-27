@@ -1,0 +1,21 @@
+services:
+  orabridge:
+    build: .
+    container_name: orabridge
+    ports:
+      # Bound to 127.0.0.1: reachable only from this machine.
+      - "127.0.0.1:7521:3000"
+    volumes:
+      - orabridge-data:/data
+    environment:
+      # Modalità thick (Instant Client incluso nell'immagine): supporta password
+      # verifier 10G e server Oracle 11.2+. Mettere "0" per forzare la thin.
+      ORACLE_THICK_MODE: "1"
+    extra_hosts:
+      # Lets the container reach an Oracle DB running on the host
+      # (use "host.docker.internal" as hostname in the connection form).
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  orabridge-data:

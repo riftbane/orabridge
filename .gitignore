@@ -1,0 +1,9 @@
+node_modules/
+client/dist/
+server/public/
+server/data/
+data/
+*.log
+electron/resources/
+electron/release/
+electron/.cache/
