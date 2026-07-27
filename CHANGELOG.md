@@ -2,6 +2,46 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.0 — 2026-07-27
+
+- **Nuovo:** assistente AI multi-piattaforma, impostazioni e pannelli ridimensionabili Nuovo pannello di chat (icona ✨ o Ctrl+Alt+I) che lavora davvero sul
+database: elenca schemi e oggetti, legge struttura, sorgenti e DDL, esegue
+SELECT e istruzioni di modifica. Le piattaforme supportate sono OpenRouter,
+Anthropic, Google Gemini e OpenAI, con elenco dei modelli letto in tempo
+reale dalla piattaforma scelta e ricerca nella tendina. Le esecuzioni
+passano dalla stessa sessione del foglio SQL, quindi vedono la transazione
+aperta e non fanno mai commit da sole.
+
+Più sessioni in parallelo, ognuna con la sua connessione, il suo modello e
+i suoi permessi. Il ciclo dell'agente gira sul server e trasmette in
+streaming via SSE: le sessioni continuano a lavorare in background anche a
+pannello chiuso, cambiando scheda o ricaricando la pagina.
+
+Permessi di esecuzione per sessione — Lettura, Scrittura e, a parte,
+DELETE e DROP. Prima di eseguire, il server classifica l'istruzione e la
+confronta con i permessi concessi; se non bastano mostra in chat l'SQL
+esatto con «Consenti una volta / Consenti sempre / Rifiuta». La
+classificazione ignora commenti e stringhe, ma nei blocchi PL/SQL guarda
+anche dentro i letterali, dove si nasconde l'SQL dinamico. Le istruzioni
+lanciate dall'assistente finiscono in cronologia, marcate.
+
+Nuova finestra Impostazioni (Ctrl+, o l'ingranaggio in alto a destra) dove
+si sceglie la piattaforma, si incolla la API key e si seleziona il modello
+predefinito; ci è stata spostata anche la scheda «Informazioni» con la
+verifica aggiornamenti. Le chiavi sono cifrate AES-256-GCM nella cartella
+dati, come le password delle connessioni, e non arrivano mai al browser.
+
+Barra laterale, risultati del foglio SQL e pannello AI ora si
+ridimensionano trascinando il bordo (doppio clic per la misura
+predefinita) e si nascondono dagli interruttori in alto a destra o con
+Ctrl+B, Ctrl+J e Ctrl+Alt+I. Le misure vengono ricordate tra un avvio e
+l'altro.
+
+Nessuna dipendenza aggiunta: i quattro provider parlano HTTP con fetch
+nativo e lo streaming arriva al browser via EventSource.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.11.0 — 2026-07-27
 
 - **Nuovo:** ricerca in stile VS Code, formattazione del codice e gruppi di connessioni Ricerca e sostituzione rifatte in tutti gli editor (fogli SQL, sorgenti
