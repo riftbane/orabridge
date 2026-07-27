@@ -2,6 +2,19 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.5.2 — 2026-07-27
+
+- **Fix:** includi preload.cjs nel pacchetto Electron electron/package.json limitava "files" a main.cjs e build/icon.ico:
+electron-builder, quando "files" non e' vuoto ne' fatto solo di pattern di
+esclusione, non applica piu' l'inclusione di default **/*, quindi
+preload.cjs restava fuori dall'asar. Senza preload, contextBridge non gira
+mai e window.orabridge resta undefined: il pannello "Informazioni"
+mostrava sempre "Client web" senza versione ne' bottone "Verifica
+aggiornamenti", anche nell'installer v1.5.1 dove quella funzionalita' era
+gia' stata aggiunta.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
 ## v1.5.1 — 2026-07-27
 
 - **Fix:** elimina la doppia GitHub Release creata da electron-builder electron-builder risolve la configurazione di publish da più punti interni
