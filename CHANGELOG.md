@@ -42,6 +42,8 @@ nativo e lo streaming arriva al browser via EventSource.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.0/Orabridge%20Setup%201.12.0.exe) (2026-07-27).
+
 ## v1.11.0 — 2026-07-27
 
 - **Nuovo:** ricerca in stile VS Code, formattazione del codice e gruppi di connessioni Ricerca e sostituzione rifatte in tutti gli editor (fogli SQL, sorgenti
