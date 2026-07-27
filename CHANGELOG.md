@@ -10,6 +10,8 @@ risultati.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.8.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.8.0/Orabridge%20Setup%201.8.0.exe) (2026-07-27).
+
 ## v1.7.0 — 2026-07-27
 
 - **Nuovo:** importa connessioni da export JSON di SQL Developer Aggiunge un'importazione guidata delle connessioni a partire da file di
