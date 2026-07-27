@@ -15,6 +15,8 @@ gia' stata aggiunta.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.5.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.2/Orabridge%20Setup%201.5.2.exe) (2026-07-27).
+
 ## v1.5.1 — 2026-07-27
 
 - **Fix:** elimina la doppia GitHub Release creata da electron-builder electron-builder risolve la configurazione di publish da più punti interni
