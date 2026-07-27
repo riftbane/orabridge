@@ -23,6 +23,8 @@ crearne uno nuovo) senza aprire finestre.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.11.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.11.0/Orabridge%20Setup%201.11.0.exe) (2026-07-27).
+
 ## v1.10.0 — 2026-07-27
 
 - **Nuovo:** confronto fra due database con script di sincronizzazione Aggiunge DB Diff, sul modello di SQL Developer: si scelgono due schemi —
