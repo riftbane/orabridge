@@ -25,6 +25,8 @@ l'app a sorpresa con fogli SQL o transazioni aperte.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.5.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.1/Orabridge%20Setup%201.5.1.exe) (2026-07-27).
+
 ## v1.5.0 — 2026-07-27
 
 - Migliorata: tutte le icone dell'interfaccia (modifica, elimina, cronologia,
