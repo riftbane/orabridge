@@ -6,6 +6,7 @@ import ObjectTree from './ObjectTree.jsx';
 import ConnectionModal from './ConnectionModal.jsx';
 import ImportConnectionsModal from './ImportConnectionsModal.jsx';
 import AboutModal from './AboutModal.jsx';
+import ContextMenu from './ContextMenu.jsx';
 
 function statusInfo(active) {
   const status = active?.status;
@@ -17,14 +18,16 @@ function statusInfo(active) {
   return { cls: 'idle', label: 'Non connesso — doppio click per connettersi' };
 }
 
-function ConnectionRow({ conn }) {
+function ConnectionRow({ conn, groups }) {
   const active = useStore((s) => s.active[conn.id]);
   const { connect, disconnect, openWorksheet, refreshConnections, toast } = useStore.getState();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [menu, setMenu] = useState(null);
   const connected = active?.status === 'connected';
   const connecting = active?.status === 'connecting';
   const status = statusInfo(active);
+  const current = conn.group?.trim() || '';
 
   const remove = async () => {
     if (!window.confirm(`Eliminare la connessione "${conn.name}"?`)) return;
@@ -37,12 +40,49 @@ function ConnectionRow({ conn }) {
     }
   };
 
+  const moveTo = async (group) => {
+    if (group === current) return;
+    try {
+      await api.updateConnection(conn.id, { group });
+      await refreshConnections();
+      toast(group ? `"${conn.name}" spostata in ${group}` : `"${conn.name}" rimossa dal gruppo`, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const menuItems = [
+    ...(connected
+      ? [
+          { label: 'Nuovo foglio SQL', onClick: () => openWorksheet(conn.id) },
+          { label: 'Disconnetti', onClick: () => disconnect(conn.id) },
+        ]
+      : [{ label: 'Connetti', disabled: connecting, onClick: () => connect(conn.id) }]),
+    { separator: true },
+    {
+      label: 'Sposta in…',
+      submenu: [
+        ...groups.map((g) => ({ label: g, checked: g === current, onClick: () => moveTo(g) })),
+        ...(groups.length ? [{ separator: true }] : []),
+        { label: 'Senza gruppo', checked: !current, onClick: () => moveTo('') },
+        { input: true, placeholder: 'Nuovo gruppo…', autoFocus: false, onSubmit: (g) => moveTo(g) },
+      ],
+    },
+    { label: 'Modifica…', onClick: () => setEditing(true) },
+    { separator: true },
+    { label: 'Elimina…', danger: true, onClick: remove },
+  ];
+
   return (
     <div className={`conn-block ${connected ? 'connected' : ''}`}>
       <div
         className="conn-row"
         onClick={() => connected && setExpanded((e) => !e)}
         onDoubleClick={() => !connected && !connecting && connect(conn.id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <span className={`conn-dot status-${status.cls}`} title={status.label} />
         <div className="conn-names">
@@ -86,13 +126,26 @@ function ConnectionRow({ conn }) {
       )}
       {connected && expanded && <ObjectTree connId={conn.id} />}
       {editing && <ConnectionModal conn={conn} onClose={() => setEditing(false)} />}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />}
     </div>
   );
 }
 
-function ConnGroup({ title, items, collapsed, onToggle, emptyLabel }) {
+// Colore stabile per gruppo (dal nome): serve a distinguerli a colpo d'occhio.
+const GROUP_HUES = [12, 200, 145, 275, 45, 330, 95, 240];
+function groupHue(title) {
+  let h = 0;
+  for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) >>> 0;
+  return GROUP_HUES[h % GROUP_HUES.length];
+}
+
+function ConnGroup({ title, items, collapsed, onToggle, groups, plain }) {
+  const hue = plain ? null : groupHue(title);
   return (
-    <div className="conn-group">
+    <div
+      className={`conn-group ${collapsed ? 'collapsed' : ''} ${plain ? 'plain' : ''}`}
+      style={hue == null ? undefined : { '--group-hue': hue }}
+    >
       <button className="conn-group-head" onClick={onToggle}>
         <span className={`tree-arrow ${collapsed ? '' : 'open'}`}>
           <ChevronRight size={12} />
@@ -100,19 +153,19 @@ function ConnGroup({ title, items, collapsed, onToggle, emptyLabel }) {
         <span className="conn-group-title">{title}</span>
         <span className="conn-group-count">{items.length}</span>
       </button>
-      {!collapsed &&
-        (items.length ? (
-          items.map((c) => <ConnectionRow key={c.id} conn={c} />)
-        ) : (
-          emptyLabel && <div className="conn-group-empty">{emptyLabel}</div>
-        ))}
+      {!collapsed && (
+        <div className="conn-group-body">
+          {items.map((c) => (
+            <ConnectionRow key={c.id} conn={c} groups={groups} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function Sidebar() {
   const conns = useStore((s) => s.conns);
-  const active = useStore((s) => s.active);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -132,9 +185,10 @@ export default function Sidebar() {
     });
   }, [conns, search]);
 
-  const activeConns = useMemo(
-    () => filteredConns.filter((c) => active[c.id]?.status === 'connected'),
-    [filteredConns, active]
+  // Elenco dei gruppi esistenti, per la voce "Sposta in…" del menu di contesto.
+  const groupNames = useMemo(
+    () => [...new Set(conns.map((c) => c.group?.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [conns]
   );
 
   const groups = useMemo(() => {
@@ -196,15 +250,6 @@ export default function Sidebar() {
             </button>
           </div>
         )}
-        {!!conns.length && (!searching || !!activeConns.length) && (
-          <ConnGroup
-            title="Attivi"
-            items={activeConns}
-            collapsed={!searching && !!collapsed.__active__}
-            onToggle={() => toggleGroup('__active__')}
-            emptyLabel="Nessuna connessione attiva"
-          />
-        )}
         {!!conns.length && searching && !filteredConns.length && (
           <div className="conn-group-empty">Nessuna connessione trovata</div>
         )}
@@ -213,6 +258,8 @@ export default function Sidebar() {
             key={g.key}
             title={g.title}
             items={g.items}
+            groups={groupNames}
+            plain={g.key === '__none__'}
             collapsed={!searching && !!collapsed[g.key]}
             onToggle={() => toggleGroup(g.key)}
           />

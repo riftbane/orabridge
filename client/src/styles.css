@@ -297,8 +297,17 @@ kbd {
   visibility: hidden;
 }
 
+/* Ogni gruppo è un riquadro con un colore stabile ricavato dal nome
+   (--group-hue, impostato da Sidebar.jsx): così si distinguono a colpo
+   d'occhio anche quando sono molti. */
 .conn-group {
-  margin-bottom: 6px;
+  --group-hue: 220;
+  margin-bottom: 8px;
+  border: 1px solid hsl(var(--group-hue) 22% 26%);
+  border-left: 3px solid hsl(var(--group-hue) 55% 52%);
+  border-radius: 6px;
+  background: hsl(var(--group-hue) 30% 50% / 0.05);
+  overflow: hidden;
 }
 
 .conn-group-head {
@@ -306,21 +315,44 @@ kbd {
   align-items: center;
   gap: 5px;
   width: 100%;
-  background: none;
+  background: hsl(var(--group-hue) 30% 50% / 0.1);
   border: none;
-  color: var(--fg-dim);
+  border-bottom: 1px solid hsl(var(--group-hue) 22% 26%);
+  color: hsl(var(--group-hue) 45% 78%);
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding: 5px 6px;
-  border-radius: 4px;
+  letter-spacing: 0.5px;
+  padding: 6px 8px;
   cursor: pointer;
   text-align: left;
 }
+.conn-group.collapsed .conn-group-head {
+  border-bottom: none;
+}
 .conn-group-head:hover {
-  color: var(--fg);
+  background: hsl(var(--group-hue) 30% 50% / 0.18);
+  color: hsl(var(--group-hue) 60% 88%);
+}
+
+/* Le connessioni senza gruppo non sono un vero gruppo: niente colore. */
+.conn-group.plain {
+  border-color: var(--border);
+  border-left-color: var(--border);
+  background: none;
+}
+.conn-group.plain .conn-group-head {
+  background: none;
+  border-bottom-color: var(--border);
+  color: var(--fg-dim);
+}
+.conn-group.plain .conn-group-head:hover {
   background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.conn-group-body {
+  padding: 4px;
 }
 
 .conn-group-title {
@@ -333,9 +365,9 @@ kbd {
 
 .conn-group-count {
   font-size: 10px;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--fg-dim);
-  background: var(--bg-active);
+  background: #00000040;
   border-radius: 8px;
   padding: 0 6px;
   min-width: 14px;
@@ -662,6 +694,12 @@ kbd {
 
 .editor-host {
   height: 100%;
+  position: relative;
+  min-height: 0;
+}
+.editor-cm {
+  position: absolute;
+  inset: 0;
 }
 .editor-host .cm-editor {
   height: 100%;
@@ -669,6 +707,138 @@ kbd {
 .editor-host .cm-scroller {
   overflow: auto;
   font-family: var(--mono);
+}
+
+/* ---------- barra di ricerca dell'editor ---------- */
+.find-widget {
+  position: absolute;
+  top: 0;
+  right: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 4px 4px 4px 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 3px 12px #0007;
+  max-width: calc(100% - 30px);
+}
+
+.find-expand {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.find-expand:hover:not(:disabled) {
+  color: var(--fg);
+}
+.find-expand:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.find-expand svg {
+  transition: transform 0.12s;
+}
+.find-expand.open svg {
+  transform: rotate(90deg);
+}
+
+.find-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.find-input {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  width: 218px;
+  padding: 1px 2px 1px 0;
+  background: var(--bg);
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+.find-input:focus-within {
+  border-color: var(--accent);
+}
+.find-input.invalid {
+  border-color: var(--err);
+}
+.find-input input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 3px 6px;
+}
+.find-input input::placeholder {
+  color: var(--fg-dim);
+}
+
+.find-toggle {
+  display: flex;
+  padding: 3px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.find-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.find-toggle.on {
+  background: #e8734a33;
+  color: var(--accent);
+}
+
+.find-count {
+  min-width: 84px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.find-count.invalid {
+  color: var(--err);
+}
+
+.find-btn {
+  display: flex;
+  padding: 3px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--fg);
+  cursor: pointer;
+}
+.find-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.find-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .ws-results {
@@ -1550,6 +1720,9 @@ kbd {
   flex-direction: column;
 }
 .ctx-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   background: none;
   border: none;
@@ -1559,12 +1732,56 @@ kbd {
   border-radius: 4px;
   cursor: pointer;
 }
-.ctx-menu button:hover {
+.ctx-menu button:hover:not(:disabled),
+.ctx-menu button.sub-open {
   background: var(--accent);
   color: #fff;
 }
-.ctx-menu button.danger:hover {
+.ctx-menu button.danger:hover:not(:disabled) {
   background: var(--err);
+}
+.ctx-menu button:disabled {
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+.ctx-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctx-arrow {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+/* Segna il gruppo in cui la connessione si trova già. */
+.ctx-menu button.checked .ctx-label::after {
+  content: '✓';
+  margin-left: 8px;
+  color: var(--ok);
+}
+.ctx-menu button.checked:hover .ctx-label::after {
+  color: #fff;
+}
+
+.ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.ctx-sub {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+
+.ctx-input {
+  margin: 4px 6px 2px;
+  padding: 4px 6px;
+  width: calc(100% - 12px);
+  font-size: 12px;
 }
 
 .obj-toolbar {

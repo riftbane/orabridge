@@ -152,8 +152,23 @@ CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 | `Ctrl+Invio` / `F9` | Esegui istruzione al cursore (o selezione) |
 | `F5` | Esegui tutto lo script |
 | `Ctrl+Spazio` | Autocomplete |
+| `Ctrl+F` / `Ctrl+H` | Cerca / cerca e sostituisci nell'editor |
+| `Invio` / `Maiusc+Invio` / `F3` | Risultato successivo / precedente |
+| `Alt+C` / `Alt+W` / `Alt+R` | Maiuscole/minuscole, parola intera, espressione regolare |
+| `Alt+L` | Limita la ricerca alle righe selezionate |
+| `Ctrl+Maiusc+F` | Formatta la selezione |
+| `Ctrl+Alt+F` | Formatta tutto il foglio |
 | doppio clic su cella | Visualizza valore completo (CLOB, testi lunghi) |
 | clic su intestazione colonna | Ordina risultati |
+
+Ricerca, sostituzione e formattazione valgono in tutti gli editor: fogli SQL,
+sorgenti PL/SQL (package body, funzioni, trigger) e viste in sola lettura
+(dove la sostituzione è disattivata). La formattazione è conservativa: se il
+codice non viene riconosciuto token per token, il testo resta invariato e
+compare un avviso.
+
+Le connessioni si organizzano in gruppi: clic destro su una connessione →
+«Sposta in…» per spostarla in un altro gruppo (o crearne uno nuovo).
 
 Gli statement si separano con `;`. I blocchi PL/SQL (`DECLARE`/`BEGIN`/`CREATE PROCEDURE`…)
 terminano con `/` su riga a sé, come in SQL*Plus.
