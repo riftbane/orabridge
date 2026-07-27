@@ -1,6 +1,6 @@
 {
   "name": "orabridge-desktop",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "description": "Orabridge come app desktop (Electron): avvia il backend Express/Oracle in-process, nessun Docker richiesto.",
   "main": "main.cjs",

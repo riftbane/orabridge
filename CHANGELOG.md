@@ -2,6 +2,27 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.11.0 — 2026-07-27
+
+- **Nuovo:** ricerca in stile VS Code, formattazione del codice e gruppi di connessioni Ricerca e sostituzione rifatte in tutti gli editor (fogli SQL, sorgenti
+PL/SQL, viste in sola lettura): barra flottante con Ctrl+F e Ctrl+H,
+maiuscole/minuscole (Alt+C), parola intera (Alt+W), espressione regolare
+(Alt+R), contatore "N di M", frecce di navigazione e riferimenti $1/$&
+nella sostituzione. Con Alt+L (o aprendo la ricerca con più righe
+selezionate) le ricerche restano dentro l'area evidenziata.
+
+Formattazione del codice con Ctrl+Maiusc+F sulla selezione e Ctrl+Alt+F
+su tutto il foglio. Il formattatore riconosce i blocchi PL/SQL oltre alle
+clausole SQL e prima di applicare il risultato ritokenizza l'output e lo
+confronta con l'ingresso: se qualcosa non torna il testo resta invariato.
+
+Nella barra laterale la sezione "Attivi" è stata rimossa, ogni gruppo ha
+ora un colore stabile ricavato dal nome, e il tasto destro su una
+connessione apre un menu con "Sposta in…" per cambiarle gruppo (o
+crearne uno nuovo) senza aprire finestre.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.10.0 — 2026-07-27
 
 - **Nuovo:** confronto fra due database con script di sincronizzazione Aggiunge DB Diff, sul modello di SQL Developer: si scelgono due schemi —
