@@ -2,6 +2,20 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.7.0 — 2026-07-27
+
+- **Nuovo:** importa connessioni da export JSON di SQL Developer Aggiunge un'importazione guidata delle connessioni a partire da file di
+export JSON di SQL Developer: anteprima con selezione, gruppo opzionale
+da assegnare a tutte, mappatura automatica per connessioni BASIC (SID o
+service name) e TNS (alias, con avviso perché serve un tnsnames.ora
+raggiungibile). Le password cifrate con chiave vengono decifrate
+server-side con lo stesso schema usato da SQL Developer per l'export
+"Cifra tutte le password con una chiave" (PBKDF2-HMAC-SHA256 + AES-256-CBC),
+poi ri-cifrate con lo schema già in uso per connections.json. Chiave
+sbagliata blocca l'intero import senza scrivere nulla.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
 ## v1.6.0 — 2026-07-27
 
 - **Nuovo:** raggruppamento connessioni e stato al posto del colore Sostituisce la selezione manuale del colore per ogni connessione con un
