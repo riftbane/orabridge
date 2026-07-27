@@ -228,8 +228,8 @@ export default function Worksheet({ tab }) {
             ))}
           </select>
         </label>
-        <span className="conn-badge" style={{ borderColor: conn.color }}>
-          <span className="conn-dot" style={{ background: conn.color }} />
+        <span className="conn-badge">
+          <span className="conn-dot" />
           {conn.name}
           {active?.txnOpen && <span className="txn-dot" title="Transazione aperta" />}
         </span>

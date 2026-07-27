@@ -120,9 +120,6 @@ body {
 .icon-btn.danger:hover {
   color: var(--err);
 }
-.icon-btn.plug.on {
-  color: var(--ok);
-}
 
 .mini-btn {
   background: none;
@@ -241,6 +238,20 @@ kbd {
   height: 9px;
   min-width: 9px;
   border-radius: 50%;
+  background: #565a66;
+}
+.conn-dot.status-idle {
+  background: #565a66;
+}
+.conn-dot.status-connecting {
+  background: var(--accent);
+  animation: pulse 1.2s infinite;
+}
+.conn-dot.status-connected {
+  background: var(--ok);
+}
+.conn-dot.status-error {
+  background: var(--err);
 }
 
 .conn-names {
@@ -266,6 +277,57 @@ kbd {
 .conn-actions {
   display: flex;
   visibility: hidden;
+}
+
+.conn-group {
+  margin-bottom: 6px;
+}
+
+.conn-group-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.conn-group-head:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+.conn-group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-group-count {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--fg-dim);
+  background: var(--bg-active);
+  border-radius: 8px;
+  padding: 0 6px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.conn-group-empty {
+  padding: 2px 10px 8px 26px;
+  font-size: 11px;
+  color: var(--fg-dim);
 }
 
 .txn-badge {
@@ -432,6 +494,7 @@ kbd {
   height: 8px;
   min-width: 8px;
   border-radius: 50%;
+  background: #565a66;
 }
 
 .tab-title {
@@ -543,7 +606,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid;
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 2px 10px;
   font-size: 11.5px;
@@ -1068,21 +1131,6 @@ kbd {
 .form-row {
   display: flex;
   gap: 10px;
-}
-
-.color-row {
-  display: flex;
-  gap: 6px;
-}
-.color-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-}
-.color-dot.sel {
-  border-color: #fff;
 }
 
 .test-result {

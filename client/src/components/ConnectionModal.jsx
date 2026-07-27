@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CheckCircle2, X, XCircle } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
-
-const COLORS = ['#e8734a', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#e06c75', '#9aa2b1'];
 
 export default function ConnectionModal({ conn, onClose }) {
   const isEdit = !!conn?.id;
@@ -15,13 +13,18 @@ export default function ConnectionModal({ conn, onClose }) {
     service: conn?.service || '',
     user: conn?.user || '',
     password: '',
-    color: conn?.color || COLORS[0],
+    group: conn?.group || '',
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const conns = useStore((s) => s.conns);
   const refreshConnections = useStore((s) => s.refreshConnections);
   const toast = useStore((s) => s.toast);
+  const groupOptions = useMemo(
+    () => [...new Set(conns.map((c) => c.group).filter((g) => g?.trim()))].sort((a, b) => a.localeCompare(b)),
+    [conns]
+  );
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const custom = form.serviceType === 'custom';
@@ -74,16 +77,20 @@ export default function ConnectionModal({ conn, onClose }) {
             Nome
             <input value={form.name} onChange={set('name')} placeholder="es. DEV — HR" autoFocus />
           </label>
-          <div className="color-row">
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                className={`color-dot ${form.color === c ? 'sel' : ''}`}
-                style={{ background: c }}
-                onClick={() => setForm((f) => ({ ...f, color: c }))}
-              />
-            ))}
-          </div>
+          <label>
+            Gruppo
+            <input
+              value={form.group}
+              onChange={set('group')}
+              list="conn-group-options"
+              placeholder="es. Produzione (opzionale)"
+            />
+            <datalist id="conn-group-options">
+              {groupOptions.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+          </label>
           <div className="form-row">
             <label style={{ flex: 2 }}>
               Host

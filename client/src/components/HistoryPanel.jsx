@@ -57,7 +57,7 @@ function HistoryRow({ entry, conn, expanded, onToggle, onDeleted }) {
         {entry.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
       </span>
       <span className="history-ts">{formatTs(entry.ts)}</span>
-      <span className="conn-dot" style={{ background: conn?.color || '#666' }} title={conn?.name || entry.connId} />
+      <span className="conn-dot" title={conn?.name || entry.connId} />
       <span className="history-sql" title={expanded ? undefined : entry.sql}>
         {expanded ? <pre>{entry.sql}</pre> : firstLine(entry.sql)}
         {!entry.ok && entry.errorMessage && <div className="history-err-msg">{entry.errorMessage}</div>}

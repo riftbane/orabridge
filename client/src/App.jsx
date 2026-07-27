@@ -11,12 +11,10 @@ function TabBar() {
   const tabs = useStore((s) => s.tabs);
   const activeTabId = useStore((s) => s.activeTabId);
   const { setActiveTab, closeTab } = useStore.getState();
-  const conns = useStore((s) => s.conns);
 
   return (
     <div className="tabbar">
       {tabs.map((t) => {
-        const conn = conns.find((c) => c.id === t.connId);
         return (
           <div
             key={t.id}
@@ -26,7 +24,7 @@ function TabBar() {
             title={t.kind === 'object' ? `${t.owner}.${t.name} (${t.type})` : t.title}
           >
             {t.kind === 'worksheet' ? (
-              <span className="tab-dot" style={{ background: conn?.color || '#888' }} />
+              <span className="tab-dot" />
             ) : t.kind === 'history' ? (
               <span className="type-icon" style={{ color: '#888', borderColor: '#888' }}>
                 <History size={10} />

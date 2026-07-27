@@ -70,7 +70,7 @@ export const store = {
       serviceType: input.serviceType || 'service',
       service: input.service || '',
       user: input.user || '',
-      color: input.color || '#e8734a',
+      group: input.group || '',
       password: encrypt(input.password || ''),
       createdAt: new Date().toISOString(),
     };
@@ -92,7 +92,7 @@ export const store = {
       serviceType: patch.serviceType ?? cur.serviceType,
       service: patch.service ?? cur.service,
       user: patch.user ?? cur.user,
-      color: patch.color ?? cur.color,
+      group: patch.group ?? cur.group,
       password: patch.password ? encrypt(patch.password) : cur.password,
     };
     list[idx] = next;

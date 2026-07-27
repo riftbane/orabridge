@@ -51,11 +51,7 @@ export const useStore = create(
           toast(`Connesso a ${get().conns.find((c) => c.id === id)?.name}`, 'ok');
           get().loadAutocomplete(id);
         } catch (err) {
-          set((s) => {
-            const active = { ...s.active };
-            delete active[id];
-            return { active };
-          });
+          set((s) => ({ active: { ...s.active, [id]: { status: 'error', error: err.message } } }));
           toast(`Connessione fallita: ${err.message}`, 'error');
         }
       },
