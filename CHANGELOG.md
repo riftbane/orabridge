@@ -2,6 +2,35 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.10.0 — 2026-07-27
+
+- **Nuovo:** confronto fra due database con script di sincronizzazione Aggiunge DB Diff, sul modello di SQL Developer: si scelgono due schemi —
+anche sulla stessa connessione — e si ottiene l'elenco degli oggetti solo in
+origine, solo in destinazione o diversi, con il dettaglio delle differenze e
+lo script DDL che allinea la destinazione.
+
+- `server/src/diff/snapshot.js` legge uno schema con poche query bulk sul
+  dizionario (una per vista, non una per oggetto)
+- `server/src/diff/compare.js` confronta i due snapshot: i vincoli e gli
+  indici con nome generato dal sistema si accoppiano per definizione invece
+  che per nome, i riferimenti allo schema di origine valgono come quelli
+  alla destinazione, indentazione e righe vuote si possono ignorare
+- `server/src/diff/script.js` genera CREATE/ALTER (e i DROP solo su
+  richiesta) dagli snapshot, senza DBMS_METADATA: funziona anche con
+  privilegi minimi ed è una funzione pura
+- `/api/diff` sta fuori da `/api/conn/:id` perché tocca due connessioni
+  insieme; tiene in memoria le ultime fotografie, così dettaglio e script
+  non rileggono il dizionario
+- client: scheda DB Diff con elenco filtrabile e selezionabile, confronto
+  affiancato riga per riga (algoritmo di Myers in `client/src/textDiff.js`)
+  e script apribile in un foglio SQL sulla connessione di destinazione
+
+Lo script viene solo generato: va riletto ed eseguito a mano.
+
+Test: 18 sul motore di confronto (server), 9 sul diff testuale (client).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.9.0 — 2026-07-27
 
 - **Nuovo:** completamento SQL consapevole del contesto L'autocomplete dell'editor ora capisce in che clausola si trova il cursore e
