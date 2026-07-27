@@ -2,6 +2,36 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.9.0 — 2026-07-27
+
+- **Nuovo:** completamento SQL consapevole del contesto L'autocomplete dell'editor ora capisce in che clausola si trova il cursore e
+ordina i suggerimenti di conseguenza, in sezioni distinte (colonne, tabelle,
+funzioni, parole chiave…): dopo FROM vengono prima le tabelle, dentro
+SELECT/WHERE prima le colonne.
+
+Novità principali:
+
+- colonne con tipo, NOT NULL e PK; l'analizzatore riconosce anche le CTE del
+  WITH, le subquery in FROM, le liste con virgole e MERGE/UPDATE/INSERT
+- altri schemi caricati al volo scrivendo "ALTRO_SCHEMA."; risoluzione dei
+  sinonimi verso lo schema di destinazione
+- condizioni di join ricavate dalle foreign key: dopo JOIN propone la tabella
+  collegata già completa di alias e ON, dentro ON la sola condizione
+- espansione di "*" e "alias.*" nell'elenco delle colonne
+- funzioni built-in di Oracle con firma, package (membri inclusi), sequenze
+  con NEXTVAL/CURRVAL, procedure e funzioni dello schema
+- i nomi seguono lo stile di chi scrive: prefisso in minuscolo -> nomi e
+  parole chiave inseriti in minuscolo
+- Tab accetta il suggerimento
+
+La rotta /autocomplete restituisce ora anche tipi delle colonne, chiavi
+primarie, foreign key, package/procedure/funzioni, sequenze e sinonimi.
+
+Aggiunti test (node --test, "npm test" dentro client/) per l'analizzatore
+SQL e per la sorgente di completamento.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.8.0 — 2026-07-27
 
 - **Nuovo:** aggiunge barra di ricerca per le connessioni Filtra le connessioni per nome, gruppo, utente o servizio; durante la
