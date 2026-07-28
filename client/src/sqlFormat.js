@@ -9,7 +9,7 @@
 
 // Esportate anche per la colorazione dei blocchi SQL in chat (codeTokens.js).
 export const KEYWORDS = new Set(
-  `ACCESS ADD ALL ALTER AND ANY ARRAY AS ASC AT AUTHID BEGIN BETWEEN BFILE BINARY_DOUBLE
+  `ACCESS ADD AFTER ALL ALTER AND ANY ARRAY AS ASC AT AUTHID BEFORE BEGIN BETWEEN BFILE BINARY_DOUBLE
    BINARY_FLOAT BLOB BODY BOOLEAN BOTH BULK BY BYTE CALL CASCADE CASE CAST CHAR CHECK CLOB
    CLOSE CLUSTER COALESCE COLLECT COLUMN COMMENT COMMIT CONNECT CONSTANT CONSTRAINT CONTINUE
    CREATE CROSS CURRENT CURRENT_DATE CURRENT_TIMESTAMP CURSOR CYCLE DATE DAY DBLINK DEC DECIMAL
@@ -18,7 +18,7 @@ export const KEYWORDS = new Set(
    FALSE FETCH FIRST FLOAT FOLLOWING FOR FORALL FOREIGN FROM FULL FUNCTION GOTO GRANT GROUP
    HAVING IF IMMEDIATE IN INCREMENT INDEX INDICES INITIALLY INNER INOUT INSERT INSTEAD INT INTEGER
    INTERSECT INTERVAL INTO IS JOIN KEEP KEY LAST LEADING LEFT LEVEL LIKE LIMIT LOCAL LOCK LONG
-   LOOP MATERIALIZED MAXVALUE MERGE MINUS MINVALUE MOD MODIFY MONTH NATURAL NEW NEXTVAL NO NOCOPY
+   LOOP MATCHED MATERIALIZED MAXVALUE MERGE MINUS MINVALUE MOD MODIFY MONTH NATURAL NEW NEXTVAL NO NOCOPY
    NOCYCLE NOT NOWAIT NULL NULLS NUMBER NUMERIC NVARCHAR2 OBJECT OF OFFSET OLD ON ONLY OPEN OR
    ORDER OTHERS OUT OUTER OVER PACKAGE PARALLEL PARTITION PCTFREE PIPELINED PIVOT PRAGMA PRECEDING
    PRECISION PRIMARY PRIOR PROCEDURE PUBLIC RAISE RANGE RAW READ REAL RECORD REF REFERENCES
@@ -43,6 +43,11 @@ const SPACE_BEFORE_PAREN = new Set(
     .filter(Boolean)
 );
 
+// Parole dopo le quali segue il nome di un oggetto: la parentesi che chiude il
+// nome (`CREATE TABLE t (…)`, `INSERT INTO t (…)`, `CREATE INDEX i ON t (…)`)
+// vuole lo spazio, a differenza di una chiamata di funzione.
+const NAME_PAREN_AFTER = new Set(['TABLE', 'INTO', 'INDEX', 'VIEW', 'ON', 'CLUSTER']);
+
 // Inizio di una clausola SQL: va a capo (solo al livello di parentesi della
 // query a cui appartiene, così `EXTRACT(YEAR FROM d)` resta su una riga).
 const CLAUSE = new Set(
@@ -53,6 +58,8 @@ const CLAUSE = new Set(
 );
 
 const JOIN_PREFIX = new Set(['LEFT', 'RIGHT', 'FULL', 'INNER', 'CROSS', 'NATURAL']);
+const TRIGGER_EVENTS = new Set(['INSERT', 'UPDATE', 'DELETE']);
+const TRIGGER_EVENT_PREV = new Set(['BEFORE', 'AFTER', 'OR', 'OF']);
 const SQL_OPENER = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'WITH']);
 // Dopo IS/AS queste parole escludono l'intestazione di un blocco PL/SQL.
 const NOT_DECL_AFTER = new Set(['SELECT', 'OBJECT', 'TABLE', 'VARRAY', 'RECORD', 'REF', 'RANGE', 'WITH']);
@@ -214,11 +221,26 @@ function needsSpace(prev, cur) {
   if (p === '(' || p === '.' || p === '@' || p === '%') return false;
   if (c === '.' || c === '@' || c === '%') return false;
   if (c === '(') {
+    if (cur.spaced) return true;
     if (prev.type === 'word') return SPACE_BEFORE_PAREN.has(p.toUpperCase());
     return prev.type !== 'quoted' && p !== ')';
   }
   if (prev.unary) return false;
   return true;
+}
+
+// Vero se la parentesi in posizione `i` chiude il nome di un oggetto
+// (`t`, `schema.t`) introdotto da CREATE TABLE / INSERT INTO / … ON.
+function afterObjectName(tokens, i) {
+  const isName = (t) => !!t && (t.type === 'word' || t.type === 'quoted');
+  let j = i - 1;
+  if (!isName(tokens[j])) return false;
+  while (j > 0 && tokens[j - 1].type === 'punct' && tokens[j - 1].text === '.') {
+    j -= 2;
+    if (!isName(tokens[j])) return false;
+  }
+  const before = tokens[j - 1];
+  return !!before && before.type === 'word' && NAME_PAREN_AFTER.has(before.text.toUpperCase());
 }
 
 // `-`/`+` sono unari se non seguono un valore.
@@ -247,18 +269,6 @@ export function formatSql(sql, opts = {}) {
   const sqlDepths = []; // profondità di parentesi delle query aperte
   let stmtWords = []; // prime parole dell'istruzione corrente
 
-  const lineLen = (l) => {
-    if (!l) return 0;
-    let n = l.level * tabWidth;
-    let prev = null;
-    for (const t of l.tokens) {
-      if (needsSpace(prev, t)) n++;
-      n += t.text.length;
-      prev = t;
-    }
-    return n;
-  };
-
   const br = (blank = 0) => {
     if (cur && cur.tokens.length) {
       lines.push(cur);
@@ -268,7 +278,7 @@ export function formatSql(sql, opts = {}) {
     cur = { level: Math.max(0, level + depth), tokens: [] };
   };
 
-  const emit = (tok, text) => {
+  const emit = (tok, text, extra) => {
     if (!cur) cur = { level: Math.max(0, level + depth), tokens: [] };
     const prev = cur.tokens[cur.tokens.length - 1] || null;
     cur.tokens.push({
@@ -276,11 +286,16 @@ export function formatSql(sql, opts = {}) {
       type: tok.type,
       depth,
       unary: tok.type === 'op' && isUnary(prev, tok.text),
+      ...extra,
     });
   };
 
   const inSqlClause = () => sqlDepths.length > 0 && depth === sqlDepths[sqlDepths.length - 1].depth;
   const top = () => blocks[blocks.length - 1];
+  const lastBlock = (k) => {
+    for (let i = blocks.length - 1; i >= 0; i--) if (blocks[i].k === k) return blocks[i];
+    return null;
+  };
 
   // Cerca la prossima parola significativa (per decidere IS/AS, END IF, join…).
   const nextWord = (from, skip = new Set()) => {
@@ -308,7 +323,7 @@ export function formatSql(sql, opts = {}) {
     if (idx === -1) idx = blocks.length - 1;
     if (idx < 0) return null;
     const removed = blocks.splice(idx);
-    for (const b of removed) if (b.k !== 'case') level = Math.max(0, level - 1);
+    for (const b of removed) if (b.k !== 'case' || b.stmt) level = Math.max(0, level - 1);
     return removed[0].k;
   };
 
@@ -325,6 +340,13 @@ export function formatSql(sql, opts = {}) {
     }
 
     if (tok.type === 'word') {
+      // Dopo un punto la parola è un nome (colonna, campo, pseudo-colonna):
+      // non va maiuscolata né interpretata come parola chiave, altrimenti
+      // `t.date` o `s.level` diventerebbero `t.DATE` e `s.LEVEL`.
+      if (tokens[i - 1]?.type === 'punct' && tokens[i - 1].text === '.') {
+        emit(tok);
+        continue;
+      }
       const u = tok.text.toUpperCase();
       const kw = KEYWORDS.has(u);
       const text = kw ? u : tok.text;
@@ -388,7 +410,9 @@ export function formatSql(sql, opts = {}) {
           const after = nextWord(i + 1);
           const kind = after === 'IF' ? 'if' : after === 'LOOP' ? 'loop' : after === 'CASE' ? 'case' : null;
           if ((top()?.k === 'case' && !kind) || kind === 'case') {
+            const stmt = lastBlock('case')?.stmt;
             closeBlock('case');
+            if (stmt) br(blank); // istruzione CASE: END CASE su una riga sua
             emit(tok, text); // END di un'espressione CASE: resta in linea
             continue;
           }
@@ -426,6 +450,11 @@ export function formatSql(sql, opts = {}) {
           continue;
         }
         case 'ELSE': {
+          if (top()?.k === 'case' && top().stmt) {
+            br(blank);
+            emit(tok, text);
+            continue;
+          }
           if (top()?.k === 'if' && top().opened) {
             level = Math.max(0, level - 1);
             br(blank);
@@ -453,13 +482,30 @@ export function formatSql(sql, opts = {}) {
             emit(tok, text);
             continue;
           }
+          // CASE come istruzione PL/SQL (chiuso da END CASE): apre un blocco,
+          // i rami WHEN vanno a capo rientrati. Come espressione resta in riga.
+          if (depth === 0 && !sqlDepths.length && !cur?.tokens.length) {
+            br(blank);
+            emit(tok, text);
+            level++;
+            blocks.push({ k: 'case', stmt: true });
+            continue;
+          }
           emit(tok, text);
           blocks.push({ k: 'case' });
           continue;
         }
         case 'WHEN': {
+          if (top()?.k === 'case' && top().stmt) {
+            br(blank);
+            emit(tok, text);
+            continue;
+          }
           // Gestore di eccezione o ramo di MERGE: il corpo dopo THEN rientra.
-          const isMergeWhen = depth === 0 && sqlDepths[sqlDepths.length - 1]?.kw === 'MERGE';
+          // Il MERGE si cerca in tutta la pila perché i suoi rami aprono a
+          // loro volta UPDATE e INSERT.
+          const isMergeWhen =
+            depth === 0 && top()?.k !== 'case' && sqlDepths.some((s) => s.depth === 0 && s.kw === 'MERGE');
           if (top()?.k === 'when') {
             if (top().merge === isMergeWhen) closeBlock('when');
           }
@@ -476,9 +522,23 @@ export function formatSql(sql, opts = {}) {
           break;
       }
 
-      if (SQL_OPENER.has(u) && upper(tokens[i - 1]) !== 'END') sqlDepths.push({ depth, kw: u });
-
       const prevWord = upper(tokens[i - 1]);
+
+      // `BEFORE INSERT OR UPDATE OF col ON t`: gli eventi di un trigger non
+      // sono istruzioni, restano nell'intestazione senza andare a capo.
+      if (
+        TRIGGER_EVENTS.has(u) &&
+        TRIGGER_EVENT_PREV.has(prevWord) &&
+        !blocks.length &&
+        stmtWords[0] === 'CREATE' &&
+        stmtWords.includes('TRIGGER')
+      ) {
+        emit(tok, text);
+        continue;
+      }
+
+      if (SQL_OPENER.has(u) && prevWord !== 'END') sqlDepths.push({ depth, kw: u });
+
       const isJoin =
         (u === 'JOIN' && !JOIN_PREFIX.has(prevWord) && prevWord !== 'OUTER') ||
         (JOIN_PREFIX.has(u) && nextWord(i + 1, new Set(['OUTER', 'LEFT', 'RIGHT', 'FULL', 'INNER'])) === 'JOIN');
@@ -501,7 +561,7 @@ export function formatSql(sql, opts = {}) {
 
     if (tok.type === 'punct') {
       if (tok.text === '(') {
-        emit(tok);
+        emit(tok, null, depth === 0 && afterObjectName(tokens, i) ? { spaced: true } : null);
         parens.push({ level, multiline: false });
         depth++;
         continue;
@@ -571,37 +631,116 @@ function render(toks) {
   return out;
 }
 
-// Righe troppo lunghe: spezza sulle virgole (o su AND/OR) del livello di
-// parentesi più esterno della riga, rientrando di un livello.
+// Righe troppo lunghe: si prova a spezzarle, in ordine, sui separatori del
+// livello di parentesi più esterno (virgole, AND/OR), sulla struttura di un
+// CASE, sulle concatenazioni e infine aprendo il gruppo di parentesi più
+// esterno. Ogni pezzo viene riesaminato, così una colonna lunga dentro una
+// lista già spezzata continua a rientrare.
 function wrap(line, maxWidth, tabWidth) {
-  const width = line.level * tabWidth + render(line.tokens).length;
-  if (width <= maxWidth || line.tokens.length < 4) return [line];
+  if (line.tokens.length < 4 || lineWidth(line, tabWidth) <= maxWidth) return [line];
   const minDepth = Math.min(...line.tokens.map((t) => t.depth));
+  const parts =
+    splitSeparators(line, minDepth) ||
+    splitCase(line, minDepth) ||
+    splitConcat(line, minDepth) ||
+    splitParen(line, minDepth);
+  return parts ? parts.flatMap((l) => wrap(l, maxWidth, tabWidth)) : [line];
+}
+
+function lineWidth(line, tabWidth) {
+  return line.level * tabWidth + render(line.tokens).length;
+}
+
+// Taglia la riga nei punti indicati: `i` è l'indice del token davanti al quale
+// (o dietro al quale, con `after`) si va a capo, `indent` il rientro relativo
+// dei token che seguono.
+function cut(line, points) {
+  const out = [];
+  let start = 0;
+  let indent = 0;
+  for (const p of points) {
+    const end = p.after ? p.i + 1 : p.i;
+    if (end > start) out.push({ level: line.level + indent, tokens: line.tokens.slice(start, end) });
+    start = end;
+    indent = p.indent;
+  }
+  if (start < line.tokens.length) out.push({ level: line.level + indent, tokens: line.tokens.slice(start) });
+  return out.length > 1 ? out : null;
+}
+
+// Virgole e AND/OR del livello più esterno. `indent` è 0 quando la riga è già
+// il contenuto rientrato di una parentesi: le voci restano allineate fra loro.
+function splitSeparators(line, minDepth, indent = 1) {
   const points = [];
   let between = 0;
-  for (let i = 1; i < line.tokens.length - 1; i++) {
+  let caseNest = 0;
+  for (let i = 0; i < line.tokens.length; i++) {
     const t = line.tokens[i];
     if (t.depth !== minDepth) continue;
     const u = t.text.toUpperCase();
+    // Dentro un CASE…END gli AND/OR fanno parte della condizione di un ramo:
+    // spezzarli qui scompaginerebbe il rientro, se ne occupa splitCase.
+    if (t.type === 'word' && u === 'CASE') caseNest++;
+    else if (t.type === 'word' && u === 'END') caseNest = Math.max(0, caseNest - 1);
+    if (caseNest > 0 || i === 0 || i === line.tokens.length - 1) continue;
     if (u === 'BETWEEN') between++;
-    if (t.text === ',') points.push({ i, after: true });
+    if (t.text === ',') points.push({ i, after: true, indent });
     else if ((u === 'AND' || u === 'OR') && t.type === 'word') {
       if (u === 'AND' && between > 0) between--;
-      else points.push({ i, after: false });
+      else points.push({ i, after: false, indent });
     }
   }
-  if (!points.length) return [line];
-  const out = [];
-  let start = 0;
-  for (const p of points) {
-    const end = p.after ? p.i + 1 : p.i;
-    if (end > start) out.push({ level: line.level + (out.length ? 1 : 0), tokens: line.tokens.slice(start, end) });
-    start = end;
+  return points.length ? cut(line, points) : null;
+}
+
+// Concatenazioni: si va a capo prima di `||`.
+function splitConcat(line, minDepth) {
+  const points = [];
+  for (let i = 1; i < line.tokens.length - 1; i++) {
+    const t = line.tokens[i];
+    if (t.depth === minDepth && t.type === 'op' && t.text === '||') points.push({ i, after: false, indent: 1 });
   }
-  if (start < line.tokens.length) {
-    out.push({ level: line.level + (out.length ? 1 : 0), tokens: line.tokens.slice(start) });
+  return points.length ? cut(line, points) : null;
+}
+
+// Un CASE lungo: WHEN/ELSE rientrati di un livello, END di nuovo allineato.
+function splitCase(line, minDepth) {
+  const toks = line.tokens;
+  const points = [];
+  let nest = 0;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (t.type !== 'word' || t.depth !== minDepth) continue;
+    const u = t.text.toUpperCase();
+    if (u === 'CASE') nest++;
+    else if (u === 'END') {
+      if (nest === 1 && i > 0) points.push({ i, after: false, indent: 0 });
+      nest = Math.max(0, nest - 1);
+    } else if (nest === 1 && i > 0 && (u === 'WHEN' || u === 'ELSE')) {
+      points.push({ i, after: false, indent: 1 });
+    }
   }
-  return out.length ? out : [line];
+  return points.length ? cut(line, points) : null;
+}
+
+// Ultima risorsa: apre il primo gruppo di parentesi del livello più esterno e
+// ne rientra il contenuto — `CREATE TABLE t (`, lista colonne, `)`.
+function splitParen(line, minDepth) {
+  const toks = line.tokens;
+  const at = (i, text) => toks[i].type === 'punct' && toks[i].text === text && toks[i].depth === minDepth;
+  let open = -1;
+  for (let i = 0; i < toks.length && open === -1; i++) if (at(i, '(')) open = i;
+  if (open === -1) return null;
+  let close = -1;
+  for (let i = open + 1; i < toks.length && close === -1; i++) if (at(i, ')')) close = i;
+  if (close === -1 || close === open + 1) return null;
+  const inner = { level: line.level + 1, tokens: toks.slice(open + 1, close) };
+  const innerDepth = Math.min(...inner.tokens.map((t) => t.depth));
+  return [
+    { level: line.level, tokens: toks.slice(0, open + 1) },
+    ...(splitSeparators(inner, innerDepth, 0) || [inner]),
+    { level: line.level, tokens: toks.slice(close) },
+  ];
 }
 
 // ---------- verifica ----------

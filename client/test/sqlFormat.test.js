@@ -94,6 +94,108 @@ test('manda a capo le righe troppo lunghe sulle virgole', () => {
   assert.ok(out.split('\n').every((l) => l.length <= 100));
 });
 
+test('apre le parentesi di una DDL lunga e rientra le colonne', () => {
+  const out = safeFormatSql(
+    `create table clienti (id number(10) not null, nome varchar2(100), email varchar2(200), constraint pk_clienti primary key (id))`
+  );
+  assert.equal(
+    out,
+    [
+      'CREATE TABLE clienti (',
+      '  id NUMBER(10) NOT NULL,',
+      '  nome VARCHAR2(100),',
+      '  email VARCHAR2(200),',
+      '  CONSTRAINT pk_clienti PRIMARY KEY (id)',
+      ')',
+    ].join('\n')
+  );
+});
+
+test('rientra i rami di un CASE istruzione', () => {
+  const out = safeFormatSql(
+    `begin case v_stato when 'A' then p_attiva; when 'S' then p_sospendi; else p_chiudi; end case; end;`
+  );
+  assert.equal(
+    out,
+    [
+      'BEGIN',
+      '  CASE v_stato',
+      "    WHEN 'A' THEN p_attiva;",
+      "    WHEN 'S' THEN p_sospendi;",
+      '    ELSE p_chiudi;',
+      '  END CASE;',
+      'END;',
+    ].join('\n')
+  );
+});
+
+test('manda a capo i rami di un CASE espressione troppo lungo', () => {
+  const out = safeFormatSql(
+    `select id, case when stato = 'A' then 'Cliente attivo e in regola' when stato = 'S' then 'Cliente sospeso per morosita' else 'Cliente chiuso' end descrizione from clienti`
+  );
+  assert.equal(
+    out,
+    [
+      'SELECT id,',
+      '  CASE',
+      "    WHEN stato = 'A' THEN 'Cliente attivo e in regola'",
+      "    WHEN stato = 'S' THEN 'Cliente sospeso per morosita'",
+      "    ELSE 'Cliente chiuso'",
+      '  END descrizione',
+      'FROM clienti',
+    ].join('\n')
+  );
+});
+
+test('una parola dopo il punto è un nome, non una parola chiave', () => {
+  const out = safeFormatSql(`select t.date, t.level, s.deferrable from t join s on s.id = t.id`);
+  assert.equal(out, ['SELECT t.date, t.level, s.deferrable', 'FROM t', 'JOIN s ON s.id = t.id'].join('\n'));
+});
+
+test('separa i rami di un MERGE', () => {
+  const out = safeFormatSql(
+    `merge into d using (select id, valore from s) s on (d.id = s.id) when matched then update set d.valore = s.valore when not matched then insert (id, valore) values (s.id, s.valore)`
+  );
+  assert.equal(
+    out,
+    [
+      'MERGE INTO d USING (',
+      '  SELECT id, valore',
+      '  FROM s',
+      ') s ON (d.id = s.id)',
+      'WHEN MATCHED THEN',
+      '  UPDATE SET d.valore = s.valore',
+      'WHEN NOT MATCHED THEN',
+      '  INSERT (id, valore)',
+      '  VALUES (s.id, s.valore)',
+    ].join('\n')
+  );
+});
+
+test("tiene l'intestazione di un trigger su una riga", () => {
+  const out = safeFormatSql(
+    `create or replace trigger trg before insert or update on clienti for each row begin :new.id := 1; end;`
+  );
+  assert.equal(
+    out,
+    [
+      'CREATE OR REPLACE TRIGGER trg BEFORE INSERT OR UPDATE ON clienti FOR EACH ROW',
+      'BEGIN',
+      '  :new.id := 1;',
+      'END;',
+    ].join('\n')
+  );
+});
+
+test('spezza le concatenazioni lunghe prima di ||', () => {
+  const out = safeFormatSql(
+    `select 'Cliente: ' || c.nome || ' ' || c.cognome || ' (' || c.codice_fiscale || ') residente in ' || c.citta from clienti c`
+  );
+  const righe = out.split('\n');
+  assert.ok(righe.every((l) => l.length <= 100));
+  assert.ok(righe.filter((l) => l.trimStart().startsWith('||')).length >= 3);
+});
+
 test('è idempotente', () => {
   const src = `create or replace function f(p in varchar2) return number is
 begin
@@ -104,6 +206,17 @@ return 0;
 end f;`;
   const once = safeFormatSql(src);
   assert.equal(safeFormatSql(once), once);
+});
+
+test('è idempotente anche su DDL, CASE e MERGE', () => {
+  const src = `create table t (id number(10) not null, descrizione varchar2(400), nota varchar2(4000), constraint pk_t primary key (id));
+begin
+case v_x when 1 then p_uno; else p_altro; end case;
+merge into d using (select id from s) s on (d.id = s.id) when matched then update set d.v = 1 when not matched then insert (id) values (s.id);
+end;`;
+  const once = safeFormatSql(src);
+  assert.equal(safeFormatSql(once), once);
+  assert.ok(once.split('\n').every((l) => l.length <= 100));
 });
 
 test('safeFormatSql rifiuta un risultato che perde token', () => {
