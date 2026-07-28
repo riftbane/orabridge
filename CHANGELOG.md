@@ -12,6 +12,8 @@ anteprima valore cella e i dialoghi DDL (tabelle e oggetti).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.17.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.1/Orabridge%20Setup%201.17.1.exe) (2026-07-28).
+
 ## v1.17.0 — 2026-07-28
 
 - **Nuovo:** guida dell'app consultabile da scheda e impostazioni Le funzioni erano documentate solo nel README del repository: chi usa
