@@ -77,19 +77,41 @@ export const useStore = create(
         });
       },
 
-      async connect(id) {
+      // Connessione in attesa di password: { connId, error }. Vale sia quando
+      // la password non è mai stata salvata sia quando non è più valida —
+      // invece di mostrare solo l'errore si chiede la password all'utente
+      // (vedi PasswordPrompt.jsx), e se funziona viene salvata dal server.
+      passwordPrompt: null,
+      closePasswordPrompt() {
+        set({ passwordPrompt: null });
+      },
+
+      async connect(id, password) {
         const { toast } = get();
         set((s) => ({ active: { ...s.active, [id]: { status: 'connecting' } } }));
         try {
-          const info = await api.connect(id);
+          const info = await api.connect(id, password);
           set((s) => ({
             active: { ...s.active, [id]: { status: 'connected', ...info } },
             conns: s.conns.map((c) => (c.id === id ? { ...c, connected: true } : c)),
+            passwordPrompt: null,
           }));
-          toast(`Connesso a ${get().conns.find((c) => c.id === id)?.name}`, 'ok');
+          const name = get().conns.find((c) => c.id === id)?.name;
+          toast(`Connesso a ${name}${info.passwordSaved ? ' — password salvata' : ''}`, 'ok');
           get().loadAutocomplete(id);
         } catch (err) {
           set((s) => ({ active: { ...s.active, [id]: { status: 'error', error: err.message } } }));
+          if (err.data?.needsPassword) {
+            set({
+              passwordPrompt: {
+                connId: id,
+                // Alla prima richiesta (password mai salvata) non c'è nulla da
+                // segnalare come errore: il prompt basta da solo.
+                error: err.data.reason === 'missing' ? '' : err.message,
+              },
+            });
+            return;
+          }
           toast(`Connessione fallita: ${err.message}`, 'error');
         }
       },

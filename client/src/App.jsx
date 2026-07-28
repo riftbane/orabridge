@@ -17,6 +17,7 @@ import DbDiff from './components/DbDiff.jsx';
 import AiPanel from './components/AiPanel.jsx';
 import Resizer from './components/Resizer.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
+import PasswordPrompt from './components/PasswordPrompt.jsx';
 import { TypeIcon } from './components/ObjectTree.jsx';
 
 function TabBar() {
@@ -163,6 +164,7 @@ export default function App() {
   const ui = useStore((s) => s.ui);
   const refreshConnections = useStore((s) => s.refreshConnections);
   const toast = useStore((s) => s.toast);
+  const passwordPrompt = useStore((s) => s.passwordPrompt);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Cambia ad ogni chiusura delle impostazioni: il pannello AI se ne accorge e
   // rilegge chiavi, modelli e permessi invece di restare con i vecchi.
@@ -253,6 +255,9 @@ export default function App() {
         settingsRev={settingsRev}
       />
       <Toasts />
+      {/* La chiave sul connId riparte da zero cambiando connessione, ma tiene
+          quanto digitato se il primo tentativo fallisce. */}
+      {passwordPrompt && <PasswordPrompt key={passwordPrompt.connId} prompt={passwordPrompt} />}
       {settingsOpen && (
         <SettingsModal
           onClose={() => {

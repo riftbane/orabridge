@@ -39,7 +39,10 @@ export const api = {
   testConnection: (body) => j('POST', '/api/connections/test', body),
   previewImportConnections: (content) => j('POST', '/api/connections/import/preview', { content }),
   importConnections: (body) => j('POST', '/api/connections/import', body),
-  connect: (id) => j('POST', `/api/connections/${id}/connect`),
+  // `password` solo quando l'utente la digita al volo: il server la salva
+  // sulla connessione se il login riesce.
+  connect: (id, password) =>
+    j('POST', `/api/connections/${id}/connect`, password ? { password } : {}),
   disconnect: (id) => j('POST', `/api/connections/${id}/disconnect`),
 
   // metadata

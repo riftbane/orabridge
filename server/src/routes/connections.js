@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { store } from '../store.js';
-import { pools, friendlyError } from '../pools.js';
+import { pools, friendlyError, isAuthError } from '../pools.js';
 import { parseExport, decryptWithKey } from '../importers/sqlDeveloper.js';
 
 const router = Router();
@@ -132,16 +132,33 @@ router.post(
   a(async (req, res) => {
     const cfg = store.get(req.params.id);
     if (!cfg) return res.status(404).json({ error: 'Connessione non trovata' });
+    // Password digitata al volo dal client: se la connessione riesce viene
+    // salvata sulla connessione, così la volta dopo non viene più richiesta.
+    const typed = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!typed && !cfg.password) {
+      return res.status(400).json({
+        error: 'Nessuna password salvata per questa connessione',
+        needsPassword: true,
+        reason: 'missing',
+      });
+    }
+    const already = !!pools.get(cfg.id);
     try {
-      const entry = await pools.connect(cfg);
+      const entry = await pools.connect(typed ? { ...cfg, password: typed } : cfg);
+      if (typed && !already) store.update(cfg.id, { password: typed });
       res.json({
         connected: true,
         user: entry.user,
         currentSchema: entry.currentSchema,
         version: entry.version,
+        passwordSaved: !!typed && !already,
       });
     } catch (err) {
-      res.status(400).json({ error: friendlyError(err) });
+      res.status(400).json({
+        error: friendlyError(err),
+        needsPassword: isAuthError(err),
+        reason: isAuthError(err) ? 'invalid' : undefined,
+      });
     }
   })
 );

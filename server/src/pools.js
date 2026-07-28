@@ -35,6 +35,13 @@ export function friendlyError(err) {
   return msg;
 }
 
+// Errori che si risolvono reinserendo la password (credenziali errate o
+// mancanti): chi chiama può richiederla all'utente invece di limitarsi a
+// mostrare l'errore.
+export function isAuthError(err) {
+  return /ORA-01017|ORA-01005/.test(err.message || '');
+}
+
 const active = new Map(); // id -> entry
 
 // Full TNS descriptor instead of Easy Connect: the thin driver's Easy Connect

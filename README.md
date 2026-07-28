@@ -3,7 +3,9 @@
 SQL veloce per Oracle, senza zavorra. Una piattaforma web leggera e dockerizzata per lavorare
 con database Oracle: pensata per developer che non vogliono la pesantezza di SQL Developer.
 
-- **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM)
+- **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM);
+  se la password manca o non è più valida viene chiesta al momento della connessione
+  e salvata sulla connessione appena il login riesce
 - **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto — i suggerimenti
   sono raggruppati in sezioni e ordinati in base alla clausola in cui si trova il cursore:
   - colonne delle tabelle citate nell'istruzione con il loro tipo, alias inclusi
