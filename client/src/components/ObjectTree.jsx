@@ -58,13 +58,15 @@ export function TypeIcon({ type }) {
   );
 }
 
-const RENDER_CAP = 300;
+// Quanti nodi si disegnano per volta: il resto arriva col tasto "Carica altro".
+const PAGE_SIZE = 300;
 
 function Folder({ connId, owner, label, type, filter }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(false);
   const [truncated, setTruncated] = useState(false);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [creating, setCreating] = useState(false);
   const [menu, setMenu] = useState(null); // { x, y, name }
   const [dropping, setDropping] = useState(null); // object name
@@ -81,6 +83,7 @@ function Folder({ connId, owner, label, type, filter }) {
       const data = await api.objects(connId, owner, type);
       setItems(data.items);
       setTruncated(data.truncated);
+      setLimit(PAGE_SIZE);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -129,9 +132,13 @@ function Folder({ connId, owner, label, type, filter }) {
     }
   };
 
+  // Cambiando filtro si riparte dalla prima pagina.
+  useEffect(() => setLimit(PAGE_SIZE), [filter]);
+
   const f = filter.toLowerCase();
   const filtered = items ? (f ? items.filter((it) => it.name.toLowerCase().includes(f)) : items) : [];
-  const shown = filtered.slice(0, RENDER_CAP);
+  const shown = filtered.slice(0, limit);
+  const remaining = filtered.length - shown.length;
 
   return (
     <div className="tree-folder">
@@ -188,10 +195,16 @@ function Folder({ connId, owner, label, type, filter }) {
               )}
             </div>
           ))}
-          {filtered.length > RENDER_CAP && (
-            <div className="tree-info">
-              …altri {filtered.length - RENDER_CAP} (usa il filtro)
-            </div>
+          {remaining > 0 && (
+            <button
+              className="tree-more"
+              onClick={() => setLimit((n) => n + PAGE_SIZE)}
+            >
+              Carica altro ({remaining})
+            </button>
+          )}
+          {!remaining && truncated && (
+            <div className="tree-info">elenco troncato dal server</div>
           )}
         </div>
       )}
