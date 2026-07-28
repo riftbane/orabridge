@@ -19,6 +19,8 @@ il dato com'è nel database finché non si chiede il contrario.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.13.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.0/Orabridge%20Setup%201.13.0.exe) (2026-07-28).
+
 ## v1.12.6 — 2026-07-28
 
 - **Fix:** nessun errore quando la release non ha ancora l'installer Se il workflow di rilascio ha già creato tag e release ma non ha ancora
