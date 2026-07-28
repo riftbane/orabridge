@@ -2,6 +2,43 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.4 — 2026-07-28
+
+- **Fix:** chat AI, comandi che fallivano e turni che restavano appesi Le ricerche filtrate dell'assistente fallivano sempre con ORA-01745: il bind
+del filtro di `list_objects` si chiamava `:like`, e `LIKE` è una parola
+riservata Oracle, quindi ogni chiamata con un filtro veniva rifiutata dal
+database. Il modello ripiegava sull'elenco completo dello schema — centinaia
+di nomi per volta — e bruciava passi e contesto per niente. Il bind ora si
+chiama `:flt` e le wildcard che il modello aggiunge di sua iniziativa vengono
+tolte (la ricerca è sempre "contiene"). Un test controlla che nessun bind del
+server si chiami come una parola riservata.
+
+`describe_table` si fermava a "non esiste o non è leggibile" anche quando
+l'oggetto c'era: se il nome è un sinonimo (proprio o pubblico) adesso lo
+segue fino alla tabella vera e lo dichiara nell'intestazione; se il sinonimo
+punta a un database link lo dice; se l'oggetto è di un altro tipo o sta in un
+altro schema, il messaggio indica il tipo e gli schemi dove cercarlo invece
+di lasciare il modello in un vicolo cieco.
+
+Gli argomenti troncati non diventano più un oggetto vuoto: quando la risposta
+si interrompe a metà del JSON, lo strumento partiva senza parametri e
+combinava danni o restituiva errori incomprensibili. Ora la chiamata viene
+respinta con un errore che chiede di ripeterla, e le chiamate senza i
+parametri obbligatori vengono fermate prima di arrivare al database (o di
+chiedere un'approvazione per un'istruzione vuota).
+
+Sui turni appesi: se la piattaforma AI smette di rispondere a metà stream, la
+lettura restava in attesa per sempre e la sessione sembrava piantata — ora
+c'è un timeout di due minuti di silenzio che chiude il turno con un errore
+leggibile. Le risposte tagliate dal limite di lunghezza vengono segnalate
+invece di finire a metà frase senza spiegazione. Le chiamate annunciate ma
+mai eseguite (limite di passi raggiunto, errore del provider) vengono chiuse
+con un esito, così non restano con la rotellina accesa e non bloccano il
+messaggio successivo. Il limite di passi per turno passa da 24 a 40, che era
+troppo basso per un'indagine su un database vero.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.3 — 2026-07-28
 
 - **Fix:** gruppi di connessioni chiusi all'avvio I gruppi nella barra laterale partivano tutti aperti a ogni avvio, così
