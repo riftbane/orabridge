@@ -2,6 +2,23 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.22.0 — 2026-07-28
+
+- **Nuovo:** il formattatore SQL allinea le clausole a destra del «fiume»
+
+  Le parole chiave di clausola sono allineate a destra entro una colonna
+  fissa (SELECT la riempie, FROM rientra di due, AND di tre) e gli elenchi
+  vanno sempre a capo, una voce per riga allineata sotto la prima, anche
+  quando la riga starebbe comoda. Le condizioni si spezzano su AND/OR, che
+  tornano nel fiume come le clausole.
+
+  SELECT … INTO, UPDATE … SET e RETURNING … INTO aprono la propria riga.
+  Corretti tre casi che venivano spezzati male: FOR UPDATE finiva a metà
+  riga, ORDER SIBLINGS BY non era riconosciuto come clausola e DELETE FROM
+  si spezzava in due.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.21.1 — 2026-07-28
 
 - **Fix:** il server locale dell'app desktop risponde solo alla sua finestra
