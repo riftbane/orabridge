@@ -49,6 +49,8 @@ conferma e «Apri nel foglio».
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.2/Orabridge%20Setup%201.12.2.exe) (2026-07-28).
+
 ## v1.12.1 — 2026-07-28
 
 - **Fix:** mostra le modifiche già al primo riavvio dopo un aggiornamento Il client è buildato come PWA e il suo service worker precaricava la app
