@@ -2,6 +2,47 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.21.1 — 2026-07-28
+
+- **Fix:** il server locale dell'app desktop risponde solo alla sua finestra
+
+  L'app desktop si porta dentro un server HTTP, e quel server era aperto a
+  chiunque sulla macchina: la porta restava fissa su 3000 (`Number('0') ||
+  3000` scambiava la richiesta di una porta effimera per «porta non
+  impostata») e nessuna richiesta doveva dimostrare di arrivare dalla
+  finestra dell'app. Bastava aprire localhost:3000 dal browser per
+  ritrovarsi Orabridge in mano, connessioni Oracle già attive comprese.
+
+  Ora la porta è davvero effimera e il main genera a ogni avvio un token
+  casuale, che inietta come header in tutte le richieste della finestra a
+  livello di rete: vale per il documento, per il bundle, per /api e per gli
+  EventSource della chat, che da JavaScript non potrebbero mandare header
+  propri. Chi quel token non ce l'ha trova una pagina che gli dice di usare
+  l'app. Nel deployment web/Docker il token non c'è e il controllo resta
+  spento: lì il server è il servizio, non un dettaglio interno.
+
+  Nell'occasione, tre porte chiuse anche per il deployment web: HOST vale
+  127.0.0.1 se non lo si cambia (il Dockerfile chiede 0.0.0.0
+  esplicitamente), l'header Host viene verificato quando si ascolta il
+  loopback — è così che una pagina web aggira le protezioni sull'origine,
+  puntando il proprio dominio a 127.0.0.1 — e le scritture cross-site
+  vengono rifiutate, con ORABRIDGE_ALLOWED_ORIGINS per chi sta dietro un
+  reverse proxy. Il proxy di Vite riscrive Host e Origin, altrimenti lo
+  sviluppo su :5173 finirebbe bocciato dai controlli nuovi.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+- **Fix:** il logo nella barra del titolo non si legge più «Ora bridge»
+
+  Il nome era in due nodi distinti (lo span «Ora» colorato e il testo
+  «bridge»), e dentro il flex della testata il gap di 7px li separava anche
+  visivamente. Ora stanno in un elemento solo.
+
+  Sparisce anche la riga delle schede quando nell'app desktop non ce n'è
+  nessuna aperta: gli interruttori dei pannelli sono saliti in testata,
+  quindi sopra la schermata iniziale restava una striscia vuota di 34px.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.21.0 — 2026-07-28
 
 - **Nuovo:** la finestra desktop usa la barra del titolo e perde il cromo da browser
