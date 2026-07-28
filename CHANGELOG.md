@@ -2,6 +2,14 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.17.2 — 2026-07-28
+
+- **Fix:** i dati delle tabelle si vedono anche su Oracle 11g La paginazione del tab Dati usava OFFSET/FETCH NEXT, sintassi disponibile
+solo da Oracle 12c: su 11g la SELECT falliva con ORA-00933 e il grid restava
+vuoto. Ora la paginazione usa ROWNUM, compatibile con tutte le versioni.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.17.1 — 2026-07-28
 
 - **Fix:** i modali non si chiudono più cliccando fuori Il click sullo sfondo chiudeva la finestra anche mentre si stava
