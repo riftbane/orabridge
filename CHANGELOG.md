@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.6 — 2026-07-28
+
+- **Fix:** nessun errore quando la release non ha ancora l'installer Se il workflow di rilascio ha già creato tag e release ma non ha ancora
+pubblicato l'.exe e latest.yml, electron-updater falliva con
+ERR_UPDATER_CHANNEL_FILE_NOT_FOUND e la scheda «Informazioni» mostrava un
+muro di stack trace. Ora questi casi (canale/asset/versione non trovati)
+vengono trattati come «nessun aggiornamento disponibile»; gli errori veri
+(rete, ecc.) restano visibili ma ridotti alla sola prima riga.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.5 — 2026-07-28
 
 - **Fix:** connessioni attive non visibili nei gruppi chiusi Con i gruppi chiusi non c'era modo di sapere dove fosse una connessione
