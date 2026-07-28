@@ -43,6 +43,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.21.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.21.1/Orabridge-Setup-1.21.1.exe) (2026-07-28).
+
 ## v1.21.0 — 2026-07-28
 
 - **Nuovo:** la finestra desktop usa la barra del titolo e perde il cromo da browser
