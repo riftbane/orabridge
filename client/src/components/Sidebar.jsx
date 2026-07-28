@@ -151,9 +151,16 @@ function groupHue(title) {
 
 function ConnGroup({ title, items, collapsed, onToggle, groups, plain }) {
   const hue = plain ? null : groupHue(title);
+  // Quante connessioni del gruppo sono aperte: a gruppo chiuso è l'unico modo
+  // per capire dove si trovano le connessioni attive.
+  const activeCount = useStore((s) =>
+    items.reduce((n, c) => n + (s.active[c.id]?.status === 'connected' ? 1 : 0), 0)
+  );
   return (
     <div
-      className={`conn-group ${collapsed ? 'collapsed' : ''} ${plain ? 'plain' : ''}`}
+      className={`conn-group ${collapsed ? 'collapsed' : ''} ${plain ? 'plain' : ''} ${
+        activeCount ? 'has-active' : ''
+      }`}
       style={hue == null ? undefined : { '--group-hue': hue }}
     >
       <button className="conn-group-head" onClick={onToggle}>
@@ -161,7 +168,21 @@ function ConnGroup({ title, items, collapsed, onToggle, groups, plain }) {
           <ChevronRight size={12} />
         </span>
         <span className="conn-group-title">{title}</span>
-        <span className="conn-group-count">{items.length}</span>
+        {!!activeCount && (
+          <span
+            className="conn-group-active"
+            title={activeCount === 1 ? '1 connessione attiva' : `${activeCount} connessioni attive`}
+          >
+            <span className="conn-dot status-connected" />
+            {activeCount}
+          </span>
+        )}
+        <span
+          className="conn-group-count"
+          title={items.length === 1 ? '1 connessione' : `${items.length} connessioni`}
+        >
+          {items.length}
+        </span>
       </button>
       {!collapsed && (
         <div className="conn-group-body">
