@@ -2,6 +2,16 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.3 — 2026-07-28
+
+- **Fix:** gruppi di connessioni chiusi all'avvio I gruppi nella barra laterale partivano tutti aperti a ogni avvio, così
+bisognava chiuderli a mano per trovare la connessione giusta. Ora lo stato
+tracciato è quello dei gruppi aperti, con default chiuso; "Senza gruppo"
+resta aperto perché non è un vero gruppo (altrimenti chi non usa i gruppi
+troverebbe la lista vuota). La ricerca continua a forzare l'apertura.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.2 — 2026-07-28
 
 - **Fix:** chat AI che non si blocca più e risposte in Markdown completo Quattro problemi del pannello dell'assistente.
