@@ -2,6 +2,26 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.1 — 2026-07-28
+
+- **Fix:** mostra le modifiche già al primo riavvio dopo un aggiornamento Il client è buildato come PWA e il suo service worker precaricava la app
+shell servendola dalla cache. Nell'app desktop il server locale espone
+sempre la stessa origine (127.0.0.1:3000), quindi il service worker
+sopravviveva agli aggiornamenti: al primo avvio dopo un update la finestra
+riceveva ancora i file della versione precedente e il nuovo sw si limitava
+ad aggiornare la cache in background, per cui le modifiche comparivano solo
+al secondo riavvio.
+
+Nel desktop la PWA non serve a niente (il server è in-process), quindi:
+- il bundle preparato per Electron viene buildato con ORABRIDGE_TARGET=desktop,
+  che esclude il plugin PWA (niente sw.js/registerSW.js); il build web/Docker
+  resta invariato;
+- all'avvio il main process cancella service worker, cache storage e cache HTTP
+  della sessione prima di caricare la finestra, così vengono ripuliti anche i
+  service worker già registrati dalle versioni precedenti.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.0 — 2026-07-27
 
 - **Nuovo:** assistente AI multi-piattaforma, impostazioni e pannelli ridimensionabili Nuovo pannello di chat (icona ✨ o Ctrl+Alt+I) che lavora davvero sul
