@@ -242,6 +242,12 @@ router.get(
   })
 );
 
+// Toglie dal grid l'ultima colonna (quelle di servizio: ROWNUM e ROWID).
+function dropLastColumn(grid) {
+  grid.columns.pop();
+  grid.rows = grid.rows.map((row) => row.slice(0, -1));
+}
+
 router.get(
   '/table/data',
   a(async (req, res) => {
@@ -251,26 +257,32 @@ router.get(
     // rowid=1 (Dati tab of a TABLE): also fetch ROWID so the grid can build
     // per-row UPDATE statements for inline cell editing.
     const withRowid = req.query.rowid === '1';
-    let sql = withRowid
+    let inner = withRowid
       ? `SELECT t.*, t.ROWID "__orabridge_rowid__" FROM ${qi(owner)}.${qi(name)} t`
       : `SELECT * FROM ${qi(owner)}.${qi(name)}`;
-    if (where?.trim()) sql += ` WHERE ${where}`;
-    if (orderBy) sql += ` ORDER BY ${qi(orderBy)} ${dir === 'desc' ? 'DESC' : 'ASC'}`;
-    sql += ` OFFSET :off ROWS FETCH NEXT :lim ROWS ONLY`;
+    if (where?.trim()) inner += ` WHERE ${where}`;
+    if (orderBy) inner += ` ORDER BY ${qi(orderBy)} ${dir === 'desc' ? 'DESC' : 'ASC'}`;
+    // Paginazione con ROWNUM invece di OFFSET/FETCH: quest'ultima esiste solo
+    // da Oracle 12c e su 11g fa fallire la SELECT con ORA-00933.
+    const sql = `SELECT * FROM (
+                   SELECT q.*, ROWNUM "__orabridge_rn__"
+                     FROM (${inner}) q
+                    WHERE ROWNUM <= :maxrow
+                 ) WHERE "__orabridge_rn__" > :off`;
     try {
       const grid = await withPooled(req.oraEntry, async (c) => {
         const r = await c.execute(
           sql,
-          { off: offset, lim: limit + 1 },
+          { maxrow: offset + limit + 1, off: offset },
           { outFormat: oracledb.OUT_FORMAT_ARRAY, maxRows: limit + 1 }
         );
         return gridResult(r, limit);
       });
+      dropLastColumn(grid); // la colonna di servizio ROWNUM
       if (withRowid) {
         const idx = grid.columns.length - 1;
         grid.rowids = grid.rows.map((row) => row[idx]);
-        grid.columns = grid.columns.slice(0, idx);
-        grid.rows = grid.rows.map((row) => row.slice(0, idx));
+        dropLastColumn(grid);
       }
       res.json({ ...grid, offset });
     } catch (err) {
