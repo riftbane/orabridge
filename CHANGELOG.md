@@ -2,6 +2,41 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.17.0 — 2026-07-28
+
+- **Nuovo:** guida dell'app consultabile da scheda e impostazioni Le funzioni erano documentate solo nel README del repository: chi usa
+l'app installata non aveva modo di scoprirle. Ora c'è un manuale d'uso
+dentro Orabridge, in due punti che mostrano lo stesso testo:
+
+- una scheda dedicata (F1, o l'icona del libro accanto all'ingranaggio),
+  con indice a sinistra, ricerca, collegamenti fra sezioni e navigazione
+  avanti/indietro;
+- Impostazioni -> Guida, in versione compatta, con il tasto per passare
+  alla scheda a tutta area sulla sezione che si stava leggendo (la
+  posizione è condivisa fra i due e viene ricordata).
+
+Quattordici sezioni: primi passi, connessioni, esplorazione del
+database, foglio SQL, editor (autocomplete, ricerca, formattazione),
+griglia dei risultati, DDL guidata, DB Diff, assistente AI, cronologia,
+scorciatoie, aggiornamenti e novità, dati e sicurezza, problemi
+frequenti.
+
+La sezione "Aggiornamenti e novità" riporta la versione installata e
+come si aggiorna quella copia — testo diverso fra app desktop
+(electron-updater: controllo all'avvio e ogni 4 ore) e client web — più
+le novità delle ultime versioni. La scheda "Informazioni" mostra ora la
+versione anche nel client web (prima diceva solo "Client web"), le
+ultime tre novità e il rimando alla sezione completa.
+
+Il testo sta in client/src/guide.js ed è Markdown reso dallo stesso
+parser delle risposte dell'assistente, con due opzioni nuove in
+AiMarkdown: collegamenti interni (#sezione) e a capo morbidi, perché il
+sorgente della guida è mandato a capo a mano e deve comunque adattarsi
+alla larghezza del pannello. Le risposte dell'assistente non cambiano.
+La versione arriva nel bundle da vite.config.js (__APP_VERSION__).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.16.0 — 2026-07-28
 
 - **Nuovo:** chiede la password quando manca o non è valida Connettendosi a una connessione senza password salvata (tipico dopo un
