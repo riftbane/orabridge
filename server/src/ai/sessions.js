@@ -9,9 +9,12 @@ import { requiredPermission, runTool, toolSchemas, ToolError } from './tools.js'
 import { sealMessages } from './toolPairing.js';
 
 const FILE = path.join(DATA_DIR, 'ai-sessions.json');
-const MAX_STEPS = 24; // giri modello→strumenti prima di fermarsi da soli
+const MAX_STEPS = 40; // giri modello→strumenti prima di fermarsi da soli
 const MAX_TOKENS = 8192;
 const MAX_SESSIONS = 100;
+// Silenzio massimo tollerato dalla piattaforma AI: oltre, il turno resterebbe
+// "in esecuzione" per sempre e la sessione sembrerebbe piantata.
+const STREAM_IDLE_MS = 120_000;
 
 // id -> AbortController del turno in corso (non serializzabile, resta in RAM).
 const running = new Map();
@@ -306,31 +309,70 @@ async function streamAssistant(s, signal) {
   const ctx = { apiKey: settings.apiKey(s.provider), baseUrl: settings.baseUrl(s.provider) };
   if (!ctx.apiKey) throw new Error(`Nessuna API key configurata per ${s.provider}`);
 
+  // Cane da guardia: se la piattaforma smette di mandare dati a metà stream la
+  // lettura resterebbe appesa senza errore. Si interrompe il turno e lo si dice.
+  const ctrl = new AbortController();
+  const relay = () => ctrl.abort();
+  // Lo Stop può essere già arrivato: un listener aggiunto dopo non scatterebbe.
+  if (signal?.aborted) ctrl.abort();
+  else signal?.addEventListener('abort', relay, { once: true });
+  let idleTimer = null;
+  let stalled = false;
+  const beat = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      stalled = true;
+      ctrl.abort();
+    }, STREAM_IDLE_MS);
+  };
+
   let text = '';
+  let stopReason = null;
   const toolUses = [];
-  const stream = provider.stream(ctx, {
-    model: s.model,
-    system: systemPrompt(s),
-    messages: s.messages,
-    tools: s.connId ? toolSchemas() : [],
-    maxTokens: MAX_TOKENS,
-    signal,
-  });
-  for await (const ev of stream) {
-    if (ev.type === 'text') {
-      text += ev.text;
-      emit(s, { type: 'delta', text: ev.text });
-    } else if (ev.type === 'tool_use') {
-      toolUses.push(ev);
-    } else if (ev.type === 'done' && ev.usage) {
-      s.usage = {
-        input: (s.usage?.input || 0) + (ev.usage.input || 0),
-        output: (s.usage?.output || 0) + (ev.usage.output || 0),
-      };
+  try {
+    beat();
+    const stream = provider.stream(ctx, {
+      model: s.model,
+      system: systemPrompt(s),
+      messages: s.messages,
+      tools: s.connId ? toolSchemas() : [],
+      maxTokens: MAX_TOKENS,
+      signal: ctrl.signal,
+    });
+    for await (const ev of stream) {
+      beat();
+      if (ev.type === 'text') {
+        text += ev.text;
+        emit(s, { type: 'delta', text: ev.text });
+      } else if (ev.type === 'tool_use') {
+        toolUses.push(ev);
+      } else if (ev.type === 'done') {
+        stopReason = ev.stopReason || null;
+        if (ev.usage) {
+          s.usage = {
+            input: (s.usage?.input || 0) + (ev.usage.input || 0),
+            output: (s.usage?.output || 0) + (ev.usage.output || 0),
+          };
+        }
+      }
     }
+  } catch (err) {
+    if (stalled && !signal?.aborted) {
+      throw new Error(
+        `La piattaforma AI non risponde da ${Math.round(STREAM_IDLE_MS / 1000)} secondi: turno interrotto.`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(idleTimer);
+    signal?.removeEventListener('abort', relay);
   }
-  return { text, toolUses };
+  return { text, toolUses, stopReason };
 }
+
+// Turno tagliato dal limite di lunghezza: il modello si ferma a metà frase (o a
+// metà chiamata) e senza avviso sembra che la chat si sia piantata.
+const TRUNCATED = new Set(['max_tokens', 'length', 'MAX_TOKENS']);
 
 // Esegue le chiamate in coda. Restituisce true se si è fermata in attesa
 // di un'approvazione dell'utente.
@@ -340,6 +382,19 @@ async function drainQueue(s, signal) {
     // della coda invece di eseguirlo lo stesso.
     if (signal?.aborted) throw Object.assign(new Error('Interrotto'), { name: 'AbortError' });
     const call = s.rt.queue[0];
+    // Argomenti arrivati incompleti: eseguire lo strumento "a vuoto" farebbe
+    // solo danni, si rimanda indietro l'errore così il modello riprova.
+    if (call.invalid) {
+      s.rt.queue.shift();
+      pushResult(
+        s,
+        call,
+        `ERRORE: argomenti della chiamata non validi (JSON incompleto o troncato): ${call.invalid}\n` +
+          'Ripeti la chiamata con argomenti completi e più corti.',
+        true
+      );
+      continue;
+    }
     let req;
     try {
       req = requiredPermission(call.name, call.input);
@@ -399,7 +454,7 @@ async function runLoop(s) {
         s.rt.results = [];
       }
 
-      const { text, toolUses } = await streamAssistant(s, ctrl.signal);
+      const { text, toolUses, stopReason } = await streamAssistant(s, ctrl.signal);
       const content = [];
       if (text.trim()) content.push({ type: 'text', text });
       for (const t of toolUses) {
@@ -407,12 +462,33 @@ async function runLoop(s) {
       }
       if (content.length) appendMessage(s, { role: 'assistant', content });
       if (!toolUses.length) {
+        if (TRUNCATED.has(stopReason)) {
+          appendMessage(s, {
+            role: 'assistant',
+            content: [
+              {
+                type: 'text',
+                text: '_Risposta interrotta: limite di lunghezza raggiunto. Chiedi di proseguire._',
+              },
+            ],
+          });
+        }
         setStatus(s, 'idle');
         return;
       }
-      s.rt.queue = toolUses.map((t) => ({ id: t.id, name: t.name, input: t.input }));
+      s.rt.queue = toolUses.map((t) => ({
+        id: t.id,
+        name: t.name,
+        input: t.input,
+        invalid: t.invalid || null,
+      }));
       s.rt.results = [];
     }
+    // Le chiamate dell'ultimo giro sono rimaste in coda: senza esito il pannello
+    // le mostrerebbe "in esecuzione" per sempre e il provider rifiuterebbe il
+    // messaggio successivo.
+    s.rt = { queue: [], results: [] };
+    sealDanglingToolUses(s, 'Limite di passi del turno raggiunto: operazione non eseguita.');
     appendMessage(s, {
       role: 'assistant',
       content: [{ type: 'text', text: '_Limite di passi raggiunto: scrivi come proseguire._' }],
@@ -426,6 +502,9 @@ async function runLoop(s) {
     }
     s.error = err.message || String(err);
     s.rt = { queue: [], results: [] };
+    // Chiamate già annunciate ma mai eseguite: chiuse anche qui, altrimenti
+    // restano con la rotellina accesa e bloccano il messaggio successivo.
+    sealDanglingToolUses(s, `Turno interrotto da un errore: ${s.error}`);
     setStatus(s, 'error');
   } finally {
     running.delete(s.id);

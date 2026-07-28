@@ -113,10 +113,28 @@ export const toolSchemas = () =>
 
 export class ToolError extends Error {}
 
+// I parametri obbligatori a volte mancano — succede quando il modello tronca
+// gli argomenti. Senza questo controllo la chiamata parte lo stesso e finisce
+// in un errore Oracle incomprensibile (o in una domanda di approvazione per
+// un'istruzione vuota): meglio dire subito che cosa manca.
+function checkInput(def, input) {
+  const missing = (def.parameters.required || []).filter((k) => {
+    const v = input?.[k];
+    return v == null || (typeof v === 'string' && !v.trim());
+  });
+  if (missing.length) {
+    throw new ToolError(
+      `Chiamata a ${def.name} senza i parametri obbligatori: ${missing.join(', ')}. ` +
+        'Ripeti la chiamata indicandoli.'
+    );
+  }
+}
+
 // Permesso richiesto da una chiamata: per execute_sql dipende dall'SQL.
 export function requiredPermission(name, input) {
   const def = TOOL_BY_NAME[name];
   if (!def) throw new ToolError(`Strumento sconosciuto: ${name}`);
+  checkInput(def, input);
   if (def.permission) return { level: def.permission };
   const { level, error, statement } = classifySql(input?.sql || '');
   if (!level) throw new ToolError(error);
@@ -157,6 +175,43 @@ async function query(entry, sql, binds, maxRows = 500) {
   });
 }
 
+// Un nome può essere un sinonimo (proprio o pubblico) verso la tabella vera:
+// senza seguirlo `describe_table` direbbe solo "non esiste".
+async function synonymTarget(entry, owner, name) {
+  const r = await query(
+    entry,
+    `SELECT table_owner, table_name, db_link FROM all_synonyms
+      WHERE synonym_name = :name AND owner IN (:owner, 'PUBLIC')
+      ORDER BY CASE WHEN owner = :owner THEN 0 ELSE 1 END`,
+    { owner, name },
+    5
+  ).catch(() => ({ rows: [] }));
+  const row = r.rows[0];
+  if (!row || !row[1]) return null;
+  return { owner: row[0] || owner, name: row[1], dbLink: row[2] || null };
+}
+
+// Perché non si trovano colonne: tipo sbagliato, schema sbagliato o davvero
+// niente. Al modello serve la pista giusta, non un vicolo cieco.
+async function missingReason(entry, owner, name) {
+  const r = await query(
+    entry,
+    `SELECT owner, object_type FROM all_objects WHERE object_name = :name
+      ORDER BY CASE WHEN owner = :owner THEN 0 ELSE 1 END, owner`,
+    { owner, name },
+    50
+  ).catch(() => ({ rows: [] }));
+  const here = r.rows.find(([o]) => o === owner);
+  if (here) {
+    return `${owner}.${name} è di tipo ${here[1]}, non una tabella o vista: usa get_source o get_ddl.`;
+  }
+  const others = [...new Set(r.rows.map(([o]) => o))].slice(0, 10);
+  if (others.length) {
+    return `${owner}.${name} non esiste, ma un oggetto con questo nome esiste in ${others.join(', ')}: ripeti indicando owner.`;
+  }
+  return `${owner}.${name} non esiste o non è leggibile con questa utenza.`;
+}
+
 const handlers = {
   async list_schemas(entry) {
     const r = await query(entry, `SELECT username FROM all_users ORDER BY username`, {}, 2000);
@@ -169,14 +224,17 @@ const handlers = {
     if (!OBJECT_TYPES.has(type)) {
       throw new ToolError(`Tipo non valido: ${type}. Ammessi: ${[...OBJECT_TYPES].join(', ')}`);
     }
-    const like = up(input.like);
+    // Il filtro è una ricerca "contiene": le wildcard che il modello aggiunge
+    // di sua iniziativa si tolgono. Il bind non può chiamarsi `like`: è una
+    // parola riservata Oracle e la chiamata fallirebbe con ORA-01745.
+    const like = (up(input.like) || '').replace(/^%+|%+$/g, '') || null;
     const r = await query(
       entry,
       `SELECT object_name, status FROM all_objects
         WHERE owner = :owner AND object_type = :t AND object_name NOT LIKE 'BIN$%'
-          ${like ? `AND object_name LIKE '%' || :like || '%'` : ''}
+          ${like ? `AND object_name LIKE '%' || :flt || '%'` : ''}
         ORDER BY object_name`,
-      like ? { owner, t: type, like } : { owner, t: type },
+      like ? { owner, t: type, flt: like } : { owner, t: type },
       500
     );
     const names = r.rows.map(([n, s]) => (s === 'VALID' ? n : `${n} (${s})`));
@@ -187,18 +245,38 @@ const handlers = {
   },
 
   async describe_table(entry, input) {
-    const owner = up(input.owner) || entry.currentSchema;
-    const name = up(input.name);
-    const cols = await query(
-      entry,
-      `SELECT column_name, data_type, data_length, data_precision, data_scale, nullable, data_default
-         FROM all_tab_columns WHERE owner = :owner AND table_name = :name ORDER BY column_id`,
-      { owner, name },
-      1000
-    );
-    if (!cols.rows.length) {
-      throw new ToolError(`${owner}.${name} non esiste o non è leggibile con questa utenza`);
+    const asked = { owner: up(input.owner) || entry.currentSchema, name: up(input.name) };
+    let owner = asked.owner;
+    let name = asked.name;
+    const columns = () =>
+      query(
+        entry,
+        `SELECT column_name, data_type, data_length, data_precision, data_scale, nullable, data_default
+           FROM all_tab_columns WHERE owner = :owner AND table_name = :name ORDER BY column_id`,
+        { owner, name },
+        1000
+      );
+    let cols = await columns();
+    // Catena di sinonimi (di norma uno solo, il limite evita i cicli).
+    for (let hop = 0; !cols.rows.length && hop < 3; hop++) {
+      const target = await synonymTarget(entry, owner, name);
+      if (!target) break;
+      if (target.dbLink) {
+        throw new ToolError(
+          `${owner}.${name} è un sinonimo verso ${target.owner}.${target.name}@${target.dbLink}: ` +
+            'la struttura sta su un altro database e da qui non è leggibile.'
+        );
+      }
+      owner = target.owner;
+      name = target.name;
+      cols = await columns();
     }
+    if (!cols.rows.length) {
+      throw new ToolError(await missingReason(entry, asked.owner, asked.name));
+    }
+    const via = owner === asked.owner && name === asked.name
+      ? ''
+      : ` (sinonimo ${asked.owner}.${asked.name})`;
     const typeOf = ([, t, len, prec, scale]) => {
       if (['VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR', 'RAW'].includes(t)) return `${t}(${len})`;
       if (t === 'NUMBER' && prec != null) return `NUMBER(${prec}${scale ? `,${scale}` : ''})`;
@@ -264,7 +342,7 @@ const handlers = {
       500
     ).catch(() => ({ rows: [] }));
 
-    const out = [`${owner}.${name} — ${cols.rows.length} colonne`, 'Colonne:', ...lines];
+    const out = [`${owner}.${name}${via} — ${cols.rows.length} colonne`, 'Colonne:', ...lines];
     if (consLines.length) out.push('Vincoli:', ...consLines);
     if (idxMap.size) {
       out.push(

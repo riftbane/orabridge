@@ -134,10 +134,16 @@ const parse = (s) => {
   }
 };
 
-const parseArgs = (s) => {
-  if (!s) return {};
-  const v = parse(s);
-  return v && typeof v === 'object' ? v : {};
+// Argomenti di una chiamata: JSON accumulato pezzo per pezzo dallo stream. Se
+// resta incompleto (risposta troncata dal limite di lunghezza) non si finge un
+// oggetto vuoto — lo strumento partirebbe senza parametri e farebbe danni o
+// errori strani: si segnala con `invalid` e il ciclo risponde con un errore.
+export const parseArgs = (s) => {
+  const raw = String(s ?? '').trim();
+  if (!raw) return { input: {} };
+  const v = parse(raw);
+  if (v && typeof v === 'object' && !Array.isArray(v)) return { input: v };
+  return { input: {}, invalid: raw.slice(0, 200) };
 };
 
 // ================= Anthropic =================
@@ -219,7 +225,7 @@ const anthropic = {
         const b = blocks.get(d.index);
         if (b) {
           blocks.delete(d.index);
-          yield { type: 'tool_use', id: b.id, name: b.name, input: parseArgs(b.json) };
+          yield { type: 'tool_use', id: b.id, name: b.name, ...parseArgs(b.json) };
         }
       } else if (d.type === 'message_delta') {
         if (d.delta?.stop_reason) stopReason = d.delta.stop_reason;
@@ -347,7 +353,7 @@ function openaiCompatible(provider) {
           type: 'tool_use',
           id: c.id || `call_${idx}_${Date.now()}`,
           name: c.name,
-          input: parseArgs(c.args),
+          ...parseArgs(c.args),
         };
       }
       yield { type: 'done', stopReason, usage };
