@@ -2,6 +2,31 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.21.0 — 2026-07-28
+
+- **Nuovo:** la finestra desktop usa la barra del titolo e perde il cromo da browser
+
+  Nell'app desktop la barra del titolo di sistema è nascosta e la disegna
+  l'app, nei suoi colori: a sinistra logo e comandi generali (nuova
+  connessione, importazione, cronologia, DB Diff), a destra interruttori
+  dei pannelli, guida e impostazioni, in mezzo la zona che trascina la
+  finestra. Windows continua a disegnarci sopra solo i tre pulsanti, e lo
+  spazio che ci lascia libero arriva dalle variabili env(titlebar-area-*).
+
+  I comandi si sono spostati, non duplicati: nell'app desktop spariscono la
+  testata della barra laterale (l'elenco delle connessioni guadagna la sua
+  altezza, e i comandi restano a portata anche a barra chiusa) e gli
+  interruttori in fondo alla riga delle schede, che ora è tutta per le
+  schede. Il client web resta com'era.
+
+  Spariscono anche gli strumenti da browser, che in un client SQL sono solo
+  un modo per rompere qualcosa: niente barra dei menu (File/Modifica/
+  Visualizza compariva con Alt) e niente DevTools — nella versione
+  installata sono disattivati e le scorciatoie F12, Ctrl+Shift+I/J/C e
+  Ctrl+R vengono ignorate; in sviluppo F12 continua ad aprirli.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.20.0 — 2026-07-28
 
 - **Nuovo:** novità delle versioni lette da GitHub Releases
