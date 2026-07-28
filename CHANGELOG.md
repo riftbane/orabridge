@@ -2,6 +2,35 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.19.0 — 2026-07-28
+
+- **Nuovo:** modello Gemma 4 locale, gratis e senza API key Nuova piattaforma «Modello locale» accanto a OpenRouter, Anthropic, Gemini
+e OpenAI: il modello gira dentro Orabridge, sul computer dell'utente, senza
+chiave e senza costi. Il motore llama.cpp (node-llama-cpp) è incluso
+nell'installer, quindi non c'è niente da installare a parte — né Ollama né
+Python né compilatori. Il file dei pesi si scarica una volta dalle
+impostazioni, con barra di avanzamento e ripresa se cade la rete.
+
+Si sceglie fra tre varianti di Gemma 4: E2B equilibrato (consigliata), E2B
+leggero ed E4B per chi ha 16 GB di RAM. I pesi non stanno nell'installer
+perché anche la taglia più piccola quantizzata a 4 bit occupa 3,1 GB, oltre
+il limite di 2 GB per file delle release GitHub.
+
+Dettagli d'integrazione:
+- le chiamate agli strumenti passano dalla grammatica di llama.cpp, che
+  ignora `required` e pretende tutte le proprietà: i parametri facoltativi
+  diventano «o null o il valore» e i null si tolgono prima di eseguire
+- le generazioni locali si mettono in fila, perché il modello caricato è
+  uno solo e due sessioni in parallelo si calpesterebbero il contesto
+- durante il caricamento del modello lo stream manda un battito, altrimenti
+  la guardia sui turni dichiarerebbe la sessione piantata
+- nell'installer entrano solo i binari win-x64 e win-x64-vulkan: tenerli
+  tutti costerebbe 660 MB invece di 120 (Vulkan accelera anche su NVIDIA)
+- l'import di node-llama-cpp è dinamico: dove i binari non ci sono (Docker,
+  sviluppo su Linux) la piattaforma si disattiva da sola e il resto parte
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.18.0 — 2026-07-28
 
 - **Nuovo:** indicatori dei token spesi per richiesta e per sessione Sotto ogni risposta compaiono piattaforma, modello e token di quella
