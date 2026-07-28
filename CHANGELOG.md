@@ -2,6 +2,24 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.18.0 — 2026-07-28
+
+- **Nuovo:** indicatori dei token spesi per richiesta e per sessione Sotto ogni risposta compaiono piattaforma, modello e token di quella
+richiesta; in cima al pannello il totale della sessione. Il passaggio del
+mouse apre il dettaglio per voce (input, input da cache, scrittura cache,
+output, di cui ragionamento) con il numero di chiamate al modello e, dove
+la piattaforma lo dichiara (OpenRouter), il costo in crediti.
+
+I conteggi arrivavano incompleti: da Anthropic si leggeva solo il
+`message_delta`, senza i token di input che stanno nel `message_start`, e
+da OpenAI/OpenRouter non arrivavano affatto, perché in streaming l'usage va
+chiesto con `stream_options.include_usage`. Ora le voci vengono normalizzate
+in `server/src/ai/usage.js` in modo che non si sovrappongano mai — dove la
+piattaforma conta la cache dentro il prompt (OpenAI, Gemini) viene
+scorporata — così la somma è il totale vero dei token.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.17.2 — 2026-07-28
 
 - **Fix:** i dati delle tabelle si vedono anche su Oracle 11g La paginazione del tab Dati usava OFFSET/FETCH NEXT, sintassi disponibile
