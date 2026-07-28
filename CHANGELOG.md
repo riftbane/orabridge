@@ -2,6 +2,32 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.14.0 — 2026-07-28
+
+- **Nuovo:** formattazione SQL più curata per Oracle Il formattatore lavorava bene sui blocchi PL/SQL ma lasciava intatte le
+righe lunghe senza virgole al livello esterno e sbagliava alcune
+costruzioni tipiche di Oracle.
+
+- le righe troppo lunghe ora si spezzano a cascata: separatori del livello
+  esterno, struttura di un CASE, concatenazioni `||` e infine apertura del
+  gruppo di parentesi più esterno, così una DDL o una lista di argomenti
+  lunga rientra invece di restare su una riga sola
+- gli AND/OR dentro un CASE non vengono più scambiati per separatori della
+  clausola che lo contiene (rientri scompaginati)
+- il CASE istruzione (chiuso da END CASE) apre un blocco: rami WHEN/ELSE
+  rientrati e END CASE su una riga sua
+- una parola dopo il punto è un nome, non una parola chiave: `t.date` e
+  `c.deferrable` non diventano più `t.DATE` e `c.DEFERRABLE`
+- i due rami di un MERGE vanno entrambi a capo (il ramo WHEN MATCHED apre
+  un UPDATE che nascondeva il MERGE nella pila)
+- l'intestazione di un trigger resta su una riga invece di spezzarsi
+  sull'evento (`BEFORE INSERT OR UPDATE ON t`)
+- spazio prima della parentesi che segue il nome dell'oggetto in
+  `CREATE TABLE t (…)`, `INSERT INTO t (…)`, `CREATE INDEX i ON t (…)`
+- aggiunte le parole chiave BEFORE, AFTER e MATCHED
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.13.1 — 2026-07-28
 
 - **Fix:** autocomplete senza corrispondenze sparse CodeMirror accettava anche le lettere digitate sparpagliate ovunque nel
