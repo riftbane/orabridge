@@ -56,6 +56,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.20.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.20.0/Orabridge%20Setup%201.20.0.exe) (2026-07-28).
+
 ## v1.19.0 — 2026-07-28
 
 - **Nuovo:** modello Gemma 4 locale, gratis e senza API key Nuova piattaforma «Modello locale» accanto a OpenRouter, Anthropic, Gemini
