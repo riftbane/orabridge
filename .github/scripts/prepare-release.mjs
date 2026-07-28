@@ -92,7 +92,15 @@ function insertChangelogEntry(version, entries) {
   const bullets = entries
     .map(
       ({ label, desc, body }) =>
-        `- **${label}:** ${desc}${body ? `\n\n  ${body.split('\n').join('\n  ')}` : ''}`
+        `- **${label}:** ${desc}${
+          body
+            ? `\n\n${body
+                .split('\n')
+                // Le righe vuote restano vuote: rientrarle lascerebbe spazi in coda.
+                .map((l) => (l.trim() ? `  ${l}` : ''))
+                .join('\n')}`
+            : ''
+        }`
     )
     .join('\n');
   const block = `## v${version} — ${date}\n\n${bullets}\n\n`;
