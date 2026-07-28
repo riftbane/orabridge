@@ -90,7 +90,8 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   di tutte le funzioni, con indice, ricerca e la sezione «Aggiornamenti e
   novità» che riporta la versione installata e cosa è cambiato. La stessa guida
   si consulta da **Impostazioni → Guida**; il testo sta in `client/src/guide.js`
-- Solo **localhost**: la porta è pubblicata su `127.0.0.1`, nessun accesso dalla rete
+- Solo **localhost**: il server ascolta di default su `127.0.0.1` (e il compose pubblica
+  la porta solo lì), nessun accesso dalla rete — vedi «Chi può parlare col server»
 - **Installabile come PWA**: dal browser (Chrome/Edge «Installa app», Safari «Aggiungi
   a Home») apre in una finestra propria, senza barra degli indirizzi
 
@@ -129,6 +130,36 @@ cd client && npm install && npm run build && cp -r dist ../server/public
 cd ../server && npm install && npm start   # http://localhost:3000
 ```
 
+Il server ascolta solo su `127.0.0.1`: per raggiungerlo da un'altra macchina
+serve chiederlo esplicitamente con `HOST=0.0.0.0` (è quello che fa l'immagine
+Docker, dove la porta esce comunque solo verso `127.0.0.1` dell'host).
+
+## Chi può parlare col server
+
+Orabridge non ha login: chi arriva alla porta ha in mano le connessioni salvate
+e quelle già aperte. Per questo l'accesso è chiuso su più fronti.
+
+- **Ascolto sul solo loopback.** `HOST` vale `127.0.0.1` se non lo si cambia;
+  `0.0.0.0` è una scelta esplicita di chi mette Orabridge in rete (e allora
+  tocca a lui metterci davanti autenticazione e TLS).
+- **Header `Host` verificato.** Quando si ascolta il loopback, una richiesta che
+  arriva con un dominio qualsiasi viene rifiutata: è così che una pagina web
+  aggira le protezioni sull'origine, facendo puntare il proprio dominio a
+  `127.0.0.1` (DNS rebinding).
+- **Niente scritture cross-site.** POST/PUT/PATCH/DELETE devono essere `application/json`
+  e arrivare dall'origine della app; da un altro sito vengono rifiutate. Dietro un
+  reverse proxy che non riscrive l'`Origin`, le origini buone si elencano in
+  `ORABRIDGE_ALLOWED_ORIGINS` (separate da virgola).
+- **Nel desktop, solo la finestra dell'app.** L'app Electron si porta dentro lo
+  stesso server su una porta effimera del loopback, e finché non c'è un login
+  chiunque sulla macchina potrebbe aprire quell'indirizzo dal browser. Il main
+  genera quindi un **token casuale a ogni avvio** (`ORABRIDGE_TOKEN`) e lo
+  aggiunge a livello di rete a tutte le richieste della finestra — documento,
+  bundle, `/api` e gli `EventSource` della chat, che da JavaScript non possono
+  mandare header propri. Chi apre quell'indirizzo da fuori trova solo una pagina
+  che gli dice di usare l'app. Nel deployment web/Docker il token non c'è e il
+  controllo resta spento: lì il server *è* il servizio.
+
 ## Desktop (Windows)
 
 Oltre a Docker e alla PWA, Orabridge può essere pacchettizzato come vera app
@@ -143,7 +174,9 @@ disegnata dall'app nei suoi colori e ospita logo e comandi generali (nuova
 connessione, importazione, cronologia, DB Diff, interruttori dei pannelli,
 guida, impostazioni): Windows continua a disegnarci sopra solo i tre pulsanti
 della finestra, e il resto della striscia si trascina come una barra del titolo
-qualsiasi.
+qualsiasi. Il backend che gira dentro l'app **risponde solo a quella finestra**:
+aprire il suo indirizzo con un browser non serve a niente (vedi «Chi può parlare
+col server»).
 
 ### Scaricare o aggiornare
 
@@ -317,6 +350,7 @@ modello, che non ci riprova e propone l'SQL da lanciare a mano.
 docker-compose.yml       porta 127.0.0.1:7521 → container :3000
 Dockerfile               build multi-stage (vite build → node:22-alpine)
 server/                  Express + node-oracledb (thin)
+  src/index.js           avvio, guardie di accesso (Host, origine, token desktop)
   src/secret.js          cartella dati e cifratura AES-256-GCM condivise
   src/store.js           connessioni salvate in /data (password cifrate)
   src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi

@@ -47,7 +47,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3000',
+      // Host e Origin riscritti su quelli dell'API: il server rifiuta le
+      // richieste con un Host che non è il loopback (DNS rebinding) e le
+      // scritture cross-site, e senza questo le vedrebbe arrivare da :5173.
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        headers: { origin: 'http://localhost:3000' },
+      },
     },
   },
   build: {

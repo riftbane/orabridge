@@ -24,7 +24,10 @@ RUN apt-get update \
  && apt-get purge -y unzip curl && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-ENV NODE_ENV=production DATA_DIR=/data PORT=3000 ORACLE_THICK_MODE=1
+# HOST esplicito: fuori dal container il server ascolta solo il loopback, qui
+# serve 0.0.0.0 perché la porta arrivi dall'host (il compose la pubblica
+# comunque solo su 127.0.0.1).
+ENV NODE_ENV=production DATA_DIR=/data PORT=3000 HOST=0.0.0.0 ORACLE_THICK_MODE=1
 COPY server/package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 COPY server/src ./src

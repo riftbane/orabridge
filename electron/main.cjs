@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { randomBytes } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -35,6 +36,8 @@ function resourcesRoot() {
 
 async function startBackend() {
   process.env.DATA_DIR = app.getPath('userData');
+  // Porta effimera: nessun indirizzo fisso da indovinare, e due istanze
+  // dell'app non litigano per la stessa porta.
   process.env.PORT = '0';
   process.env.HOST = '127.0.0.1';
 
@@ -53,19 +56,47 @@ async function startBackend() {
   }
 
   const mod = await import(pathToFileURL(entry).href);
-  backend = await mod.startServer();
-  const port = backend.server.address().port;
+  // Il server accetta solo le richieste che portano questo token: lo generiamo
+  // a ogni avvio e non lo scriviamo da nessuna parte (vedi injectAuthToken).
+  const token = randomBytes(32).toString('hex');
+  backend = await mod.startServer({ token });
+  const port = backend.port;
   log('backend in ascolto sulla porta', port);
-  return port;
+  return { port, token };
+}
+
+// Il backend è un server HTTP sul loopback: senza un lucchetto, qualunque
+// browser della macchina potrebbe aprire quell'indirizzo e ritrovarsi Orabridge
+// in mano, connessioni Oracle aperte comprese. Il token viaggia come header su
+// ogni richiesta della finestra, aggiunto qui a livello di rete: così vale
+// anche per il documento, per il bundle e per gli EventSource della chat, che
+// da JavaScript non possono mandare header propri. Chi il token non ce l'ha
+// (un browser esterno) riceve 403 e una pagina che spiega perché.
+function injectAuthToken(port, token) {
+  const prefix = `http://127.0.0.1:${port}/`;
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    // Il filtro prende tutto e la porta la confrontiamo noi sull'URL vero: nei
+    // pattern di Electron il trattamento della porta non è documentato, e se
+    // non combaciasse l'header non partirebbe mai — finestra bianca, con il
+    // server che risponde 403 a se stesso.
+    { urls: ['*://*/*'] },
+    (details, callback) => {
+      if (!details.url.startsWith(prefix)) return callback({});
+      callback({
+        requestHeaders: { ...details.requestHeaders, 'X-Orabridge-Token': token },
+      });
+    }
+  );
 }
 
 // Il client è anche una PWA: il suo service worker precarica la app shell e la
-// serve dalla cache. Nel desktop il server locale usa sempre la stessa origine
-// (127.0.0.1:3000), quindi il service worker sopravviveva agli aggiornamenti e
-// al primo avvio dopo un update mostrava ancora la versione precedente: serviva
-// un secondo riavvio per vedere le modifiche. Qui il server è in-process, di
-// offline non ce ne facciamo nulla: cancelliamo service worker e cache prima di
-// caricare la finestra, così parte sempre dai file appena installati.
+// serve dalla cache. Nel desktop il server locale usava sempre la stessa
+// origine (127.0.0.1:3000), quindi il service worker sopravviveva agli
+// aggiornamenti e al primo avvio dopo un update mostrava ancora la versione
+// precedente: serviva un secondo riavvio per vedere le modifiche. Qui il server
+// è in-process, di offline non ce ne facciamo nulla: cancelliamo service worker
+// e cache prima di caricare la finestra, così parte sempre dai file appena
+// installati (a maggior ragione ora che la porta cambia a ogni avvio).
 async function purgeWebCaches() {
   try {
     await session.defaultSession.clearStorageData({
@@ -275,7 +306,8 @@ app.whenReady().then(async () => {
     logStream = fs.createWriteStream(path.join(app.getPath('userData'), 'main.log'), { flags: 'a' });
     log('Orabridge desktop in avvio, isPackaged =', app.isPackaged, 'resourcesRoot =', resourcesRoot());
 
-    const port = await startBackend();
+    const { port, token } = await startBackend();
+    injectAuthToken(port, token);
     await purgeWebCaches();
     await createWindow(port);
 
