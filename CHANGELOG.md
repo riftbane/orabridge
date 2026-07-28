@@ -14,6 +14,8 @@ parola (wbsd -> WBS_DEFAULT_OWNER).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.13.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.1/Orabridge%20Setup%201.13.1.exe) (2026-07-28).
+
 ## v1.13.0 — 2026-07-28
 
 - **Nuovo:** decodifica opzionale delle entità HTML nella griglia I database popolati da applicativi web legacy contengono testo già
