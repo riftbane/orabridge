@@ -3,7 +3,7 @@ import path from 'path';
 import { DATA_DIR, readJson, writeJson } from '../secret.js';
 import { settings } from '../settings.js';
 import { pools } from '../pools.js';
-import { providers } from './providers.js';
+import { isKeyless, providers } from './providers.js';
 import { LEVEL_LABEL } from './sqlGuard.js';
 import { requiredPermission, runTool, toolSchemas, ToolError } from './tools.js';
 import { sealMessages } from './toolPairing.js';
@@ -265,7 +265,7 @@ export const aiSessions = {
       if (s.model) emit(s, { type: 'session', session: view(s) });
     }
     if (!s.model) throw new Error('Nessun modello selezionato per questa sessione');
-    if (!settings.apiKey(s.provider)) {
+    if (!isKeyless(s.provider) && !settings.apiKey(s.provider)) {
       throw new Error(`Nessuna API key configurata per ${s.provider}: impostala dalle impostazioni`);
     }
     s.error = null;
@@ -358,7 +358,9 @@ async function streamAssistant(s, signal) {
   const provider = providers[s.provider];
   if (!provider) throw new Error(`Piattaforma non supportata: ${s.provider}`);
   const ctx = { apiKey: settings.apiKey(s.provider), baseUrl: settings.baseUrl(s.provider) };
-  if (!ctx.apiKey) throw new Error(`Nessuna API key configurata per ${s.provider}`);
+  if (!ctx.apiKey && !isKeyless(s.provider)) {
+    throw new Error(`Nessuna API key configurata per ${s.provider}`);
+  }
 
   // Cane da guardia: se la piattaforma smette di mandare dati a metà stream la
   // lettura resterebbe appesa senza errore. Si interrompe il turno e lo si dice.

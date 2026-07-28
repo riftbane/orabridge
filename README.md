@@ -44,6 +44,11 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   davvero sul database, non solo sul testo della domanda
   - piattaforme supportate: **OpenRouter, Anthropic, Google Gemini, OpenAI** —
     si sceglie la piattaforma e si incolla la sua API key nelle impostazioni
+  - in alternativa **Gemma 4 sul tuo computer**, gratis e senza API key: il
+    motore llama.cpp è già dentro l'app desktop, si scarica una volta il file
+    del modello dalle impostazioni e da lì l'assistente funziona anche offline,
+    senza che un solo dato esca dal computer. In cambio è molto più lento e
+    meno preciso dei modelli online — vedi «Modello locale» più sotto
   - **elenco dei modelli in tempo reale** letto dalla piattaforma scelta
     (OpenRouter compreso, con finestra di contesto), con ricerca nella tendina
   - **più sessioni in parallelo**, ognuna con la sua connessione, il suo modello
@@ -255,6 +260,29 @@ che compare accanto ai token; le altre piattaforme non lo espongono, quindi lì
 il conto resta in token. I numeri sono quelli che riporta la piattaforma, non
 una stima.
 
+**Modello locale (gratis).** Fra le piattaforme c'è anche «Modello locale»: non
+chiede nessuna API key perché il modello gira dentro Orabridge, sul computer
+dell'utente. Il motore è [llama.cpp](https://github.com/ggml-org/llama.cpp) via
+`node-llama-cpp` ed è **già incluso nell'app desktop** — non c'è niente da
+installare, né Ollama né Python né compilatori. Va scaricato una volta il file
+dei pesi, direttamente dalle impostazioni: si sceglie fra tre varianti di
+**Gemma 4**, la più piccola pesa circa 2,9 GB. Il download prosegue lato server
+con barra di avanzamento, si può chiudere la finestra, e se cade la rete riparte
+da dove si era fermato.
+
+Perché i pesi non sono dentro l'installer: la taglia più piccola di Gemma 4
+(E2B) quantizzata a 4 bit occupa 3,1 GB, oltre il limite di 2 GB per file delle
+release GitHub e comunque troppo per un installer che oggi ne pesa poche
+centinaia di mega. Il motore sì, quello viaggia con l'app (~120 MB: versione CPU
+e versione Vulkan, che accelera su schede AMD, Intel e NVIDIA).
+
+Aspettative oneste: Gemma 4 E2B ha 2,3 miliardi di parametri effettivi contro le
+centinaia di miliardi dei modelli online. Su una query semplice o su una domanda
+sullo schema se la cava; su SQL complicato sbaglia molto più spesso, e su CPU
+può metterci minuti a rispondere. Serve quando non si vuole (o non si può)
+mandare niente fuori, o semplicemente per non spendere. Il conteggio dei token
+resta attivo e mostra costo zero.
+
 **Permessi.** Ogni sessione ha tre interruttori — *Lettura*, *Scrittura* e
 *DELETE/DROP* — che partono dai valori predefiniti delle impostazioni. Prima di
 eseguire, il server classifica l'istruzione e la confronta con i permessi
@@ -278,7 +306,9 @@ server/                  Express + node-oracledb (thin)
                          per il foglio SQL (transazioni coerenti)
   src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
-  src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI (solo fetch)
+  src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI + modello locale
+  src/ai/localModels.js  catalogo Gemma 4, download con ripresa e avanzamento
+  src/ai/localLlama.js   llama.cpp: caricamento del modello, tool calling, token
   src/ai/usage.js        conteggio dei token normalizzato tra le piattaforme
   src/ai/tools.js        strumenti sul database esposti al modello
   src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
@@ -286,8 +316,11 @@ server/                  Express + node-oracledb (thin)
 client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
 ```
 
-L'assistente non aggiunge dipendenze: i quattro provider parlano HTTP con
-`fetch` nativo e lo streaming arriva al browser via SSE (`EventSource`).
+I quattro provider online non aggiungono dipendenze: parlano HTTP con `fetch`
+nativo e lo streaming arriva al browser via SSE (`EventSource`). Il modello
+locale invece porta `node-llama-cpp`, importato **in modo dinamico**: dove i
+binari nativi non ci sono (server in Docker, sviluppo su Linux) la piattaforma
+«Modello locale» si disattiva da sola e il resto di Orabridge parte lo stesso.
 
 Ogni connessione attiva ha **una sessione dedicata** per i fogli SQL (le transazioni
 restano aperte tra un'esecuzione e l'altra, commit/rollback espliciti) più un piccolo

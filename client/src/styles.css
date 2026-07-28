@@ -3308,6 +3308,89 @@ body.resizing .cm-editor {
 .provider-state.ok {
   color: var(--ok);
 }
+/* modelli locali (llama.cpp) */
+.settings-warn {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--warn);
+  margin: 6px 0 0;
+}
+.local-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 9px;
+}
+.local-model {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: var(--bg);
+}
+.local-model.on {
+  border-color: var(--ok);
+}
+.local-model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.local-model-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.local-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ok);
+}
+.local-model-size {
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.local-model-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+  margin: 4px 0 0;
+}
+.local-model-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+.local-progress {
+  position: relative;
+  margin-top: 8px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+.local-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  opacity: 0.35;
+  transition: width 0.3s ease;
+}
+.local-progress span {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: var(--fg);
+}
+
 .key-row {
   display: flex;
   gap: 7px;

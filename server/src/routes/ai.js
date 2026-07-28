@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { settings, PROVIDERS } from '../settings.js';
 import { PROVIDER_INFO, fallbackModels, providers } from '../ai/providers.js';
 import { aiSessions, subscribe } from '../ai/sessions.js';
+import * as localModels from '../ai/localModels.js';
+import { dispose as disposeLocal, isAvailable as localEngineAvailable } from '../ai/localLlama.js';
 
 const router = Router();
 const a = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -22,6 +24,7 @@ router.get('/settings', (req, res) => {
           keyLabel: PROVIDER_INFO[id].keyLabel,
           keyHint: PROVIDER_INFO[id].keyHint,
           defaultBaseUrl: PROVIDER_INFO[id].defaultBaseUrl,
+          keyless: !!PROVIDER_INFO[id].keyless,
         },
       ])
     ),
@@ -58,6 +61,59 @@ router.get(
     }
   })
 );
+
+// ---- modelli locali ----
+//
+// Il motore llama.cpp è dentro l'app, i pesi si scaricano da qui la prima
+// volta. Sono file da qualche gigabyte: il download va avanti per conto suo e
+// la UI lo segue via SSE, così chiudere le impostazioni non lo interrompe.
+
+router.get(
+  '/local/models',
+  a(async (req, res) => {
+    res.json({ engine: await localEngineAvailable(), models: localModels.status() });
+  })
+);
+
+router.post('/local/models/:id/download', (req, res) => {
+  if (!localModels.catalogEntry(req.params.id)) {
+    return res.status(404).json({ error: 'Modello sconosciuto' });
+  }
+  // Non si aspetta la fine: sono minuti, la richiesta andrebbe in timeout.
+  localModels.download(req.params.id).catch(() => {});
+  res.json({ ok: true, model: localModels.statusOf(req.params.id) });
+});
+
+router.post('/local/models/:id/cancel', (req, res) => {
+  res.json({ ok: localModels.cancel(req.params.id) });
+});
+
+router.delete(
+  '/local/models/:id',
+  a(async (req, res) => {
+    // Su Windows un file mappato in memoria non si può cancellare: prima si
+    // scarica il modello dalla RAM, poi si tocca il disco.
+    await disposeLocal();
+    res.json({ ok: await localModels.remove(req.params.id) });
+  })
+);
+
+router.get('/local/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  const send = (model) => res.write(`data: ${JSON.stringify({ type: 'model', model })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'models', models: localModels.status() })}\n\n`);
+  const unsubscribe = localModels.onProgress(send);
+  const ping = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(ping);
+    unsubscribe();
+  });
+});
 
 router.get('/sessions', (req, res) => res.json({ sessions: aiSessions.list() }));
 

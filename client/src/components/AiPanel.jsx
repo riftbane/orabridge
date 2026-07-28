@@ -634,10 +634,23 @@ export default function AiPanel({ hidden, onOpenSettings, settingsRev = 0 }) {
 
       {session && hasKey && !session.model && (
         <div className="ai-warn">
-          Nessun modello scelto per questa sessione.{' '}
-          <button className="link-btn" onClick={() => setMenu('model')}>
-            Scegline uno
-          </button>
+          {/* Col modello locale «scegline uno» aprirebbe una tendina vuota:
+              finché non si scarica un file non c'è niente da scegliere. */}
+          {cfg?.info?.[session.provider]?.keyless && !models.length && !loadingModels ? (
+            <>
+              Nessun modello locale scaricato.{' '}
+              <button className="link-btn" onClick={onOpenSettings}>
+                Scaricane uno dalle impostazioni
+              </button>
+            </>
+          ) : (
+            <>
+              Nessun modello scelto per questa sessione.{' '}
+              <button className="link-btn" onClick={() => setMenu('model')}>
+                Scegline uno
+              </button>
+            </>
+          )}
         </div>
       )}
 

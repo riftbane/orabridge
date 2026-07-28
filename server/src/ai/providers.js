@@ -14,10 +14,21 @@
 // Niente SDK: solo fetch nativo, così il server resta senza dipendenze extra.
 
 import { anthropicUsage, geminiUsage, maxUsage, openaiUsage } from './usage.js';
+import { CATALOG, installedPath } from './localModels.js';
+import { generate as localGenerate } from './localLlama.js';
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
 export const PROVIDER_INFO = {
+  local: {
+    label: 'Modello locale (gratis)',
+    // Gira sul computer dell'utente: non c'è niente da autenticare.
+    keyless: true,
+    keyLabel: null,
+    keyHint: null,
+    defaultBaseUrl: null,
+    liveModels: false,
+  },
   openrouter: {
     label: 'OpenRouter',
     keyLabel: 'API key OpenRouter',
@@ -66,11 +77,16 @@ const FALLBACK_MODELS = {
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
   ],
   openrouter: [],
+  // Per il locale l'elenco non è una proposta ma la realtà: solo i file scaricati.
+  local: [],
 };
 
 export function fallbackModels(provider) {
   return FALLBACK_MODELS[provider] || [];
 }
+
+// I provider che non chiedono una chiave: la sessione non deve pretenderla.
+export const isKeyless = (provider) => !!PROVIDER_INFO[provider]?.keyless;
 
 function baseFor(provider, custom) {
   return (custom || PROVIDER_INFO[provider].defaultBaseUrl).replace(/\/+$/, '');
@@ -482,9 +498,29 @@ const google = {
   },
 };
 
+// ================= Modello locale (llama.cpp) =================
+
+// Nessuna rete, nessuna chiave: il modello è un file sul disco e la
+// generazione avviene nel processo di Orabridge.
+const local = {
+  async listModels() {
+    return CATALOG.filter((m) => installedPath(m.id)).map((m) => ({
+      id: m.id,
+      label: m.label,
+      context: m.contextSize,
+      price: 0,
+    }));
+  },
+
+  stream(ctx, options) {
+    return localGenerate(options);
+  },
+};
+
 export const providers = {
   anthropic,
   google,
+  local,
   openai: openaiCompatible('openai'),
   openrouter: openaiCompatible('openrouter'),
 };

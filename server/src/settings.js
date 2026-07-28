@@ -1,9 +1,10 @@
 import path from 'path';
 import { DATA_DIR, decrypt, encrypt, readJson, writeJson } from './secret.js';
+import { isKeyless } from './ai/providers.js';
 
 const FILE = path.join(DATA_DIR, 'settings.json');
 
-export const PROVIDERS = ['openrouter', 'anthropic', 'google', 'openai'];
+export const PROVIDERS = ['local', 'openrouter', 'anthropic', 'google', 'openai'];
 
 const DEFAULTS = {
   ai: {
@@ -43,7 +44,13 @@ export const settings = {
       permissions: ai.permissions,
       maxRows: ai.maxRows,
       baseUrls: ai.baseUrls,
-      providers: PROVIDERS.map((id) => ({ id, hasKey: !!ai.keys[id] })),
+      // Un provider senza chiave (il modello locale) è "pronto" per definizione:
+      // quello che gli manca semmai è il file del modello, non una credenziale.
+      providers: PROVIDERS.map((id) => ({
+        id,
+        keyless: isKeyless(id),
+        hasKey: isKeyless(id) || !!ai.keys[id],
+      })),
     };
   },
 

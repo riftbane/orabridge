@@ -56,6 +56,24 @@ README su come lanciarlo da Windows. L'output è
 `electron/release/Orabridge Setup <versione>.exe`, solo locale — per
 pubblicarlo serve il workflow CI (che builda su Windows nativo, non Wine).
 
+## Modelli locali (llama.cpp)
+
+La piattaforma «Modello locale» usa `node-llama-cpp`, dipendenza di `server/`.
+Due cose da sapere prima di toccarla:
+
+- **I binari nativi entrano nell'installer, i pesi no.** `prepare-resources.mjs`
+  filtra `@node-llama-cpp/*` tenendo solo `win-x64` e `win-x64-vulkan` (le
+  varianti CUDA valgono da sole mezzo giga e Vulkan copre anche NVIDIA) ed
+  esclude `llama/gitRelease.bundle`, 32 MB di sorgenti per una compilazione che
+  non facciamo mai (`getLlama({ build: 'never' })`). Senza questo filtro
+  l'installer crescerebbe di ~660 MB invece di ~120 MB.
+- **Su Linux/WSL npm non installa i binari Windows**, quindi un
+  `npm run dist:win` locale produce un pacchetto senza motore locale (lo script
+  lo dice con un avviso). Per una build completa serve la CI su Windows.
+
+I file `.gguf` si scaricano a runtime da HuggingFace nella cartella dati
+(`DATA_DIR/models`), con ripresa: non vanno mai committati né impacchettati.
+
 L'app desktop controlla da sola gli aggiornamenti via `electron-updater`
 (vedi `electron/main.cjs`, funzione `setupAutoUpdater`): all'avvio e ogni
 4 ore, scarica in background l'ultima release GitHub e chiede all'utente se

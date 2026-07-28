@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Check, Info, KeyRound, RefreshCw, Sparkles, X } from 'lucide-react';
+import {
+  BookOpen,
+  Check,
+  Download,
+  HardDrive,
+  Info,
+  KeyRound,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 import AboutPanel from './AboutPanel.jsx';
@@ -23,6 +34,150 @@ const PERMISSIONS = [
     danger: true,
   },
 ];
+
+const gb = (n) => `${(n / 1e9).toFixed(1)} GB`;
+
+// Modelli che girano sul computer: niente chiave, niente costi, ma il file dei
+// pesi va scaricato una volta (qualche GB). Il download prosegue lato server,
+// quindi si può chiudere questa finestra senza interromperlo.
+function LocalModels({ toast, onInstalledChange }) {
+  const [engine, setEngine] = useState(null); // null = ancora da sapere
+  const [models, setModels] = useState([]);
+  const [busy, setBusy] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .aiLocalModels()
+      .then((r) => {
+        if (!alive) return;
+        setEngine(r.engine);
+        setModels(r.models || []);
+      })
+      .catch((err) => toast(err.message, 'error'));
+
+    // L'avanzamento arriva dal server: così la barra è giusta anche se il
+    // download era già in corso quando si è aperta la finestra.
+    const es = new EventSource(api.aiLocalEventsUrl());
+    es.onmessage = (ev) => {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'models') setModels(d.models);
+      else if (d.type === 'model') {
+        setModels((cur) => cur.map((m) => (m.id === d.model.id ? d.model : m)));
+      }
+    };
+    return () => {
+      alive = false;
+      es.close();
+    };
+  }, [toast]);
+
+  // Scaricare o cancellare un modello cambia l'elenco di quelli selezionabili.
+  // La callback arriva inline dal genitore (identità nuova a ogni render): si
+  // tiene in un ref, altrimenti l'effetto si riattiverebbe all'infinito.
+  const installed = models.filter((m) => m.installed).length;
+  const notify = React.useRef(onInstalledChange);
+  notify.current = onInstalledChange;
+  const known = React.useRef(null);
+  useEffect(() => {
+    // Il primo conteggio è solo lo stato iniziale, non un cambiamento.
+    if (known.current !== null && known.current !== installed) notify.current?.(installed);
+    known.current = installed;
+  }, [installed]);
+
+  const act = async (id, fn, done) => {
+    setBusy(id);
+    try {
+      await fn(id);
+      if (done) toast(done, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="settings-section">
+      <h4>
+        <HardDrive size={13} /> Modelli sul tuo computer
+      </h4>
+      <p className="settings-hint">
+        Girano dentro Orabridge, senza internet e senza costi: nessuna chiave da inserire e nessun
+        dato che esce dal tuo computer. In cambio sono molto più lenti e meno precisi dei modelli
+        online, soprattutto su SQL complesso. Il motore è già installato, va scaricato una volta
+        solo il file del modello.
+      </p>
+      {engine === false && (
+        <p className="settings-warn">
+          Il motore per i modelli locali non è disponibile in questa installazione: è incluso
+          nell'app desktop per Windows, non nella versione in Docker.
+        </p>
+      )}
+      <div className="local-models">
+        {models.map((m) => {
+          const pct = m.bytes ? Math.min(100, Math.round((m.partialBytes / m.bytes) * 100)) : 0;
+          return (
+            <div key={m.id} className={`local-model ${m.installed ? 'on' : ''}`}>
+              <div className="local-model-head">
+                <span className="local-model-name">
+                  {m.label}
+                  {m.installed && (
+                    <span className="local-model-badge">
+                      <Check size={10} /> scaricato
+                    </span>
+                  )}
+                </span>
+                <span className="local-model-size">{gb(m.bytes)}</span>
+              </div>
+              <p className="local-model-note">
+                {m.note} Servono almeno {m.minRamGb} GB di RAM.
+              </p>
+              {m.downloading && (
+                <div className="local-progress">
+                  <div className="local-progress-bar" style={{ width: `${pct}%` }} />
+                  <span>
+                    {pct}% — {gb(m.partialBytes)} di {gb(m.bytes)}
+                  </span>
+                </div>
+              )}
+              {m.error && <p className="settings-warn">{m.error}</p>}
+              <div className="local-model-actions">
+                {m.downloading ? (
+                  <button className="btn" onClick={() => act(m.id, api.aiLocalCancel)}>
+                    Interrompi
+                  </button>
+                ) : m.installed ? (
+                  <button
+                    className="btn danger"
+                    disabled={busy === m.id}
+                    onClick={() => {
+                      if (!window.confirm(`Eliminare il file di ${m.label} (${gb(m.bytes)})?`)) return;
+                      act(m.id, api.aiLocalRemove, 'Modello eliminato');
+                    }}
+                  >
+                    <Trash2 size={12} /> Elimina
+                  </button>
+                ) : (
+                  <button
+                    className="btn primary"
+                    disabled={busy === m.id || engine === false}
+                    onClick={() =>
+                      act(m.id, api.aiLocalDownload, 'Download avviato: puoi chiudere le impostazioni')
+                    }
+                  >
+                    <Download size={12} />
+                    {m.partialBytes > 0 ? ' Riprendi il download' : ' Scarica'}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 function AiSettings({ toast }) {
   const [cfg, setCfg] = useState(null);
@@ -91,6 +246,9 @@ function AiSettings({ toast }) {
   const info = cfg.info[provider] || {};
   const hasKey = cfg.providers.find((p) => p.id === provider)?.hasKey;
   const model = cfg.models[provider] || '';
+  // Il modello locale non ha né chiave né endpoint: al loro posto va la
+  // gestione dei file scaricati.
+  const keyless = !!info.keyless;
 
   const saveKey = async () => {
     if (!key.trim()) return;
@@ -128,7 +286,11 @@ function AiSettings({ toast }) {
             >
               <span className="provider-name">{cfg.info[p.id]?.label || p.id}</span>
               <span className={`provider-state ${p.hasKey ? 'ok' : ''}`}>
-                {p.hasKey ? (
+                {p.keyless ? (
+                  <>
+                    <Check size={11} /> gratis, senza chiave
+                  </>
+                ) : p.hasKey ? (
                   <>
                     <Check size={11} /> configurata
                   </>
@@ -154,6 +316,9 @@ function AiSettings({ toast }) {
         </label>
       </section>
 
+      {keyless ? (
+        <LocalModels toast={toast} onInstalledChange={() => loadModels(provider, true)} />
+      ) : (
       <section className="settings-section">
         <h4>
           <KeyRound size={13} /> {info.keyLabel || 'API key'}
@@ -191,6 +356,7 @@ function AiSettings({ toast }) {
           />
         </label>
       </section>
+      )}
 
       <section className="settings-section">
         <h4>
@@ -224,7 +390,9 @@ function AiSettings({ toast }) {
             ? 'Lettura dei modelli disponibili…'
             : modelsError
               ? `Elenco non disponibile (${modelsError}). Sono proposti i modelli noti.`
-              : `${models.length} modelli disponibili.`}
+              : keyless && !models.length
+                ? 'Nessun modello scaricato: scaricane uno qui sopra per poterlo scegliere.'
+                : `${models.length} modelli disponibili.`}
         </p>
       </section>
 

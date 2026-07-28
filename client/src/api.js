@@ -102,6 +102,13 @@ export const api = {
   aiStop: (id) => j('POST', `/api/ai/sessions/${id}/stop`, {}),
   aiEventsUrl: (id) => `/api/ai/sessions/${id}/events`,
 
+  // modelli locali (llama.cpp): scaricati una volta e usati senza API key
+  aiLocalModels: () => j('GET', '/api/ai/local/models'),
+  aiLocalDownload: (id) => j('POST', `/api/ai/local/models/${id}/download`, {}),
+  aiLocalCancel: (id) => j('POST', `/api/ai/local/models/${id}/cancel`, {}),
+  aiLocalRemove: (id) => j('DELETE', `/api/ai/local/models/${id}`),
+  aiLocalEventsUrl: () => '/api/ai/local/events',
+
   // cronologia query
   history: (params) => j('GET', `/api/history?${q(params)}`),
   deleteHistoryEntry: (entryId) => j('DELETE', `/api/history/${entryId}`),
