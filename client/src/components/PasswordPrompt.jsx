@@ -29,8 +29,8 @@ export default function PasswordPrompt({ prompt }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={closePasswordPrompt}>
-      <form className="modal pwd-modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+    <div className="modal-overlay">
+      <form className="modal pwd-modal" onSubmit={submit}>
         <div className="modal-head">
           <span>
             <KeyRound size={13} /> Password richiesta

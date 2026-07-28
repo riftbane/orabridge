@@ -66,8 +66,8 @@ export default function ConnectionModal({ conn, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal conn-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal conn-modal">
         <div className="modal-head">
           <span>{isEdit ? 'Modifica connessione' : 'Nuova connessione'}</span>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>

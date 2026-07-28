@@ -346,8 +346,8 @@ export default function Grid({
         </div>
       </div>
       {modal && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal value-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal value-modal">
             <div className="modal-head">
               <span>{modal.col}</span>
               <button className="icon-btn" onClick={() => setModal(null)}>

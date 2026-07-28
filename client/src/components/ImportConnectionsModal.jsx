@@ -98,8 +98,8 @@ export default function ImportConnectionsModal({ onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal import-modal">
         <div className="modal-head">
           <span>Importa connessioni</span>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>

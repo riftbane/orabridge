@@ -278,8 +278,8 @@ export default function SettingsModal({ onClose, initialTab = 'ai' }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal settings-modal">
         <div className="modal-head">
           <span>Impostazioni</span>
           <button className="icon-btn" onClick={onClose}>

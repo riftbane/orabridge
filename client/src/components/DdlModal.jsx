@@ -49,11 +49,8 @@ export default function DdlModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className={`modal ddl-modal ${wide ? 'wide' : ''} ${extraClass}`}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="modal-overlay">
+      <div className={`modal ddl-modal ${wide ? 'wide' : ''} ${extraClass}`}>
         <div className="modal-head">
           <span>{title}</span>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>
