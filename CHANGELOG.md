@@ -20,6 +20,8 @@ scorporata — così la somma è il totale vero dei token.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.18.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.18.0/Orabridge%20Setup%201.18.0.exe) (2026-07-28).
+
 ## v1.17.2 — 2026-07-28
 
 - **Fix:** i dati delle tabelle si vedono anche su Oracle 11g La paginazione del tab Dati usava OFFSET/FETCH NEXT, sintassi disponibile
