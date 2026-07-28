@@ -2,6 +2,53 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.2 — 2026-07-28
+
+- **Fix:** chat AI che non si blocca più e risposte in Markdown completo Quattro problemi del pannello dell'assistente.
+
+La chat si bloccava dopo un giro nelle impostazioni. Il pannello leggeva
+chiavi, modelli e permessi una volta sola al primo montaggio: dopo aver
+salvato una API key continuava a mostrare «Nessuna API key», la tendina dei
+modelli restava vuota e la sessione non riusciva più a partire perché senza
+modello selezionato l'invio veniva rifiutato. Ora alla chiusura delle
+impostazioni il pannello rilegge la configurazione e richiede l'elenco
+modelli alla piattaforma; se la sessione non ha un modello prende quello
+predefinito (anche lato server, in `send`) e, quando non c'è, lo dice con un
+avviso invece di limitarsi a rifiutare il messaggio.
+
+La chat si bloccava anche in modo definitivo quando un turno si interrompeva
+a metà: con lo Stop premuto mentre gli strumenti giravano, con
+un'approvazione mai data o dopo un riavvio del server, restavano dei
+`tool_use` senza il `tool_result` corrispondente e da lì in poi ogni
+richiesta veniva rifiutata dal provider. Le chiamate scoperte adesso
+vengono chiuse con un esito esplicito, inserito subito dopo il messaggio che
+le ha aperte (nuovo `server/src/ai/toolPairing.js`, con test); lo Stop
+interrompe davvero la coda invece di eseguire comunque le chiamate rimaste.
+
+La tendina delle connessioni mostrava un pallino grigio anche per le
+connessioni aperte, perché la classe usata per lo stato «connessa» non aveva
+nessun colore. Ora il pallino è verde per le connessioni vive (guardando sia
+lo stato locale sia quello riportato dal server), giallo mentre si collega e
+rosso in errore, con le attive in cima all'elenco, la stessa indicazione sul
+chip del composer e un avviso quando il database della sessione non è
+collegato. Aggiunta anche la barra di ricerca che mancava, che filtra per
+nome, utente, servizio, host e gruppo.
+
+Le risposte, infine, erano rese da un mini-renderer che conosceva solo
+titoli, elenchi puntati, grassetto e blocchi di codice: tabelle, elenchi
+numerati, citazioni e collegamenti finivano a schermo come testo grezzo con
+i simboli Markdown in mezzo. Il nuovo parser (`client/src/markdown.js`, con
+test) copre titoli, paragrafi, elenchi annidati e con checkbox, citazioni,
+righe orizzontali, tabelle GFM con allineamenti, collegamenti, codice
+inline, grassetto/corsivo/barrato e blocchi recintati — compresi quelli non
+ancora chiusi mentre la risposta è in streaming. Gli underscore dentro gli
+identificatori (NOME_TABELLA) e `SELECT *` non vengono più scambiati per
+corsivo. I blocchi di codice sono colorati (`client/src/codeTokens.js`,
+riusando le parole chiave del formattatore SQL) e hanno «Copia» con
+conferma e «Apri nel foglio».
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.1 — 2026-07-28
 
 - **Fix:** mostra le modifiche già al primo riavvio dopo un aggiornamento Il client è buildato come PWA e il suo service worker precaricava la app
