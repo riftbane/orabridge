@@ -12,6 +12,8 @@ troverebbe la lista vuota). La ricerca continua a forzare l'apertura.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.3.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.3/Orabridge%20Setup%201.12.3.exe) (2026-07-28).
+
 ## v1.12.2 — 2026-07-28
 
 - **Fix:** chat AI che non si blocca più e risposte in Markdown completo Quattro problemi del pannello dell'assistente.
