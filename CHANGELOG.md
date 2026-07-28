@@ -13,6 +13,8 @@ sinistro del gruppo diventa verde quando ne contiene almeno una.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.5.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.5/Orabridge%20Setup%201.12.5.exe) (2026-07-28).
+
 ## v1.12.4 — 2026-07-28
 
 - **Fix:** chat AI, comandi che fallivano e turni che restavano appesi Le ricerche filtrate dell'assistente fallivano sempre con ORA-01745: il bind
