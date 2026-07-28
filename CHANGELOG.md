@@ -39,6 +39,8 @@ troppo basso per un'indagine su un database vero.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.4.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.4/Orabridge%20Setup%201.12.4.exe) (2026-07-28).
+
 ## v1.12.3 — 2026-07-28
 
 - **Fix:** gruppi di connessioni chiusi all'avvio I gruppi nella barra laterale partivano tutti aperti a ogni avvio, così
