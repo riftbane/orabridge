@@ -178,7 +178,7 @@ export default function Sidebar() {
   const conns = useStore((s) => s.conns);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [collapsed, setCollapsed] = useState({});
+  const [open, setOpen] = useState({});
   const [search, setSearch] = useState('');
   const openHistory = useStore((s) => s.openHistory);
   const openDiff = useStore((s) => s.openDiff);
@@ -214,7 +214,12 @@ export default function Sidebar() {
     return keys.map((key) => ({ key: key || '__none__', title: key || 'Senza gruppo', items: map.get(key) }));
   }, [filteredConns]);
 
-  const toggleGroup = (key) => setCollapsed((s) => ({ ...s, [key]: !s[key] }));
+  // I gruppi partono chiusi, così all'avvio la sidebar resta compatta e si apre
+  // solo quello che serve. "Senza gruppo" non è un vero gruppo: resta aperto,
+  // altrimenti con nessun gruppo definito la lista sarebbe vuota all'avvio.
+  const isOpen = (key) => open[key] ?? key === '__none__';
+  const toggleGroup = (key) =>
+    setOpen((s) => ({ ...s, [key]: !(s[key] ?? key === '__none__') }));
 
   return (
     <aside className="sidebar" style={{ width, minWidth: width }}>
@@ -275,7 +280,7 @@ export default function Sidebar() {
             items={g.items}
             groups={groupNames}
             plain={g.key === '__none__'}
-            collapsed={!searching && !!collapsed[g.key]}
+            collapsed={!searching && !isOpen(g.key)}
             onToggle={() => toggleGroup(g.key)}
           />
         ))}
