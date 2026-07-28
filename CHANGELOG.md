@@ -2,6 +2,60 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.20.0 — 2026-07-28
+
+- **Nuovo:** novità delle versioni lette da GitHub Releases
+
+  La sezione «Aggiornamenti e novità» della guida e la scheda Informazioni
+  mostravano un elenco scritto a mano in guide.js, fermo alla 1.17 mentre
+  l'app era alla 1.19. Ora le novità arrivano dalle release pubblicate su
+  GitHub — le stesse da cui electron-updater scarica gli aggiornamenti — con
+  le note di ogni versione, la data e il confronto con la versione in uso.
+  
+  L'elenco passa dal server (GET /api/releases, mezz'ora di cache) e non dal
+  browser: la richiesta è una sola per tutti, non dipende dalla CORS di
+  api.github.com e non consuma le 60 chiamate all'ora concesse per IP. Senza
+  rete si risponde con l'elenco vuoto e il motivo, e il client ripiega sulle
+  novità impacchettate nel bundle (aggiornate fino alla 1.19).
+  
+  Le note pubblicate sono la voce di CHANGELOG.md di quel rilascio: si
+  tolgono l'intestazione della versione, la riga dell'installer e i trailer
+  dei commit, che nella guida sono rumore. Il generatore del changelog manda
+  ora il corpo del commit a capo e rientrato invece di attaccarlo all'oggetto
+  ("…senza API key Nuova piattaforma…" era illeggibile, e finiva così anche
+  nelle note della release).
+  
+  Nel desktop i collegamenti esterni si aprono nel browser di sistema: prima
+  finivano in una finestra Electron nuda, senza preload e senza modo di
+  tornare indietro.
+  
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+- **Fix:** istruzioni e strumenti più chiari per i modelli piccoli
+
+  I modelli deboli (Gemma locale, ma non solo) si fermavano al primo passo:
+  elencavano le tabelle e poi chiedevano all'utente quale usare, oppure
+  cercavano "ORDERS" in un database che le chiama ORDINI, leggevano l'elenco
+  vuoto come "non esiste" e si arrendevano. Tre interventi:
+  
+  - l'elenco delle tabelle e delle viste dello schema corrente entra nel
+    prompt di sistema, letto dal dizionario e tenuto in cache cinque minuti
+    per connessione: il nome giusto ce l'hanno già sotto gli occhi invece di
+    doverlo scoprire. Tetto di 150 nomi, perché in locale il contesto è 8k in
+    tutto; se il dizionario non è leggibile il turno prosegue senza
+  - gli strumenti non restituiscono più vicoli ciechi: list_objects con un
+    filtro che non trova nulla rifà la ricerca senza filtro e restituisce
+    l'elenco completo, e describe_table su un nome inventato allega le
+    tabelle che esistono davvero in quello schema
+  - prompt di sistema riscritto per modelli piccoli: procedura numerata
+    (scegli le tabelle → describe_table → run_query → rispondi), divieto
+    esplicito di chiedere all'utente ciò che il database può dire e di
+    fermarsi a metà, più due ricette SQL per le classifiche
+  
+  La parte pura del prompt è ora buildSystemPrompt(), coperta da test insieme
+  ai formatter degli elenchi.
+  
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.19.0 — 2026-07-28
 
 - **Nuovo:** modello Gemma 4 locale, gratis e senza API key Nuova piattaforma «Modello locale» accanto a OpenRouter, Anthropic, Gemini
