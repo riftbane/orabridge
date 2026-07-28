@@ -125,7 +125,8 @@ test('minuscolo se l\'istruzione è scritta in minuscolo', async () => {
   assert.deepEqual(labels(res), ['empno', 'ename', 'deptno']);
   const generic = await source(ctx('select * from emp e where en|'));
   assert.ok(labels(generic).includes('ename'));
-  assert.ok(labels(generic).includes('and'), 'anche le parole chiave seguono lo stile');
+  const kw = await source(ctx('select * from emp e where an|'));
+  assert.ok(labels(kw).includes('and'), 'anche le parole chiave seguono lo stile');
 });
 
 test('il prefisso digitato ha la precedenza sullo stile dell\'istruzione', async () => {
@@ -143,8 +144,8 @@ test('il prefisso digitato ha la precedenza sullo stile dell\'istruzione', async
 
 test('parole chiave incluse nella proposta generica', async () => {
   const source = setup();
-  const res = await source(ctx('SELECT * FROM emp e WHERE EN|'));
-  assert.ok(labels(res).includes('ENAME'));
+  assert.ok(labels(await source(ctx('SELECT * FROM emp e WHERE EN|'))).includes('ENAME'));
+  const res = await source(ctx('SELECT * FROM emp e WHERE AN|'));
   assert.ok(labels(res).includes('AND'));
   assert.equal(find(res, 'AND').section.name, 'Parole chiave');
 });
@@ -201,8 +202,22 @@ test('ordine delle sezioni secondo la clausola', async () => {
   assert.ok(rank(inFrom, 'DEPT') < rank(inFrom, 'DEPTNO'), 'in FROM prima le tabelle');
   const inWhere = await source(ctx('SELECT * FROM emp e WHERE D|'));
   assert.ok(rank(inWhere, 'DEPTNO') < rank(inWhere, 'DEPT'), 'in WHERE prima le colonne');
-  assert.equal(find(inWhere, 'NVL').section.name, 'Funzioni');
-  assert.equal(find(inWhere, 'NVL').detail, '(expr, sostituto)');
+  const fn = await source(ctx('SELECT * FROM emp e WHERE NV|'));
+  assert.equal(find(fn, 'NVL').section.name, 'Funzioni');
+  assert.equal(find(fn, 'NVL').detail, '(expr, sostituto)');
+});
+
+test('solo corrispondenze sensate, niente lettere sparse', async () => {
+  const source = setup();
+  const at = async (doc) => labels(await source(ctx(doc)));
+  // "ENO" ha le lettere di EMPNO ma sparpagliate: non deve proporlo
+  assert.deepEqual(await at('SELECT * FROM emp e WHERE ENO|'), []);
+  // prefisso, sottostringa e salti di parola restano
+  assert.ok((await at('SELECT * FROM emp e WHERE ENAME|')).includes('ENAME'));
+  assert.ok((await at('SELECT * FROM emp e WHERE PTNO|')).includes('DEPTNO'));
+  assert.ok((await at('BEGIN MY_P| END;')).includes('MY_PKG'), 'prefisso');
+  assert.ok((await at('BEGIN MYPKG| END;')).includes('MY_PKG'), 'separatore saltato');
+  assert.ok((await at('BEGIN MP| END;')).includes('MY_PKG'), 'iniziali delle parole');
 });
 
 test('niente suggerimenti dentro stringhe e commenti', async () => {

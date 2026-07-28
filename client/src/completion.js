@@ -55,6 +55,76 @@ const KEYWORDS = {
 
 const needsQuote = (name) => !/^[A-Z][A-Z0-9_$#]*$/.test(name);
 
+// Filtro dei candidati.
+//
+// CodeMirror, oltre ai prefissi, accetta anche le corrispondenze "sparse" —
+// le lettere digitate sparpagliate a caso nel nome — che su uno schema con
+// migliaia di oggetti riempiono la lista di proposte incoerenti: "sele"
+// pescava DBMS_SCHEDULER e SPRINT_ELEMENTS_OLD. Teniamo solo i nomi che
+// contengono il testo digitato oppure ne ricalcano le iniziali delle parole
+// (MOV_RIGHE_CONTABILI per "mrc"), lasciando poi a CodeMirror il punteggio.
+// Passa chi contiene il testo digitato come sottostringa ("moduli" →
+// SEQ_ORE_MODULI), chi ne ricalca le iniziali delle parole ("mrc" →
+// MOV_RIGHE_CONTABILI) e chi lo si può leggere dall'inizio del nome saltando
+// di parola in parola ("wbsd" → WBS_DEFAULT_OWNER, "mypkg" → MY_PKG).
+function matches(typed, label) {
+  const needle = typed.toLowerCase();
+  const low = label.toLowerCase();
+  if (low.includes(needle)) return true;
+  if (low[0] !== needle[0]) return false;
+  const starts = wordStarts(label);
+  return initials(needle, low, starts) || chunked(needle, low, starts);
+}
+
+// Tutte le lettere digitate cadono a inizio parola (qualcuna si può saltare).
+function initials(needle, low, starts) {
+  let i = 1;
+  for (const w of starts) {
+    if (low[w] === needle[i]) i++;
+    if (i === needle.length) return true;
+  }
+  return false;
+}
+
+// Il testo digitato spezzato in tronconi: il primo è un prefisso del nome di
+// almeno due lettere, gli altri ripartono dall'inizio di una parola. Il minimo
+// di due evita che una sola lettera in comune apra la porta a mezzo schema
+// ("sele" non deve pescare SPRINT_ELEMENTS_OLD).
+function chunked(needle, low, starts) {
+  if (needle.length < 3 || low[1] !== needle[1]) return false;
+  // Posizioni raggiunte dopo aver consumato le prime lettere: ognuna prosegue
+  // la parola in corso o riparte dall'inizio di una parola seguente.
+  let heads = [2];
+  for (let i = 2; i < needle.length; i++) {
+    const next = new Set();
+    for (const p of heads) {
+      if (low[p] === needle[i]) next.add(p + 1);
+      for (const w of starts) if (w >= p && low[w] === needle[i]) next.add(w + 1);
+    }
+    if (!next.size) return false;
+    heads = [...next];
+  }
+  return true;
+}
+
+// Inizio di parola: dopo un separatore o un passaggio da minuscola a maiuscola.
+function wordStarts(label) {
+  const out = [];
+  for (let p = 1; p < label.length; p++) {
+    const prev = label[p - 1];
+    if (!/[A-Za-z0-9]/.test(prev) || (/[a-z]/.test(prev) && /[A-Z]/.test(label[p]))) out.push(p);
+  }
+  return out;
+}
+
+const filterBy = (typed, options) =>
+  typed ? options.filter((o) => matches(typed, o.label)) : options;
+
+// Avendo già filtrato sul testo digitato, la lista resta valida finché si
+// aggiungono caratteri; se se ne cancellano va ricalcolata.
+const validFor = (typed) => (text) =>
+  /^[\w$#]*$/.test(text) && text.toLowerCase().startsWith(typed.toLowerCase());
+
 // Nome da mostrare (e inserire) rispettando lo stile di chi scrive.
 function ident(name, lower) {
   if (needsQuote(name)) return `"${name.replace(/"/g, '""')}"`;
@@ -257,8 +327,9 @@ export function sqlCompletionSource(connId) {
       const prefix = qualified.text.slice(end);
       const qLower = caseOf(prefix, raw[raw.length - 1]);
       const from = context.pos - prefix.length;
-      const options = await qualifiedOptions(parts, qLower);
-      if (options?.length) return { from, options, validFor: /^[\w$#]*$/ };
+      const found = await qualifiedOptions(parts, qLower);
+      const options = found && filterBy(prefix, found);
+      if (options?.length) return { from, options, validFor: validFor(prefix) };
       return null;
 
       async function qualifiedOptions(path, low) {
@@ -396,7 +467,7 @@ export function sqlCompletionSource(connId) {
     const keywords = (lower ? KEYWORDS.lower : KEYWORDS.upper)(context);
     if (keywords && keywords.from === word.from) options.push(...keywords.options);
 
-    return { from: word.from, options, validFor: /^[\w$#]*$/ };
+    return { from: word.from, options: filterBy(typed, options), validFor: validFor(typed) };
 
     // ---- helper che dipendono dal contesto -------------------------------
 
