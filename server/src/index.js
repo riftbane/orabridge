@@ -8,6 +8,7 @@ import sqlRouter from './routes/sql.js';
 import historyRouter from './routes/history.js';
 import diffRouter from './routes/diff.js';
 import aiRouter from './routes/ai.js';
+import releasesRouter from './routes/releases.js';
 import { pools } from './pools.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,8 @@ function createApp() {
   app.use('/api/diff', diffRouter);
   // Assistente AI: impostazioni, elenco modelli e sessioni di chat.
   app.use('/api/ai', aiRouter);
+  // Novità delle versioni, lette da GitHub Releases e messe in cache.
+  app.use('/api/releases', releasesRouter);
 
   // Everything under /api/conn/:id requires an active connection.
   const requireConn = (req, res, next) => {

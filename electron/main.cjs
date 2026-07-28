@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -82,6 +82,13 @@ async function createWindow(port) {
   });
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+  // I collegamenti esterni (note di rilascio, guida, risposte dell'assistente)
+  // vanno aperti nel browser di sistema: dentro Electron finirebbero in una
+  // finestra nuda, senza preload e senza modo di tornare indietro.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
   });
   mainWindow.webContents.on('did-fail-load', (event, code, desc, url) => {
     log('caricamento pagina fallito', code, desc, url);

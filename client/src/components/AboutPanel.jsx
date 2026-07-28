@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen, CheckCircle2, Download, RefreshCw, XCircle } from 'lucide-react';
 import { APP_VERSION, IS_DESKTOP } from '../appInfo.js';
-import { highlightsMd } from '../guide.js';
+import { highlightsMd, releasesShortMd, RELEASES_URL } from '../guide.js';
+import { useReleases } from '../releases.js';
 import AiMarkdown from './AiMarkdown.jsx';
 
 function statusLine(status, info) {
@@ -36,6 +37,9 @@ export default function AboutPanel({ onOpenGuide }) {
   const [status, setStatus] = useState(null);
   const [statusInfo, setStatusInfo] = useState({});
   const busy = status === 'checking' || status === 'downloading';
+  // Novità dalle release GitHub; senza rete restano quelle del bundle.
+  const releases = useReleases();
+  const news = releases?.releases?.length ? releasesShortMd(releases.releases, 3) : highlightsMd(3);
 
   useEffect(() => {
     if (!isDesktop) return undefined;
@@ -85,11 +89,14 @@ export default function AboutPanel({ onOpenGuide }) {
       )}
 
       <div className="about-news">
-        <h4>Novità di questo aggiornamento</h4>
-        <AiMarkdown className="md about-news-md" text={highlightsMd(3)} softBreaks />
+        <h4>Novità delle ultime versioni</h4>
+        <AiMarkdown className="md about-news-md" text={news} softBreaks />
         <button className="link-btn" onClick={() => onOpenGuide?.('aggiornamenti')}>
           Tutte le novità e come funzionano gli aggiornamenti →
         </button>
+        <a className="link-btn" href={RELEASES_URL} target="_blank" rel="noreferrer noopener">
+          Le release su GitHub ↗
+        </a>
       </div>
     </div>
   );

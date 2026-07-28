@@ -85,8 +85,15 @@ function writeVersion(version) {
 
 function insertChangelogEntry(version, entries) {
   const date = new Date().toISOString().slice(0, 10);
+  // Oggetto e corpo del commit su righe distinte, con il corpo rientrato
+  // dentro il punto elenco: attaccati come erano prima ("…senza API key Nuova
+  // piattaforma…") diventavano illeggibili, e le note della release finiscono
+  // così come sono nella guida dell'app.
   const bullets = entries
-    .map(({ label, desc, body }) => `- **${label}:** ${desc}${body ? ` ${body}` : ''}`)
+    .map(
+      ({ label, desc, body }) =>
+        `- **${label}:** ${desc}${body ? `\n\n  ${body.split('\n').join('\n  ')}` : ''}`
+    )
     .join('\n');
   const block = `## v${version} — ${date}\n\n${bullets}\n\n`;
 

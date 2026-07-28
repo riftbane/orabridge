@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { buildGuide, searchGuide } from '../guide.js';
+import { useReleases } from '../releases.js';
 import { APP_VERSION, IS_DESKTOP } from '../appInfo.js';
 import { useStore } from '../store.js';
 import AiMarkdown from './AiMarkdown.jsx';
@@ -52,9 +53,12 @@ export default function GuideView({ compact = false, onOpenFull }) {
   const [query, setQuery] = useState('');
   const bodyRef = useRef(null);
 
+  // Le novità arrivano da GitHub: finché non rispondono, la sezione
+  // «Aggiornamenti» mostra quelle incluse nel bundle.
+  const releases = useReleases();
   const sections = useMemo(
-    () => buildGuide({ version: APP_VERSION, desktop: IS_DESKTOP }),
-    []
+    () => buildGuide({ version: APP_VERSION, desktop: IS_DESKTOP, releases }),
+    [releases]
   );
   const matches = useMemo(() => searchGuide(sections, query), [sections, query]);
   // Cercando, la sezione mostrata è la prima che corrisponde: quella scelta

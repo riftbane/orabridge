@@ -610,10 +610,25 @@ dall'installer, non nella versione web né in esecuzione da sorgente.
   },
 ];
 
-// Novità delle ultime versioni, dalla più recente. Le usa la sezione
-// «Aggiornamenti» della guida e, in breve, la scheda «Informazioni» delle
-// impostazioni: la storia completa resta in CHANGELOG.md.
+export const RELEASES_URL = 'https://github.com/riftbane/orabridge/releases';
+
+// Ripiego: le novità vere arrivano da GitHub Releases (`/api/releases`), ma
+// Orabridge gira anche su macchine senza internet. Questo elenco resta nel
+// bundle per quei casi, quindi cita solo le funzioni grosse — la storia
+// completa è nel CHANGELOG.md e sulla pagina delle release.
 export const RELEASE_HIGHLIGHTS = [
+  {
+    version: '1.19',
+    text: `**Modello locale**: Gemma 4 gira dentro Orabridge, gratis e senza API key. Il
+motore è incluso nell'installer, i pesi si scaricano una volta dalle
+impostazioni.`,
+  },
+  {
+    version: '1.18',
+    text: `**Token spesi sempre sotto gli occhi**: sotto ogni risposta dell'assistente la
+piattaforma, il modello e i token di quella richiesta; in cima al pannello il
+totale della sessione.`,
+  },
   {
     version: '1.17',
     text: `Questa **guida integrata**: si apre con \`F1\` o dall'icona del libro in alto
@@ -672,11 +687,47 @@ export function highlightsMd(limit = RELEASE_HIGHLIGHTS.length) {
     .join('\n');
 }
 
-// Sezione «Aggiornamenti»: dipende dalla versione in esecuzione e da come è
-// stata installata l'app, quindi si costruisce a runtime.
-function updatesSection({ version, desktop }) {
+const itDate = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
+
+// Le release lette da GitHub: una sezione per versione, con le note così come
+// sono state pubblicate (sono la voce di CHANGELOG di quel rilascio).
+export function releasesMd(list, limit = list.length) {
+  return list
+    .slice(0, limit)
+    .map((r) => {
+      const when = itDate(r.publishedAt);
+      const head = `### ${r.version}${when ? ` — ${when}` : ''}${r.prerelease ? ' (anteprima)' : ''}`;
+      return `${head}\n\n${r.notes || '_Nessuna nota pubblicata._'}\n\n[Note su GitHub](${r.url})`;
+    })
+    .join('\n\n');
+}
+
+// Le novità in breve, per la scheda «Informazioni»: una riga per versione.
+export function releasesShortMd(list, limit = 3) {
+  return list
+    .slice(0, limit)
+    .map((r) => `- **${r.version}** — ${r.summary || 'nessuna nota pubblicata'}`)
+    .join('\n');
+}
+
+// Sezione «Aggiornamenti»: dipende dalla versione in esecuzione, da come è
+// stata installata l'app e dalle release pubblicate su GitHub, quindi si
+// costruisce a runtime.
+function updatesSection({ version, desktop, releases }) {
   const installed = version ? `**${version}**` : '**(non disponibile)**';
   const kind = desktop ? 'App desktop (Windows)' : 'Client web / Docker';
+  const list = releases?.releases || [];
+  const latest = list[0];
+  // Confronto testuale: i numeri sono nella stessa forma (1.19.0) da entrambe
+  // le parti, e qui serve solo capire se c'è qualcosa di più recente.
+  const behind = latest && version && latest.version !== version;
+  const news = list.length
+    ? releasesMd(list)
+    : `${
+        releases?.error
+          ? `> Elenco delle release non raggiungibile (${releases.error}): qui sotto le novità incluse in questa versione.\n\n`
+          : ''
+      }${highlightsMd()}`;
 
   return {
     id: 'aggiornamenti',
@@ -686,7 +737,11 @@ function updatesSection({ version, desktop }) {
 ## Versione installata
 
 - **Versione:** ${installed}
-- **Installazione:** ${kind}
+- **Installazione:** ${kind}${
+      latest
+        ? `\n- **Ultima pubblicata:** ${latest.version}${itDate(latest.publishedAt) ? ` (${itDate(latest.publishedAt)})` : ''}${behind ? ' — più recente di quella in uso' : ' — è quella che stai usando'}`
+        : ''
+    }
 
 Il numero di versione compare anche in **Impostazioni → Informazioni**, insieme
 al tasto per il controllo manuale degli aggiornamenti.
@@ -714,21 +769,21 @@ versioni all'avvio e ogni 4 ore, le scarica in background e chiede se riavviare
 per installarle.`
 }
 
-Ogni versione pubblicata ha il suo installer e le sue note su **GitHub
-Releases**; l'elenco completo delle modifiche sta nel file \`CHANGELOG.md\` del
-progetto.
+Ogni versione pubblicata ha il suo installer e le sue note su
+**[GitHub Releases](${RELEASES_URL})**; l'elenco completo delle modifiche sta
+anche nel file \`CHANGELOG.md\` del progetto.
 
 ## Novità delle ultime versioni
 
-${highlightsMd()}
+${news}
 `,
   };
 }
 
 // Le sezioni della guida, nell'ordine in cui compaiono nell'indice.
-export function buildGuide({ version, desktop } = {}) {
+export function buildGuide({ version, desktop, releases } = {}) {
   const sections = SECTIONS.map((s) => ({ ...s, md: s.md.trim() }));
-  const updates = updatesSection({ version, desktop });
+  const updates = updatesSection({ version, desktop, releases });
   // «Aggiornamenti» prima delle sezioni di servizio finali.
   const at = sections.findIndex((s) => s.id === 'dati');
   sections.splice(at, 0, { ...updates, md: updates.md.trim() });

@@ -148,6 +148,15 @@ più recente su GitHub Releases, la scarica, e quando è pronta chiede se
 riavviare subito per installarla o farlo più tardi. Non serve rieseguire
 l'installer manualmente per restare aggiornati.
 
+Le **novità delle versioni** non sono scritte a mano dentro l'app: la guida
+(`F1` → «Aggiornamenti e novità») e la scheda **Impostazioni → Informazioni**
+leggono le release pubblicate su GitHub, quindi mostrano sempre l'ultima
+davvero uscita e le sue note, con il confronto rispetto alla versione in uso.
+L'elenco passa dal server (`GET /api/releases`, mezz'ora di cache) e non dal
+browser: così la richiesta è una sola per tutti, non dipende dalla CORS di
+`api.github.com` e su una macchina senza internet si degrada in un punto solo —
+in quel caso la guida ripiega sulle novità incluse nel bundle.
+
 ### Buildare l'installer localmente (sviluppo/test)
 
 ```bash
@@ -305,6 +314,7 @@ server/                  Express + node-oracledb (thin)
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
   src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
+  src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
   src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI + modello locale
   src/ai/localModels.js  catalogo Gemma 4, download con ripresa e avanzamento

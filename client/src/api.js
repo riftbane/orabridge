@@ -109,6 +109,9 @@ export const api = {
   aiLocalRemove: (id) => j('DELETE', `/api/ai/local/models/${id}`),
   aiLocalEventsUrl: () => '/api/ai/local/events',
 
+  // novità delle versioni (GitHub Releases, in cache lato server)
+  releases: () => j('GET', '/api/releases'),
+
   // cronologia query
   history: (params) => j('GET', `/api/history?${q(params)}`),
   deleteHistoryEntry: (entryId) => j('DELETE', `/api/history/${entryId}`),
