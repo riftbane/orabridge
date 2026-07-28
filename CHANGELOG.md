@@ -19,6 +19,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.22.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.22.0/Orabridge-Setup-1.22.0.exe) (2026-07-28).
+
 ## v1.21.1 — 2026-07-28
 
 - **Fix:** il server locale dell'app desktop risponde solo alla sua finestra
