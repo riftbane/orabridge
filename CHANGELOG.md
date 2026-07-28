@@ -2,6 +2,23 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.13.0 — 2026-07-28
+
+- **Nuovo:** decodifica opzionale delle entità HTML nella griglia I database popolati da applicativi web legacy contengono testo già
+codificato (`Attivit&agrave; in corso`, spesso senza il `;` finale come
+lo scrivevano i vecchi encoder): la griglia lo mostrava tale e quale,
+rendendo illeggibili le descrizioni.
+
+Nuovo pulsante `&→à` sopra i risultati del foglio SQL e sopra i dati di
+una tabella: decodifica le entità (nomi Latin-1, punteggiatura
+tipografica e riferimenti numerici) solo a video — celle, modale del
+valore e copia della selezione. Ordinamento, editing ed export CSV
+continuano a lavorare sul valore grezzo del database. La preferenza è
+globale, persistita e spenta di default, perché la griglia deve mostrare
+il dato com'è nel database finché non si chiede il contrario.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.6 — 2026-07-28
 
 - **Fix:** nessun errore quando la release non ha ancora l'installer Se il workflow di rilascio ha già creato tag e release ma non ha ancora
