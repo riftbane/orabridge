@@ -31,6 +31,8 @@ Dettagli d'integrazione:
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.19.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.19.0/Orabridge%20Setup%201.19.0.exe) (2026-07-28).
+
 ## v1.18.0 — 2026-07-28
 
 - **Nuovo:** indicatori dei token spesi per richiesta e per sessione Sotto ogni risposta compaiono piattaforma, modello e token di quella
