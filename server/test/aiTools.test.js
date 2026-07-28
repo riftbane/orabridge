@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { requiredPermission, ToolError } from '../src/ai/tools.js';
+import { objectsText, overviewText, requiredPermission, ToolError } from '../src/ai/tools.js';
 import { parseArgs } from '../src/ai/providers.js';
+import { buildSystemPrompt } from '../src/ai/sessions.js';
 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
@@ -39,6 +40,64 @@ test('argomenti troncati: segnalati invece di diventare un oggetto vuoto', () =>
   const r = parseArgs('{"sql":"SELECT * FROM TS_TIME');
   assert.deepEqual(r.input, {});
   assert.ok(r.invalid, 'la chiamata deve risultare non valida');
+});
+
+// ---- elenchi letti dal modello ----
+
+test('elenco di oggetti: conteggio, stato non valido e troncamento', () => {
+  const r = { rows: [['CLIENTI', 'VALID'], ['ORDINI_V', 'INVALID']], truncated: false };
+  assert.equal(objectsText('TABLE', 'WSS', r), 'TABLE in WSS: 2\nCLIENTI, ORDINI_V (INVALID)');
+  assert.match(objectsText('TABLE', 'WSS', { rows: [], truncated: false }), /\(nessuno\)/);
+  assert.match(objectsText('TABLE', 'WSS', { ...r, truncated: true }), /2\+ \(elenco troncato\)/);
+});
+
+// L'inventario finisce nel prompt di sistema: senza, i modelli piccoli
+// chiedono all'utente quale tabella usare invece di guardare da soli.
+const rows = (type, ...names) => names.map((n) => [type, n]);
+
+test('inventario dello schema: tabelle e viste separate', () => {
+  const text = overviewText('WSS', [...rows('TABLE', 'CLIENTI', 'ORDINI'), ...rows('VIEW', 'V_TOP')]);
+  assert.equal(text, 'Tabelle in WSS (2): CLIENTI, ORDINI\nViste in WSS (1): V_TOP');
+});
+
+test('inventario dello schema: elenco lungo troncato con il totale intero', () => {
+  const many = rows('TABLE', ...Array.from({ length: 10 }, (_, i) => `T${i}`));
+  const text = overviewText('WSS', many, 4);
+  assert.match(text, /Tabelle in WSS \(10\): T0, T1, T2, T3, … e altri 6/);
+});
+
+test('inventario dello schema: budget esaurito prima delle viste', () => {
+  const text = overviewText('WSS', [...rows('TABLE', 'A', 'B'), ...rows('VIEW', 'V1')], 2);
+  assert.match(text, /Viste in WSS \(1\): elenco troppo lungo/);
+});
+
+test('schema vuoto: indirizza su list_schemas invece di lasciare il vuoto', () => {
+  assert.match(overviewText('WSS', []), /non contiene tabelle.*list_schemas/s);
+});
+
+// ---- prompt di sistema ----
+
+// Le due istruzioni che i modelli piccoli sbagliavano: fermarsi all'elenco
+// delle tabelle e chiedere all'utente quale usare.
+test('prompt con connessione: inventario, procedura e divieto di fermarsi', () => {
+  const p = buildSystemPrompt({
+    entry: { user: 'WSS', currentSchema: 'WSS', version: '19.3' },
+    permissions: { read: true, write: false },
+    overview: 'Tabelle in WSS (2): CLIENTI, ORDINI',
+  });
+  assert.match(p, /Tabelle in WSS \(2\): CLIENTI, ORDINI/);
+  assert.match(p, /Permessi concessi in questa sessione: lettura\./);
+  assert.match(p, /describe_table/);
+  assert.match(p, /Non fermarti a metà/);
+  assert.match(p, /Non chiedere all'utente/);
+});
+
+test('prompt senza connessione: niente procedura sugli strumenti', () => {
+  const p = buildSystemPrompt({ entry: null, permissions: {} });
+  assert.match(p, /Nessuna connessione attiva/);
+  assert.match(p, /Permessi concessi in questa sessione: nessuno\./);
+  assert.doesNotMatch(p, /describe_table/);
+  assert.match(p, /dialetto Oracle/);
 });
 
 // ---- nomi dei bind ----

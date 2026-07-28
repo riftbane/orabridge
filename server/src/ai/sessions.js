@@ -5,7 +5,7 @@ import { settings } from '../settings.js';
 import { pools } from '../pools.js';
 import { isKeyless, providers } from './providers.js';
 import { LEVEL_LABEL } from './sqlGuard.js';
-import { requiredPermission, runTool, toolSchemas, ToolError } from './tools.js';
+import { requiredPermission, runTool, schemaOverview, toolSchemas, ToolError } from './tools.js';
 import { sealMessages } from './toolPairing.js';
 import { addUsage, emptyUsage, isEmptyUsage, normalizeUsage } from './usage.js';
 
@@ -330,28 +330,71 @@ function pushResult(s, call, content, isError) {
   emit(s, { type: 'tool_result', id: call.id, name: call.name, content: String(content), isError: !!isError });
 }
 
-function systemPrompt(s) {
-  const entry = s.connId ? pools.get(s.connId) : null;
-  const perms = Object.entries(s.permissions)
+// Il prompt è scritto pensando ai modelli piccoli: procedura numerata, divieti
+// espliciti, nessuna sfumatura da interpretare. L'elenco degli oggetti dello
+// schema entra qui dentro perché è l'informazione che manca più spesso — senza,
+// un modello debole elenca le tabelle e poi chiede all'utente quale usare.
+export function buildSystemPrompt({ entry, permissions, overview }) {
+  const perms = Object.entries(permissions || {})
     .filter(([, v]) => v)
     .map(([k]) => LEVEL_LABEL[k] || k);
-  return [
-    'Sei l\'assistente integrato in Orabridge, un client SQL per database Oracle.',
+  const out = [
+    "Sei l'assistente integrato in Orabridge, un client SQL per database Oracle.",
     'Rispondi sempre in italiano, in modo conciso e concreto.',
     '',
-    entry
-      ? `Connessione attiva: utente ${entry.user}, schema corrente ${entry.currentSchema}, Oracle ${entry.version}.`
-      : 'Nessuna connessione attiva: puoi solo ragionare e scrivere SQL, non eseguirlo.',
-    `Permessi concessi in questa sessione: ${perms.length ? perms.join(', ') : 'nessuno'}.`,
+  ];
+
+  if (entry) {
+    out.push(
+      `Connessione attiva: utente ${entry.user}, schema corrente ${entry.currentSchema}, Oracle ${entry.version}.`
+    );
+    if (overview) out.push(overview);
+  } else {
+    out.push('Nessuna connessione attiva: puoi solo ragionare e scrivere SQL, non eseguirlo.');
+  }
+  out.push(`Permessi concessi in questa sessione: ${perms.length ? perms.join(', ') : 'nessuno'}.`, '');
+
+  if (entry) {
+    out.push(
+      'Come rispondere a una domanda sui dati — segui questi passi, uno strumento alla volta:',
+      "1. Scegli le tabelle dall'elenco qui sopra. Il nome nel database può essere in un'altra lingua o abbreviato rispetto alle parole della domanda: fidati dell'elenco, non della traduzione (se la domanda parla di «ordini» e l'elenco contiene ORDINI, la tabella è quella). Se l'elenco non basta, usa list_objects o list_schemas.",
+      '2. Chiama describe_table su ogni tabella che userai: ti servono i nomi esatti delle colonne e le foreign key per i join.',
+      '3. Esegui la SELECT con run_query.',
+      "4. Chiudi il turno riportando all'utente i dati ottenuti, in una tabella Markdown se sono più righe, con una frase di commento.",
+      '',
+      'Regole di comportamento, valgono sempre:',
+      "- Porta a termine la richiesta da solo. Non chiedere all'utente cose che il database può dirti: quale tabella usare, come si chiama una colonna, quali valori esistono. Le domande servono solo quando la richiesta è ambigua nel significato (per esempio «i migliori clienti» per fatturato o per numero di ordini).",
+      "- Non fermarti a metà. Dopo aver elencato gli oggetti o letto una struttura devi proseguire da solo fino al risultato: un turno che finisce con l'elenco delle tabelle o con una domanda del tipo «quale tabella contiene i clienti?» è un turno sbagliato.",
+      "- Se uno strumento non trova nulla, non concludere che il dato non esiste: allarga la ricerca (togli il filtro, guarda l'elenco completo, prova un altro schema con list_schemas) e riprova.",
+      "- Se una query fallisce, leggi l'errore Oracle, correggi l'SQL e riprova. Non ripetere una chiamata identica a una che è già fallita."
+    );
+  } else {
+    out.push(
+      'Linee guida:',
+      "- Senza connessione non puoi verificare nulla: scrivi l'SQL che serve e di' esplicitamente su quali ipotesi di struttura ti stai basando."
+    );
+  }
+
+  out.push(
     '',
-    'Linee guida:',
-    '- Usa gli strumenti per guardare davvero il database invece di tirare a indovinare: prima di scrivere una query controlla la struttura delle tabelle con describe_table.',
-    '- Scrivi SQL nel dialetto Oracle. Gli identificatori non quotati sono maiuscoli.',
-    '- Una sola istruzione per chiamata, senza punto e virgola finale.',
+    'Regole SQL (dialetto Oracle):',
+    '- Una sola istruzione per chiamata, senza punto e virgola finale. Gli identificatori non quotati sono maiuscoli.',
+    '- Per limitare le righe usa FETCH FIRST n ROWS ONLY (ROWNUM prima della 12c). Per un «top n» servono ORDER BY e limite insieme.',
+    "- Per una classifica («i 5 clienti che hanno speso di più») aggrega con SUM/COUNT e GROUP BY sulla tabella dei movimenti, unisci l'anagrafica con un JOIN sulla foreign key, poi ordina in DESC e limita.",
     '- Le modifiche non vengono confermate da sole: dopo una INSERT/UPDATE/DELETE ricorda che serve un COMMIT dal foglio SQL.',
-    '- Se ti manca un permesso, prova comunque: all\'utente verrà chiesta un\'approvazione. Se la rifiuta, non insistere.',
-    '- Nelle risposte usa Markdown; racchiudi lo SQL in blocchi ```sql.',
-  ].join('\n');
+    "- Se ti manca un permesso, prova comunque: all'utente verrà chiesta un'approvazione. Se la rifiuta, non insistere.",
+    '- Nelle risposte usa Markdown; racchiudi lo SQL in blocchi ```sql.'
+  );
+  return out.join('\n');
+}
+
+async function systemPrompt(s) {
+  const entry = s.connId ? pools.get(s.connId) : null;
+  return buildSystemPrompt({
+    entry,
+    permissions: s.permissions,
+    overview: entry ? await schemaOverview(s.connId) : null,
+  });
 }
 
 async function streamAssistant(s, signal) {
@@ -361,6 +404,9 @@ async function streamAssistant(s, signal) {
   if (!ctx.apiKey && !isKeyless(s.provider)) {
     throw new Error(`Nessuna API key configurata per ${s.provider}`);
   }
+  // L'inventario dello schema si legge dal dizionario dati: il prompt si
+  // prepara prima di aprire lo stream, non mentre il cane da guardia gira.
+  const system = await systemPrompt(s);
 
   // Cane da guardia: se la piattaforma smette di mandare dati a metà stream la
   // lettura resterebbe appesa senza errore. Si interrompe il turno e lo si dice.
@@ -386,7 +432,7 @@ async function streamAssistant(s, signal) {
     beat();
     const stream = provider.stream(ctx, {
       model: s.model,
-      system: systemPrompt(s),
+      system,
       messages: s.messages,
       tools: s.connId ? toolSchemas() : [],
       maxTokens: MAX_TOKENS,

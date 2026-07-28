@@ -18,13 +18,17 @@ export const TOOL_DEFS = [
     name: 'list_objects',
     permission: 'read',
     description:
-      'Elenca gli oggetti di uno schema per tipo (TABLE, VIEW, MATERIALIZED VIEW, SEQUENCE, PROCEDURE, FUNCTION, PACKAGE, TRIGGER, TYPE, SYNONYM, INDEX). Accetta un filtro sul nome.',
+      'Elenca gli oggetti di uno schema per tipo (TABLE, VIEW, MATERIALIZED VIEW, SEQUENCE, PROCEDURE, FUNCTION, PACKAGE, TRIGGER, TYPE, SYNONYM, INDEX). Senza filtro restituisce tutto: è il modo migliore per capire che cosa contiene il database.',
     parameters: {
       type: 'object',
       properties: {
         owner: { type: 'string', description: 'Schema; se omesso usa lo schema corrente' },
         type: { type: 'string', description: 'Tipo di oggetto, es. TABLE' },
-        like: { type: 'string', description: 'Filtro sul nome, senza wildcard (ricerca "contiene")' },
+        like: {
+          type: 'string',
+          description:
+            'Filtro sul nome, senza wildcard (ricerca "contiene", sottostringa esatta). Usalo solo se sei sicuro di come è scritto il nome nel database: in caso di dubbio lascialo vuoto e leggi l\'elenco completo',
+        },
       },
       required: ['type'],
     },
@@ -33,7 +37,7 @@ export const TOOL_DEFS = [
     name: 'describe_table',
     permission: 'read',
     description:
-      'Struttura completa di una tabella o vista: colonne con tipo e nullabilità, chiave primaria, vincoli, foreign key, indici e commenti.',
+      'Struttura completa di una tabella o vista: colonne con tipo e nullabilità, chiave primaria, vincoli, foreign key, indici e commenti. Chiamalo su ogni tabella che userai, prima di scrivere la query: i nomi delle colonne vanno letti, non indovinati.',
     parameters: {
       type: 'object',
       properties: {
@@ -79,7 +83,7 @@ export const TOOL_DEFS = [
     name: 'run_query',
     permission: 'read',
     description:
-      'Esegue una SELECT e restituisce le righe. Solo istruzioni di lettura: per qualsiasi modifica usa execute_sql. Il numero di righe è limitato, usa ROWNUM o FETCH FIRST se ti serve un campione.',
+      "Esegue una SELECT e restituisce le righe: è così che si risponde a una domanda sui dati, dopo aver guardato la struttura delle tabelle. Solo istruzioni di lettura, per qualsiasi modifica usa execute_sql. Il numero di righe è limitato: usa FETCH FIRST n ROWS ONLY (o ROWNUM) se ti serve un campione o una classifica.",
     parameters: {
       type: 'object',
       properties: {
@@ -165,6 +169,15 @@ function table(columns, rows) {
   return [head, '-'.repeat(Math.min(head.length, 80)), ...body].join('\n');
 }
 
+// Elenco di oggetti come lo legge il modello.
+export function objectsText(type, owner, r) {
+  const names = r.rows.map(([n, s]) => (s === 'VALID' ? n : `${n} (${s})`));
+  return (
+    `${type} in ${owner}: ${r.rows.length}${r.truncated ? '+ (elenco troncato)' : ''}\n` +
+    (names.join(', ') || '(nessuno)')
+  );
+}
+
 async function query(entry, sql, binds, maxRows = 500) {
   return withPooled(entry, async (c) => {
     const r = await c.execute(sql, binds, {
@@ -173,6 +186,77 @@ async function query(entry, sql, binds, maxRows = 500) {
     });
     return gridResult(r, maxRows);
   });
+}
+
+// ---- inventario dello schema ----
+
+// I modelli piccoli si perdono al primo passo: elencano le tabelle e poi
+// chiedono all'utente quale usare, oppure cercano un nome tradotto e non lo
+// trovano. Mettere l'elenco degli oggetti direttamente nel prompt di sistema
+// toglie di mezzo il problema alla radice — il nome giusto ce l'hanno già
+// sotto gli occhi. L'elenco è limitato (i modelli locali hanno 8k di contesto
+// in tutto) e messo in cache: la stessa connessione lo riusa per qualche
+// minuto invece di interrogare il dizionario a ogni messaggio.
+const OVERVIEW_TTL_MS = 5 * 60_000;
+const OVERVIEW_MAX = 150;
+const OVERVIEW_TYPES = ['TABLE', 'VIEW', 'MATERIALIZED VIEW'];
+const OVERVIEW_LABEL = {
+  TABLE: 'Tabelle',
+  VIEW: 'Viste',
+  'MATERIALIZED VIEW': 'Viste materializzate',
+};
+const overviewCache = new Map(); // connId -> { schema, at, text }
+
+export function overviewText(schema, rows, max = OVERVIEW_MAX) {
+  if (!rows.length) {
+    return (
+      `Lo schema corrente ${schema} non contiene tabelle né viste: cerca lo schema giusto ` +
+      'con list_schemas e passa `owner` agli strumenti.'
+    );
+  }
+  const out = [];
+  let budget = max;
+  for (const type of OVERVIEW_TYPES) {
+    const names = rows.filter(([t]) => t === type).map(([, n]) => n);
+    if (!names.length) continue;
+    const shown = names.slice(0, Math.max(0, budget));
+    budget -= shown.length;
+    const rest = names.length - shown.length;
+    const head = `${OVERVIEW_LABEL[type]} in ${schema} (${names.length}): `;
+    if (!shown.length) {
+      out.push(`${head}elenco troppo lungo per stare qui, chiedilo con list_objects.`);
+    } else {
+      out.push(head + shown.join(', ') + (rest ? `, … e altri ${rest} (list_objects per il resto)` : ''));
+    }
+  }
+  return out.join('\n');
+}
+
+// Riga di inventario per il prompt di sistema, o null se il dizionario non è
+// leggibile: un turno non deve fallire per colpa di un contorno.
+export async function schemaOverview(connId) {
+  const entry = pools.get(connId);
+  if (!entry) return null;
+  const schema = entry.currentSchema;
+  const hit = overviewCache.get(connId);
+  if (hit && hit.schema === schema && Date.now() - hit.at < OVERVIEW_TTL_MS) return hit.text;
+  let text;
+  try {
+    const r = await query(
+      entry,
+      `SELECT object_type, object_name FROM all_objects
+        WHERE owner = :owner AND object_type IN ('TABLE', 'VIEW', 'MATERIALIZED VIEW')
+          AND object_name NOT LIKE 'BIN$%'
+        ORDER BY object_type, object_name`,
+      { owner: schema },
+      3000
+    );
+    text = overviewText(schema, r.rows);
+  } catch {
+    return null;
+  }
+  overviewCache.set(connId, { schema, at: Date.now(), text });
+  return text;
 }
 
 // Un nome può essere un sinonimo (proprio o pubblico) verso la tabella vera:
@@ -209,7 +293,22 @@ async function missingReason(entry, owner, name) {
   if (others.length) {
     return `${owner}.${name} non esiste, ma un oggetto con questo nome esiste in ${others.join(', ')}: ripeti indicando owner.`;
   }
-  return `${owner}.${name} non esiste o non è leggibile con questa utenza.`;
+  // Nome inventato (capita spesso ai modelli piccoli, che traducono o
+  // abbreviano): senza un'alternativa concreta si arrendono, con l'elenco
+  // sotto gli occhi ripiegano da soli sulla tabella giusta.
+  const near = await query(
+    entry,
+    `SELECT object_name FROM all_objects
+      WHERE owner = :owner AND object_type IN ('TABLE', 'VIEW')
+        AND object_name NOT LIKE 'BIN$%'
+      ORDER BY object_name`,
+    { owner },
+    60
+  ).catch(() => ({ rows: [], truncated: false }));
+  const hint = near.rows.length
+    ? ` Tabelle e viste esistenti in ${owner}: ${near.rows.map(([n]) => n).join(', ')}${near.truncated ? ', …' : ''}. Scegli da qui.`
+    : '';
+  return `${owner}.${name} non esiste o non è leggibile con questa utenza.${hint}`;
 }
 
 const handlers = {
@@ -228,20 +327,35 @@ const handlers = {
     // di sua iniziativa si tolgono. Il bind non può chiamarsi `like`: è una
     // parola riservata Oracle e la chiamata fallirebbe con ORA-01745.
     const like = (up(input.like) || '').replace(/^%+|%+$/g, '') || null;
-    const r = await query(
-      entry,
-      `SELECT object_name, status FROM all_objects
-        WHERE owner = :owner AND object_type = :t AND object_name NOT LIKE 'BIN$%'
-          ${like ? `AND object_name LIKE '%' || :flt || '%'` : ''}
-        ORDER BY object_name`,
-      like ? { owner, t: type, flt: like } : { owner, t: type },
-      500
-    );
-    const names = r.rows.map(([n, s]) => (s === 'VALID' ? n : `${n} (${s})`));
-    return (
-      `${type} in ${owner}: ${r.rows.length}${r.truncated ? '+ (elenco troncato)' : ''}\n` +
-      (names.join(', ') || '(nessuno)')
-    );
+    const list = (flt) =>
+      query(
+        entry,
+        `SELECT object_name, status FROM all_objects
+          WHERE owner = :owner AND object_type = :t AND object_name NOT LIKE 'BIN$%'
+            ${flt ? `AND object_name LIKE '%' || :flt || '%'` : ''}
+          ORDER BY object_name`,
+        flt ? { owner, t: type, flt } : { owner, t: type },
+        500
+      );
+    const r = await list(like);
+    // Filtro a vuoto: un elenco di zero oggetti i modelli piccoli lo leggono
+    // come "la tabella non esiste" e si fermano lì a chiedere aiuto — succede
+    // ogni volta che cercano ORDERS in un database che le chiama ORDINI. Invece
+    // di rimandare indietro il vicolo cieco si rifà la ricerca senza filtro:
+    // l'elenco completo è la risposta che serviva davvero.
+    if (!r.rows.length && like) {
+      const all = await list(null);
+      const head = `Nessun oggetto di tipo ${type} con "${like}" nel nome in ${owner}.`;
+      if (!all.rows.length) {
+        return `${head} Lo schema ${owner} non contiene alcun ${type}: cerca lo schema giusto con list_schemas.`;
+      }
+      return (
+        `${head} Il filtro cerca la sottostringa esatta e i nomi nel database possono essere ` +
+        `diversi dai termini della domanda: ecco l'elenco completo, scegli da qui.\n` +
+        objectsText(type, owner, all)
+      );
+    }
+    return objectsText(type, owner, r);
   },
 
   async describe_table(entry, input) {
@@ -441,6 +555,9 @@ const handlers = {
 
   async execute_sql(entry, input) {
     const sql = String(input.sql || '').trim().replace(/;\s*$/, '');
+    // Una CREATE/DROP cambia l'inventario che sta nel prompt: tenerlo com'era
+    // farebbe negare al modello l'esistenza di una tabella appena creata.
+    overviewCache.delete(entry.id);
     const r = await runExclusive(entry, async () => {
       const t0 = performance.now();
       entry.executing = true;
