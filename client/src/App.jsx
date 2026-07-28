@@ -164,6 +164,9 @@ export default function App() {
   const refreshConnections = useStore((s) => s.refreshConnections);
   const toast = useStore((s) => s.toast);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Cambia ad ogni chiusura delle impostazioni: il pannello AI se ne accorge e
+  // rilegge chiavi, modelli e permessi invece di restare con i vecchi.
+  const [settingsRev, setSettingsRev] = useState(0);
 
   useEffect(() => {
     refreshConnections().catch((err) => toast(`Server non raggiungibile: ${err.message}`, 'error'));
@@ -244,9 +247,20 @@ export default function App() {
       )}
       {/* Sempre montato: lo streaming della sessione prosegue anche a pannello
           chiuso, e riaprendolo si ritrova la conversazione già aggiornata. */}
-      <AiPanel hidden={!ui.ai} onOpenSettings={() => setSettingsOpen(true)} />
+      <AiPanel
+        hidden={!ui.ai}
+        onOpenSettings={() => setSettingsOpen(true)}
+        settingsRev={settingsRev}
+      />
       <Toasts />
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => {
+            setSettingsOpen(false);
+            setSettingsRev((r) => r + 1);
+          }}
+        />
+      )}
     </div>
   );
 }

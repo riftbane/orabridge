@@ -6,6 +6,7 @@ import { pools } from '../pools.js';
 import { providers } from './providers.js';
 import { LEVEL_LABEL } from './sqlGuard.js';
 import { requiredPermission, runTool, toolSchemas, ToolError } from './tools.js';
+import { sealMessages } from './toolPairing.js';
 
 const FILE = path.join(DATA_DIR, 'ai-sessions.json');
 const MAX_STEPS = 24; // giri modello→strumenti prima di fermarsi da soli
@@ -21,12 +22,16 @@ let sessions = load();
 
 function load() {
   const list = readJson(FILE, []);
-  // Un turno interrotto da un riavvio non può riprendere da solo.
+  // Un turno interrotto da un riavvio non può riprendere da solo: si riporta la
+  // sessione a riposo e si chiudono le chiamate rimaste senza risposta, così il
+  // messaggio successivo non viene rifiutato dal provider.
   for (const s of list) {
-    if (s.status === 'running') {
-      s.status = 'idle';
-      s.rt = { queue: [], results: [] };
-    }
+    if (s.status !== 'running' && s.status !== 'waiting') continue;
+    s.status = 'idle';
+    s.pending = null;
+    s.rt = { queue: [], results: [] };
+    const patched = sealMessages(s.messages || [], 'Operazione interrotta dal riavvio di Orabridge.');
+    if (patched) s.messages = patched;
   }
   return list;
 }
@@ -91,6 +96,17 @@ function appendMessage(s, message) {
   s.messages.push(message);
   emit(s, { type: 'message', message });
   save();
+}
+
+// Chiude le chiamate rimaste senza esito (vedi toolPairing.js) e riallinea i
+// client in ascolto.
+function sealDanglingToolUses(s, reason) {
+  const patched = sealMessages(s.messages, reason);
+  if (!patched) return false;
+  s.messages = patched;
+  emit(s, { type: 'session', session: view(s) });
+  save();
+  return true;
 }
 
 // ---- gestione delle sessioni ----
@@ -178,11 +194,14 @@ export const aiSessions = {
     const ctrl = running.get(id);
     if (ctrl) ctrl.abort();
     const s = sessions.find((x) => x.id === id);
-    if (s && s.status === 'running') {
+    if (!s) return false;
+    if (s.status === 'running' || s.status === 'waiting') {
       s.rt = { queue: [], results: [] };
+      s.pending = null;
+      sealDanglingToolUses(s, "Operazione interrotta dall'utente prima di essere eseguita.");
       setStatus(s, 'idle');
     }
-    return !!s;
+    return true;
   },
 
   // Messaggio dell'utente: avvia (o riavvia) il turno dell'assistente.
@@ -190,6 +209,12 @@ export const aiSessions = {
     const s = sessions.find((x) => x.id === id);
     if (!s) return null;
     if (s.status === 'running') throw new Error('Sessione già in esecuzione');
+    // Modello mai scelto (o piattaforma configurata dopo): si usa quello
+    // predefinito invece di rifiutare il messaggio.
+    if (!s.model) {
+      s.model = settings.ai().models[s.provider] || '';
+      if (s.model) emit(s, { type: 'session', session: view(s) });
+    }
     if (!s.model) throw new Error('Nessun modello selezionato per questa sessione');
     if (!settings.apiKey(s.provider)) {
       throw new Error(`Nessuna API key configurata per ${s.provider}: impostala dalle impostazioni`);
@@ -197,6 +222,9 @@ export const aiSessions = {
     s.error = null;
     s.pending = null;
     s.rt = { queue: [], results: [] };
+    // Turno precedente lasciato a metà: prima si chiudono le chiamate rimaste
+    // in sospeso, altrimenti il provider rifiuta l'intera conversazione.
+    sealDanglingToolUses(s, "L'utente ha interrotto l'operazione e ha scritto un nuovo messaggio.");
     appendMessage(s, { role: 'user', content: [{ type: 'text', text: String(text) }] });
     if (s.title === 'Nuova sessione') {
       s.title = String(text).trim().split('\n')[0].slice(0, 60) || 'Nuova sessione';
@@ -306,8 +334,11 @@ async function streamAssistant(s, signal) {
 
 // Esegue le chiamate in coda. Restituisce true se si è fermata in attesa
 // di un'approvazione dell'utente.
-async function drainQueue(s) {
+async function drainQueue(s, signal) {
   while (s.rt.queue.length) {
+    // Stop premuto mentre gli strumenti giravano: si lascia perdere il resto
+    // della coda invece di eseguirlo lo stesso.
+    if (signal?.aborted) throw Object.assign(new Error('Interrotto'), { name: 'AbortError' });
     const call = s.rt.queue[0];
     let req;
     try {
@@ -333,12 +364,18 @@ async function drainQueue(s) {
     s.rt.queue.shift();
     s.rt.grant = null;
     emit(s, { type: 'tool_start', id: call.id, name: call.name, input: call.input });
+    let out = null;
+    let failed = null;
     try {
-      const out = await runTool(s.connId, call.name, call.input, { maxRows: settings.ai().maxRows });
-      pushResult(s, call, out, false);
+      out = await runTool(s.connId, call.name, call.input, { maxRows: settings.ai().maxRows });
     } catch (err) {
-      pushResult(s, call, `ERRORE: ${err.message}`, true);
+      failed = err;
     }
+    // Stop arrivato mentre lo strumento girava: l'esito non va aggiunto, la
+    // chiamata è già stata chiusa da `stop()`.
+    if (signal?.aborted) throw Object.assign(new Error('Interrotto'), { name: 'AbortError' });
+    if (failed) pushResult(s, call, `ERRORE: ${failed.message}`, true);
+    else pushResult(s, call, out, false);
   }
   return false;
 }
@@ -353,7 +390,7 @@ async function runLoop(s) {
     for (let step = 0; step < MAX_STEPS; step++) {
       // Chiamate ancora da eseguire (turno appena avviato o ripreso dopo
       // un'approvazione): si svuotano prima di tornare al modello.
-      if (s.rt.queue.length && (await drainQueue(s))) return;
+      if (s.rt.queue.length && (await drainQueue(s, ctrl.signal))) return;
       // Ogni tool_use deve avere il suo tool_result prima della richiesta
       // successiva, anche quando l'utente ha rifiutato: senza, il provider
       // rifiuta la conversazione.

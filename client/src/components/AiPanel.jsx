@@ -122,7 +122,25 @@ function Approval({ pending, onDecide, busy }) {
   );
 }
 
-export default function AiPanel({ hidden, onOpenSettings }) {
+// Stato di una connessione visto dal pannello: `active` è lo stato locale,
+// `connected` quello che il server riporta (una connessione aperta prima di un
+// ricaricamento della pagina risulta viva solo lì).
+function connState(conn, active) {
+  const st = active[conn.id]?.status;
+  if (st === 'connected') return 'on';
+  if (st === 'connecting') return 'busy';
+  if (st === 'error') return 'error';
+  return conn.connected ? 'on' : 'off';
+}
+
+const CONN_STATE_LABEL = {
+  on: 'Connessa',
+  busy: 'Connessione in corso…',
+  error: 'Errore di connessione',
+  off: 'Non connessa',
+};
+
+export default function AiPanel({ hidden, onOpenSettings, settingsRev = 0 }) {
   const conns = useStore((s) => s.conns);
   const active = useStore((s) => s.active);
   const sessionId = useStore((s) => s.aiSessionId);
@@ -139,6 +157,7 @@ export default function AiPanel({ hidden, onOpenSettings }) {
   const [menu, setMenu] = useState(null); // 'model' | 'perms' | 'conn'
   const [models, setModels] = useState([]);
   const [modelSearch, setModelSearch] = useState('');
+  const [connSearch, setConnSearch] = useState('');
   const [loadingModels, setLoadingModels] = useState(false);
   const [cfg, setCfg] = useState(null);
   const [liveResults, setLiveResults] = useState({});
@@ -164,8 +183,14 @@ export default function AiPanel({ hidden, onOpenSettings }) {
 
   useEffect(() => {
     refreshSessions();
+  }, [refreshSessions]);
+
+  // Anche alla chiusura delle impostazioni: chiave o modello appena cambiati
+  // devono valere subito qui, altrimenti il pannello resta convinto che manchi
+  // la API key e la chat sembra bloccata.
+  useEffect(() => {
     loadSettings();
-  }, [refreshSessions, loadSettings]);
+  }, [loadSettings, settingsRev]);
 
   // Flusso di eventi della sessione aperta. Il server continua a lavorare anche
   // a pannello chiuso: alla riapertura lo snapshot iniziale riallinea tutto.
@@ -218,15 +243,26 @@ export default function AiPanel({ hidden, onOpenSettings }) {
   }, []);
 
   useEffect(() => {
-    if (session?.provider) loadModels(session.provider, false);
-  }, [session?.provider, loadModels]);
+    // Dopo un giro nelle impostazioni l'elenco va richiesto di nuovo al
+    // provider: con la chiave nuova cambia da "nessun modello" a quello vero.
+    if (session?.provider) loadModels(session.provider, settingsRev > 0);
+  }, [session?.provider, loadModels, settingsRev]);
+
+  // Sessione senza modello (piattaforma configurata dopo averla creata): prende
+  // il predefinito delle impostazioni, altrimenti l'invio verrebbe rifiutato.
+  useEffect(() => {
+    if (!session || session.model || !cfg) return;
+    const fallback = cfg.models?.[session.provider];
+    if (fallback) patchSession({ model: fallback });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.model, session?.provider, cfg]);
 
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [session?.messages?.length, draft, session?.pending]);
 
-  const connected = conns.filter((c) => active[c.id]?.status === 'connected');
+  const connected = conns.filter((c) => connState(c, active) === 'on');
 
   const newSession = async () => {
     const connId = session?.connId || connected[0]?.id || null;
@@ -313,6 +349,22 @@ export default function AiPanel({ hidden, onOpenSettings }) {
     const q = search.trim().toLowerCase();
     return q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions;
   }, [sessions, search]);
+
+  // Connessioni della tendina: prima le attive, poi le altre; la ricerca guarda
+  // anche utente, servizio e gruppo, come la barra laterale.
+  const filteredConns = useMemo(() => {
+    const q = connSearch.trim().toLowerCase();
+    const list = conns.filter(
+      (c) =>
+        !q ||
+        [c.name, c.user, c.service, c.host, c.group]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q))
+    );
+    return list
+      .map((c) => ({ conn: c, state: connState(c, active) }))
+      .sort((a, b) => (a.state === 'on' ? 0 : 1) - (b.state === 'on' ? 0 : 1));
+  }, [conns, active, connSearch]);
 
   const filteredModels = useMemo(() => {
     const q = modelSearch.trim().toLowerCase();
@@ -488,6 +540,24 @@ export default function AiPanel({ hidden, onOpenSettings }) {
         </div>
       )}
 
+      {session && hasKey && !session.model && (
+        <div className="ai-warn">
+          Nessun modello scelto per questa sessione.{' '}
+          <button className="link-btn" onClick={() => setMenu('model')}>
+            Scegline uno
+          </button>
+        </div>
+      )}
+
+      {conn && connState(conn, active) !== 'on' && (
+        <div className="ai-warn">
+          {conn.name} non è connessa: l'assistente può scrivere SQL ma non eseguirlo.{' '}
+          <button className="link-btn" onClick={() => useStore.getState().connect(conn.id)}>
+            Connetti ora
+          </button>
+        </div>
+      )}
+
       <div className="ai-composer">
         <textarea
           rows={3}
@@ -503,36 +573,72 @@ export default function AiPanel({ hidden, onOpenSettings }) {
         />
         <div className="ai-composer-bar">
           <div className="ai-pick">
-            <button className="ai-chip" onClick={() => setMenu(menu === 'conn' ? null : 'conn')}>
+            <button
+              className="ai-chip"
+              onClick={() => {
+                setConnSearch('');
+                setMenu(menu === 'conn' ? null : 'conn');
+              }}
+              title={
+                conn
+                  ? `${conn.name} — ${CONN_STATE_LABEL[connState(conn, active)]}`
+                  : 'Nessun database collegato alla sessione'
+              }
+            >
               <Database size={11} />
               {conn ? conn.name : 'Nessun DB'}
+              {conn && <span className={`ai-dot ${connState(conn, active)}`} />}
               <ChevronDown size={10} />
             </button>
             <Menu open={menu === 'conn'} onClose={() => setMenu(null)}>
               <div className="ai-menu-head">Connessione</div>
-              <button
-                className={`ai-menu-item ${!session?.connId ? 'on' : ''}`}
-                onClick={() => {
-                  patchSession({ connId: null });
-                  setMenu(null);
-                }}
-              >
-                {!session?.connId && <Check size={11} />} Nessuna (solo conversazione)
-              </button>
-              {conns.map((c) => (
+              <div className="ai-menu-search">
+                <Search size={11} />
+                <input
+                  autoFocus
+                  placeholder="Cerca connessione"
+                  value={connSearch}
+                  onChange={(e) => setConnSearch(e.target.value)}
+                />
+              </div>
+              <div className="ai-menu-list">
                 <button
-                  key={c.id}
-                  className={`ai-menu-item ${session?.connId === c.id ? 'on' : ''}`}
+                  className={`ai-menu-item ${!session?.connId ? 'on' : ''}`}
                   onClick={() => {
-                    patchSession({ connId: c.id });
+                    patchSession({ connId: null });
                     setMenu(null);
                   }}
                 >
-                  {session?.connId === c.id && <Check size={11} />}
-                  <span>{c.name}</span>
-                  <span className={`ai-dot ${active[c.id]?.status === 'connected' ? 'idle' : 'off'}`} />
+                  {!session?.connId && <Check size={11} />} Nessuna (solo conversazione)
                 </button>
-              ))}
+                {!filteredConns.length && (
+                  <div className="ai-empty-small">
+                    {connSearch ? 'Nessun risultato' : 'Nessuna connessione'}
+                  </div>
+                )}
+                {filteredConns.map(({ conn: c, state }) => (
+                  <button
+                    key={c.id}
+                    className={`ai-menu-item ${session?.connId === c.id ? 'on' : ''}`}
+                    onClick={() => {
+                      patchSession({ connId: c.id });
+                      setMenu(null);
+                    }}
+                    title={CONN_STATE_LABEL[state]}
+                  >
+                    {session?.connId === c.id && <Check size={11} />}
+                    <span className="ai-model-name">
+                      {c.name}
+                      {c.user ? <em className="ai-conn-user"> {c.user}</em> : null}
+                    </span>
+                    <span className={`ai-dot ${state}`} />
+                  </button>
+                ))}
+              </div>
+              <div className="ai-menu-foot">
+                Solo le connessioni aperte (pallino verde) possono essere interrogate: le altre
+                vanno collegate dalla barra laterale.
+              </div>
             </Menu>
           </div>
 

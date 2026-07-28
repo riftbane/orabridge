@@ -54,6 +54,12 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - ogni passaggio è ispezionabile: si apre la chiamata e si vede l'SQL eseguito
     e la risposta arrivata dal database; l'SQL proposto si apre in un foglio con
     un clic e le istruzioni eseguite finiscono in cronologia, marcate ✨
+  - risposte in **Markdown completo**, come nella chat di VS Code: titoli,
+    elenchi annidati e con checkbox, tabelle, citazioni, collegamenti e blocchi
+    di codice colorati con «Copia» e «Apri nel foglio»
+  - la connessione della sessione si sceglie da una tendina **con ricerca**
+    (nome, utente, servizio o gruppo) che mostra col pallino quali database sono
+    davvero collegati
   - le API key restano **cifrate sul server** (AES-256-GCM, come le password
     delle connessioni) e non vengono mai inviate al browser
 - **Pannelli ridimensionabili e richiudibili**: barra laterale, risultati del
