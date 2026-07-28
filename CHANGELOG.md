@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.12.5 — 2026-07-28
+
+- **Fix:** connessioni attive non visibili nei gruppi chiusi Con i gruppi chiusi non c'era modo di sapere dove fosse una connessione
+aperta: l'intestazione mostrava solo il totale delle connessioni.
+
+Ora accanto al conteggio del gruppo compare un badge verde con il numero
+di connessioni attive (visibile anche a gruppo chiuso) e il bordo
+sinistro del gruppo diventa verde quando ne contiene almeno una.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.12.4 — 2026-07-28
 
 - **Fix:** chat AI, comandi che fallivano e turni che restavano appesi Le ricerche filtrate dell'assistente fallivano sempre con ORA-01745: il bind
