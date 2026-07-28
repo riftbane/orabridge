@@ -22,6 +22,8 @@ ORA-01017/ORA-01005), lasciando invariati gli altri errori.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.16.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.16.0/Orabridge%20Setup%201.16.0.exe) (2026-07-28).
+
 ## v1.15.0 — 2026-07-28
 
 - **Nuovo:** tasto "Carica altro" nell'albero degli oggetti L'albero disegnava al massimo 300 nodi per cartella e chiudeva con
