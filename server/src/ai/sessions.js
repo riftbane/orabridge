@@ -7,6 +7,7 @@ import { providers } from './providers.js';
 import { LEVEL_LABEL } from './sqlGuard.js';
 import { requiredPermission, runTool, toolSchemas, ToolError } from './tools.js';
 import { sealMessages } from './toolPairing.js';
+import { addUsage, emptyUsage, isEmptyUsage, normalizeUsage } from './usage.js';
 
 const FILE = path.join(DATA_DIR, 'ai-sessions.json');
 const MAX_STEPS = 40; // giri modello→strumenti prima di fermarsi da soli
@@ -33,6 +34,9 @@ function load() {
     s.status = 'idle';
     s.pending = null;
     s.rt = { queue: [], results: [] };
+    // Il conto della richiesta interrotta non ha più un messaggio a cui
+    // attaccarsi: resta nel totale della sessione e basta.
+    s.turnUsage = null;
     const patched = sealMessages(s.messages || [], 'Operazione interrotta dal riavvio di Orabridge.');
     if (patched) s.messages = patched;
   }
@@ -82,7 +86,7 @@ function view(s) {
     status: s.status,
     pending: s.pending || null,
     error: s.error || null,
-    usage: s.usage || null,
+    usage: normalizeUsage(s.usage),
     messages: s.messages,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
@@ -110,6 +114,44 @@ function sealDanglingToolUses(s, reason) {
   emit(s, { type: 'session', session: view(s) });
   save();
   return true;
+}
+
+// ---- conteggio dei token ----
+
+// Consumo di una singola chiamata al modello: entra sia nel totale della
+// sessione (l'indicatore in cima al pannello) sia in quello della richiesta in
+// corso, che a fine turno finisce sotto la risposta.
+function countUsage(s, raw) {
+  const u = { ...normalizeUsage(raw), calls: 1 };
+  if (isEmptyUsage(u)) return;
+  s.usage = addUsage(s.usage, u);
+  s.turnUsage = addUsage(s.turnUsage, u);
+  emit(s, { type: 'usage', usage: s.usage });
+  save();
+}
+
+// Fine della richiesta: il conto si attacca all'ultimo messaggio
+// dell'assistente, quello sotto cui il pannello disegna l'indicatore. Un turno
+// finito senza risposta (errore al primo giro) non ha dove metterlo: resta
+// contato solo nel totale della sessione.
+function finishTurn(s) {
+  const u = s.turnUsage;
+  s.turnUsage = null;
+  if (isEmptyUsage(u)) return;
+  let idx = -1;
+  for (let i = s.messages.length - 1; i >= (s.turnFrom || 0); i--) {
+    if (s.messages[i].role === 'assistant') {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return;
+  // Piattaforma e modello sono quelli usati adesso: possono cambiare più avanti
+  // nella stessa sessione, e il conto di ieri deve restare leggibile.
+  const stamp = { usage: u, provider: s.provider, model: s.model };
+  s.messages[idx] = { ...s.messages[idx], ...stamp };
+  emit(s, { type: 'turn_usage', index: idx, ...stamp });
+  save();
 }
 
 // ---- gestione delle sessioni ----
@@ -150,7 +192,7 @@ export const aiSessions = {
       status: 'idle',
       pending: null,
       error: null,
-      usage: null,
+      usage: emptyUsage(),
       messages: [],
       rt: { queue: [], results: [] },
       createdAt: new Date().toISOString(),
@@ -199,10 +241,14 @@ export const aiSessions = {
     const s = sessions.find((x) => x.id === id);
     if (!s) return false;
     if (s.status === 'running' || s.status === 'waiting') {
+      // In attesa di approvazione il ciclo non gira: nessuno chiuderebbe il
+      // conto della richiesta, quindi lo si chiude qui.
+      const waiting = s.status === 'waiting';
       s.rt = { queue: [], results: [] };
       s.pending = null;
       sealDanglingToolUses(s, "Operazione interrotta dall'utente prima di essere eseguita.");
       setStatus(s, 'idle');
+      if (waiting) finishTurn(s);
     }
     return true;
   },
@@ -228,7 +274,12 @@ export const aiSessions = {
     // Turno precedente lasciato a metà: prima si chiudono le chiamate rimaste
     // in sospeso, altrimenti il provider rifiuta l'intera conversazione.
     sealDanglingToolUses(s, "L'utente ha interrotto l'operazione e ha scritto un nuovo messaggio.");
+    // Turno lasciato a metà (approvazione mai risposta): il suo conto si chiude
+    // ora, così non finisce sommato a quello della richiesta nuova.
+    finishTurn(s);
     appendMessage(s, { role: 'user', content: [{ type: 'text', text: String(text) }] });
+    s.turnUsage = emptyUsage();
+    s.turnFrom = s.messages.length;
     if (s.title === 'Nuova sessione') {
       s.title = String(text).trim().split('\n')[0].slice(0, 60) || 'Nuova sessione';
       emit(s, { type: 'session', session: view(s) });
@@ -348,12 +399,7 @@ async function streamAssistant(s, signal) {
         toolUses.push(ev);
       } else if (ev.type === 'done') {
         stopReason = ev.stopReason || null;
-        if (ev.usage) {
-          s.usage = {
-            input: (s.usage?.input || 0) + (ev.usage.input || 0),
-            output: (s.usage?.output || 0) + (ev.usage.output || 0),
-          };
-        }
+        countUsage(s, ev.usage);
       }
     }
   } catch (err) {
@@ -508,7 +554,9 @@ async function runLoop(s) {
     setStatus(s, 'error');
   } finally {
     running.delete(s.id);
-    // Se l'attesa di approvazione è iniziata, il turno riprenderà da `decide`.
+    // Se l'attesa di approvazione è iniziata, il turno riprenderà da `decide`:
+    // il conto della richiesta si chiude solo quando è davvero finita.
+    if (s.status !== 'waiting') finishTurn(s);
     save();
   }
 }

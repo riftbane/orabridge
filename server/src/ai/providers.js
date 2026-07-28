@@ -9,9 +9,11 @@
 // `stream()` è un generatore asincrono che emette:
 //   { type: 'text', text }              porzione di risposta testuale
 //   { type: 'tool_use', id, name, input } chiamata a uno strumento completa
-//   { type: 'done', stopReason, usage }  fine del turno
+//   { type: 'done', stopReason, usage }  fine del turno (usage: vedi usage.js)
 //
 // Niente SDK: solo fetch nativo, così il server resta senza dipendenze extra.
+
+import { anthropicUsage, geminiUsage, maxUsage, openaiUsage } from './usage.js';
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -212,6 +214,11 @@ const anthropic = {
       const d = parse(ev.data);
       if (!d) continue;
       if (d.type === 'error') throw new Error(d.error?.message || 'Errore dal provider');
+      // Anthropic spezza il conteggio: il prompt (cache compresa) arriva con
+      // `message_start`, i token generati con `message_delta`.
+      if (d.type === 'message_start' && d.message?.usage) {
+        usage = maxUsage(usage, anthropicUsage(d.message.usage));
+      }
       if (d.type === 'content_block_start' && d.content_block?.type === 'tool_use') {
         blocks.set(d.index, { id: d.content_block.id, name: d.content_block.name, json: '' });
       } else if (d.type === 'content_block_delta') {
@@ -229,12 +236,7 @@ const anthropic = {
         }
       } else if (d.type === 'message_delta') {
         if (d.delta?.stop_reason) stopReason = d.delta.stop_reason;
-        if (d.usage) {
-          usage = {
-            input: d.usage.input_tokens ?? null,
-            output: d.usage.output_tokens ?? null,
-          };
-        }
+        if (d.usage) usage = maxUsage(usage, anthropicUsage(d.usage));
       }
     }
     yield { type: 'done', stopReason, usage };
@@ -310,6 +312,12 @@ function openaiCompatible(provider) {
         body: JSON.stringify({
           model,
           stream: true,
+          // In streaming il conteggio dei token va chiesto: senza questo la
+          // risposta finisce senza `usage` e l'indicatore resta a zero.
+          stream_options: { include_usage: true },
+          // OpenRouter usa una sua chiave e in cambio dichiara anche il costo
+          // in crediti; gli altri campi in più li ignora.
+          ...(provider === 'openrouter' ? { usage: { include: true } } : {}),
           messages: openaiMessages(system, messages),
           ...(tools.length
             ? {
@@ -331,9 +339,7 @@ function openaiCompatible(provider) {
         const d = parse(ev.data);
         if (!d) continue;
         if (d.error) throw new Error(d.error.message || 'Errore dal provider');
-        if (d.usage) {
-          usage = { input: d.usage.prompt_tokens ?? null, output: d.usage.completion_tokens ?? null };
-        }
+        if (d.usage) usage = maxUsage(usage, openaiUsage(d.usage));
         const choice = d.choices?.[0];
         if (!choice) continue;
         if (choice.finish_reason) stopReason = choice.finish_reason;
@@ -453,12 +459,8 @@ const google = {
       const d = parse(ev.data);
       if (!d) continue;
       if (d.error) throw new Error(d.error.message || 'Errore dal provider');
-      if (d.usageMetadata) {
-        usage = {
-          input: d.usageMetadata.promptTokenCount ?? null,
-          output: d.usageMetadata.candidatesTokenCount ?? null,
-        };
-      }
+      // Gemini rimanda il conteggio aggiornato a ogni pezzo: vale l'ultimo.
+      if (d.usageMetadata) usage = maxUsage(usage, geminiUsage(d.usageMetadata));
       const cand = d.candidates?.[0];
       if (!cand) continue;
       if (cand.finishReason) stopReason = cand.finishReason;

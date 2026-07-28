@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
+  Coins,
   Database,
   Loader2,
   Maximize2,
@@ -45,6 +46,76 @@ function toolSummary(name, input = {}) {
   if (input.sql) return String(input.sql).replace(/\s+/g, ' ').slice(0, 120);
   const parts = [input.owner, input.name || input.type].filter(Boolean);
   return parts.join('.') || TOOL_LABEL[name] || name;
+}
+
+// ---- indicatori di consumo ----
+
+// Voci del conteggio, nell'ordine in cui vengono pagate. `reasoning` è una
+// quota di `output`, non si somma: si mostra rientrata.
+const USAGE_ROWS = [
+  { key: 'input', label: 'Input' },
+  { key: 'cacheRead', label: 'Input da cache' },
+  { key: 'cacheWrite', label: 'Scrittura cache' },
+  { key: 'output', label: 'Output' },
+  { key: 'reasoning', label: 'di cui ragionamento', sub: true },
+];
+const TOKEN_KEYS = ['input', 'cacheRead', 'cacheWrite', 'output'];
+
+const usageTokens = (u) => TOKEN_KEYS.reduce((sum, k) => sum + (u?.[k] || 0), 0);
+const fmtInt = (n) => Math.round(n || 0).toLocaleString('it-IT');
+const fmtCost = (c) => `$${c.toFixed(c < 0.01 ? 5 : 4).replace('.', ',')}`;
+
+// Numero compatto per il chip: 12 345 → 12,3k.
+function fmtShort(n) {
+  const v = Math.round(n || 0);
+  if (v < 1000) return String(v);
+  if (v < 1000000) return `${(v / 1000).toFixed(1).replace('.', ',')}k`;
+  return `${(v / 1000000).toFixed(2).replace('.', ',')}M`;
+}
+
+// Token spesi: chip di riepilogo, dettaglio per voce al passaggio del mouse.
+function UsageChip({ usage, head, title, variant }) {
+  const total = usageTokens(usage);
+  if (!total) return null;
+  const rows = USAGE_ROWS.filter((r) => usage[r.key] > 0);
+  const calls = usage.calls || 1;
+  return (
+    <div className={`ai-usage ${variant}`}>
+      <span className="ai-usage-chip">
+        {variant === 'session' && <Coins size={11} />}
+        {head && <span className="ai-usage-src">{head}</span>}
+        {fmtShort(total)} token
+        {usage.cost > 0 && <span className="ai-usage-cost">{fmtCost(usage.cost)}</span>}
+      </span>
+      <div className="ai-usage-pop">
+        <div className="ai-usage-pop-head">{title}</div>
+        <table className="ai-usage-tab">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className={r.sub ? 'sub' : ''}>
+                <td>{r.label}</td>
+                <td>{fmtInt(usage[r.key])}</td>
+              </tr>
+            ))}
+            <tr className="tot">
+              <td>Totale</td>
+              <td>{fmtInt(total)}</td>
+            </tr>
+            {usage.cost > 0 && (
+              <tr className="tot">
+                <td>Costo</td>
+                <td>{fmtCost(usage.cost)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <div className="ai-usage-pop-foot">
+          {calls === 1 ? '1 chiamata al modello' : `${calls} chiamate al modello`}
+          {usage.cost > 0 ? '' : ' · il costo dipende dal listino della piattaforma'}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Menu({ open, onClose, children, align = 'left' }) {
@@ -223,6 +294,18 @@ export default function AiPanel({ hidden, onOpenSettings, settingsRev = 0 }) {
         refreshSessions();
       } else if (ev.type === 'tool_result') {
         setLiveResults((r) => ({ ...r, [ev.id]: { content: ev.content, isError: ev.isError } }));
+      } else if (ev.type === 'usage') {
+        setSession((s) => (s ? { ...s, usage: ev.usage } : s));
+      } else if (ev.type === 'turn_usage') {
+        // Conto della richiesta appena chiusa: si posa sul messaggio indicato,
+        // che è già arrivato con un evento `message`.
+        setSession((s) => {
+          const prev = s?.messages?.[ev.index];
+          if (!prev || prev.role !== 'assistant') return s;
+          const messages = s.messages.slice();
+          messages[ev.index] = { ...prev, usage: ev.usage, provider: ev.provider, model: ev.model };
+          return { ...s, messages };
+        });
       }
     };
     return () => es.close();
@@ -386,6 +469,7 @@ export default function AiPanel({ hidden, onOpenSettings, settingsRev = 0 }) {
     >
       <div className="ai-head">
         <span className="ai-head-title">CHAT</span>
+        {session && <UsageChip variant="session" usage={session.usage} title="Consumo della sessione" />}
         <div className="ai-head-actions">
           <button className="icon-btn" title="Nuova sessione" onClick={newSession}>
             <Plus size={14} />
@@ -509,6 +593,14 @@ export default function AiPanel({ hidden, onOpenSettings, settingsRev = 0 }) {
               {calls.map((c) => (
                 <ToolCard key={c.id} call={c} result={results[c.id]} />
               ))}
+              {m.usage && (
+                <UsageChip
+                  variant="turn"
+                  usage={m.usage}
+                  head={`${cfg?.info?.[m.provider]?.label || m.provider} · ${m.model}`}
+                  title="Consumo della richiesta"
+                />
+              )}
             </div>
           );
         })}

@@ -59,6 +59,11 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - risposte in **Markdown completo**, come nella chat di VS Code: titoli,
     elenchi annidati e con checkbox, tabelle, citazioni, collegamenti e blocchi
     di codice colorati con «Copia» e «Apri nel foglio»
+  - **token spesi sempre sotto gli occhi**: sotto ogni risposta la piattaforma,
+    il modello e i token di quella richiesta; in cima al pannello il totale
+    della sessione. Il passaggio del mouse apre il dettaglio per voce (input,
+    input da cache, scrittura cache, output, ragionamento) e, quando la
+    piattaforma lo dichiara, il costo in dollari
   - la connessione della sessione si sceglie da una tendina **con ricerca**
     (nome, utente, servizio o gruppo) che mostra col pallino quali database sono
     davvero collegati
@@ -236,6 +241,20 @@ eseguire SELECT ed eseguire istruzioni di modifica. Le esecuzioni passano dalla
 **stessa sessione del foglio SQL**, quindi vedono la transazione aperta e non
 fanno commit da sole: il commit resta un gesto esplicito.
 
+**Quanto costa.** Ogni risposta si porta dietro il suo conto: sotto l'ultimo
+messaggio compare `piattaforma · modello · token`, e in cima al pannello il
+totale della sessione. Passando il mouse su uno dei due si apre il dettaglio —
+input, input servito dalla cache, scrittura della cache, output, di cui
+ragionamento — con il numero di chiamate al modello che la richiesta ha
+richiesto (una risposta che usa gli strumenti ne fa più di una, e il conto le
+comprende tutte). Le voci non si sovrappongono mai, così la somma è il totale
+vero dei token: dove una piattaforma conta la cache dentro il prompt
+(OpenAI, Gemini) il server la scorpora, dove la conta a parte (Anthropic) la
+lascia dov'è. OpenRouter dichiara anche il **costo in crediti** della chiamata,
+che compare accanto ai token; le altre piattaforme non lo espongono, quindi lì
+il conto resta in token. I numeri sono quelli che riporta la piattaforma, non
+una stima.
+
 **Permessi.** Ogni sessione ha tre interruttori — *Lettura*, *Scrittura* e
 *DELETE/DROP* — che partono dai valori predefiniti delle impostazioni. Prima di
 eseguire, il server classifica l'istruzione e la confronta con i permessi
@@ -260,6 +279,7 @@ server/                  Express + node-oracledb (thin)
   src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
   src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI (solo fetch)
+  src/ai/usage.js        conteggio dei token normalizzato tra le piattaforme
   src/ai/tools.js        strumenti sul database esposti al modello
   src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
   src/ai/sessions.js     ciclo dell'agente, approvazioni, stream SSE verso il client
@@ -281,7 +301,8 @@ il dettaglio dei singoli oggetti sia lo script — che viene generato dagli
 snapshot, senza `DBMS_METADATA`, quindi funziona anche con privilegi minimi.
 Confronto e generazione dello script sono funzioni pure, coperte da test
 (`npm test` in `server/` e in `client/`). Anche la classificazione delle
-istruzioni che regola i permessi dell'assistente è coperta da test.
+istruzioni che regola i permessi dell'assistente e la normalizzazione dei
+conteggi di token sono coperte da test.
 
 ## Risoluzione problemi
 
