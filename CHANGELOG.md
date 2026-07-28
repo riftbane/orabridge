@@ -22,6 +22,8 @@ Nel desktop la PWA non serve a niente (il server è in-process), quindi:
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.1/Orabridge%20Setup%201.12.1.exe) (2026-07-28).
+
 ## v1.12.0 — 2026-07-27
 
 - **Nuovo:** assistente AI multi-piattaforma, impostazioni e pannelli ridimensionabili Nuovo pannello di chat (icona ✨ o Ctrl+Alt+I) che lavora davvero sul
