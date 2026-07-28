@@ -29,8 +29,11 @@ function run(cmd) {
 }
 
 const date = new Date().toISOString().slice(0, 10);
-const assetName = `Orabridge Setup ${version}.exe`;
-const releaseUrl = `https://github.com/${REPO}/releases/download/v${version}/${encodeURIComponent(assetName)}`;
+// electron-builder produce «Orabridge Setup 1.2.3.exe», ma GitHub sostituisce
+// gli spazi con trattini nel nome dell'asset caricato: il link costruito sul
+// nome locale rispondeva 404 in ogni voce del changelog.
+const assetName = `Orabridge-Setup-${version}.exe`;
+const releaseUrl = `https://github.com/${REPO}/releases/download/v${version}/${assetName}`;
 const buildLine = `- Build: [\`${assetName}\`](${releaseUrl}) (${date}).`;
 
 let changelog = fs.readFileSync(changelogPath, 'utf8');

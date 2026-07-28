@@ -140,7 +140,7 @@ parte.
 
 L'installer di ogni versione rilasciata è pubblicato automaticamente su
 **[GitHub Releases](https://github.com/riftbane/orabridge/releases/latest)**:
-scarica `Orabridge Setup <versione>.exe` da lì per una prima installazione.
+scarica `Orabridge-Setup-<versione>.exe` da lì per una prima installazione.
 
 Una volta installata, l'app **si aggiorna da sola**: ad ogni avvio (e ogni
 poche ore mentre resta aperta) controlla in background se c'è una versione

@@ -56,7 +56,7 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.20.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.20.0/Orabridge%20Setup%201.20.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.20.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.20.0/Orabridge-Setup-1.20.0.exe) (2026-07-28).
 
 ## v1.19.0 — 2026-07-28
 
@@ -87,7 +87,7 @@ Dettagli d'integrazione:
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.19.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.19.0/Orabridge%20Setup%201.19.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.19.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.19.0/Orabridge-Setup-1.19.0.exe) (2026-07-28).
 
 ## v1.18.0 — 2026-07-28
 
@@ -107,7 +107,7 @@ scorporata — così la somma è il totale vero dei token.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.18.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.18.0/Orabridge%20Setup%201.18.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.18.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.18.0/Orabridge-Setup-1.18.0.exe) (2026-07-28).
 
 ## v1.17.2 — 2026-07-28
 
@@ -117,7 +117,7 @@ vuoto. Ora la paginazione usa ROWNUM, compatibile con tutte le versioni.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.17.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.2/Orabridge%20Setup%201.17.2.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.17.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.2/Orabridge-Setup-1.17.2.exe) (2026-07-28).
 
 ## v1.17.1 — 2026-07-28
 
@@ -129,7 +129,7 @@ anteprima valore cella e i dialoghi DDL (tabelle e oggetti).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.17.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.1/Orabridge%20Setup%201.17.1.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.17.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.1/Orabridge-Setup-1.17.1.exe) (2026-07-28).
 
 ## v1.17.0 — 2026-07-28
 
@@ -166,7 +166,7 @@ La versione arriva nel bundle da vite.config.js (__APP_VERSION__).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.17.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.0/Orabridge%20Setup%201.17.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.17.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.0/Orabridge-Setup-1.17.0.exe) (2026-07-28).
 
 ## v1.16.0 — 2026-07-28
 
@@ -188,7 +188,7 @@ ORA-01017/ORA-01005), lasciando invariati gli altri errori.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.16.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.16.0/Orabridge%20Setup%201.16.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.16.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.16.0/Orabridge-Setup-1.16.0.exe) (2026-07-28).
 
 ## v1.15.0 — 2026-07-28
 
@@ -203,7 +203,7 @@ posto del tasto, così non sembra che la lista sia completa.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.15.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.15.0/Orabridge%20Setup%201.15.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.15.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.15.0/Orabridge-Setup-1.15.0.exe) (2026-07-28).
 
 ## v1.14.0 — 2026-07-28
 
@@ -231,7 +231,7 @@ costruzioni tipiche di Oracle.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.14.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.14.0/Orabridge%20Setup%201.14.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.14.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.14.0/Orabridge-Setup-1.14.0.exe) (2026-07-28).
 
 ## v1.13.1 — 2026-07-28
 
@@ -245,7 +245,7 @@ parola (wbsd -> WBS_DEFAULT_OWNER).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.13.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.1/Orabridge%20Setup%201.13.1.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.13.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.1/Orabridge-Setup-1.13.1.exe) (2026-07-28).
 
 ## v1.13.0 — 2026-07-28
 
@@ -264,7 +264,7 @@ il dato com'è nel database finché non si chiede il contrario.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.13.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.0/Orabridge%20Setup%201.13.0.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.13.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.13.0/Orabridge-Setup-1.13.0.exe) (2026-07-28).
 
 ## v1.12.6 — 2026-07-28
 
@@ -277,7 +277,7 @@ vengono trattati come «nessun aggiornamento disponibile»; gli errori veri
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.6.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.6/Orabridge%20Setup%201.12.6.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.6.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.6/Orabridge-Setup-1.12.6.exe) (2026-07-28).
 
 ## v1.12.5 — 2026-07-28
 
@@ -290,7 +290,7 @@ sinistro del gruppo diventa verde quando ne contiene almeno una.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.5.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.5/Orabridge%20Setup%201.12.5.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.5.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.5/Orabridge-Setup-1.12.5.exe) (2026-07-28).
 
 ## v1.12.4 — 2026-07-28
 
@@ -329,7 +329,7 @@ troppo basso per un'indagine su un database vero.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.4.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.4/Orabridge%20Setup%201.12.4.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.4.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.4/Orabridge-Setup-1.12.4.exe) (2026-07-28).
 
 ## v1.12.3 — 2026-07-28
 
@@ -341,7 +341,7 @@ troverebbe la lista vuota). La ricerca continua a forzare l'apertura.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.3.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.3/Orabridge%20Setup%201.12.3.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.3.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.3/Orabridge-Setup-1.12.3.exe) (2026-07-28).
 
 ## v1.12.2 — 2026-07-28
 
@@ -390,7 +390,7 @@ conferma e «Apri nel foglio».
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.2/Orabridge%20Setup%201.12.2.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.2/Orabridge-Setup-1.12.2.exe) (2026-07-28).
 
 ## v1.12.1 — 2026-07-28
 
@@ -412,7 +412,7 @@ Nel desktop la PWA non serve a niente (il server è in-process), quindi:
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.1/Orabridge%20Setup%201.12.1.exe) (2026-07-28).
+- Build: [`Orabridge-Setup-1.12.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.1/Orabridge-Setup-1.12.1.exe) (2026-07-28).
 
 ## v1.12.0 — 2026-07-27
 
@@ -454,7 +454,7 @@ nativo e lo streaming arriva al browser via EventSource.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.12.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.0/Orabridge%20Setup%201.12.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.12.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.0/Orabridge-Setup-1.12.0.exe) (2026-07-27).
 
 ## v1.11.0 — 2026-07-27
 
@@ -477,7 +477,7 @@ crearne uno nuovo) senza aprire finestre.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.11.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.11.0/Orabridge%20Setup%201.11.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.11.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.11.0/Orabridge-Setup-1.11.0.exe) (2026-07-27).
 
 ## v1.10.0 — 2026-07-27
 
@@ -508,7 +508,7 @@ Test: 18 sul motore di confronto (server), 9 sul diff testuale (client).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.10.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.10.0/Orabridge%20Setup%201.10.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.10.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.10.0/Orabridge-Setup-1.10.0.exe) (2026-07-27).
 
 ## v1.9.0 — 2026-07-27
 
@@ -540,7 +540,7 @@ SQL e per la sorgente di completamento.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.9.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.9.0/Orabridge%20Setup%201.9.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.9.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.9.0/Orabridge-Setup-1.9.0.exe) (2026-07-27).
 
 ## v1.8.0 — 2026-07-27
 
@@ -550,7 +550,7 @@ risultati.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.8.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.8.0/Orabridge%20Setup%201.8.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.8.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.8.0/Orabridge-Setup-1.8.0.exe) (2026-07-27).
 
 ## v1.7.0 — 2026-07-27
 
@@ -566,7 +566,7 @@ sbagliata blocca l'intero import senza scrivere nulla.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.7.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.7.0/Orabridge%20Setup%201.7.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.7.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.7.0/Orabridge-Setup-1.7.0.exe) (2026-07-27).
 
 ## v1.6.0 — 2026-07-27
 
@@ -588,7 +588,7 @@ bottone a spina per chiuderla.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.6.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.6.0/Orabridge%20Setup%201.6.0.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.6.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.6.0/Orabridge-Setup-1.6.0.exe) (2026-07-27).
 
 ## v1.5.2 — 2026-07-27
 
@@ -603,7 +603,7 @@ gia' stata aggiunta.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.5.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.2/Orabridge%20Setup%201.5.2.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.5.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.2/Orabridge-Setup-1.5.2.exe) (2026-07-27).
 
 ## v1.5.1 — 2026-07-27
 
@@ -628,7 +628,7 @@ l'app a sorpresa con fogli SQL o transazioni aperte.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 
-- Build: [`Orabridge Setup 1.5.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.1/Orabridge%20Setup%201.5.1.exe) (2026-07-27).
+- Build: [`Orabridge-Setup-1.5.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.5.1/Orabridge-Setup-1.5.1.exe) (2026-07-27).
 
 ## v1.5.0 — 2026-07-27
 
