@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Info, KeyRound, RefreshCw, Sparkles, X } from 'lucide-react';
+import { BookOpen, Check, Info, KeyRound, RefreshCw, Sparkles, X } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 import AboutPanel from './AboutPanel.jsx';
+import GuideView from './GuideView.jsx';
 
 const PERMISSIONS = [
   {
@@ -267,6 +268,14 @@ function AiSettings({ toast }) {
 export default function SettingsModal({ onClose, initialTab = 'ai' }) {
   const [tab, setTab] = useState(initialTab);
   const toast = useStore((s) => s.toast);
+  const openGuide = useStore((s) => s.openGuide);
+
+  // Dalla guida delle impostazioni si passa alla scheda a tutta area, aperta
+  // sulla stessa sezione che si stava leggendo.
+  const openGuideTab = (sectionId) => {
+    openGuide(sectionId);
+    onClose();
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -282,12 +291,21 @@ export default function SettingsModal({ onClose, initialTab = 'ai' }) {
             <button className={tab === 'ai' ? 'on' : ''} onClick={() => setTab('ai')}>
               <Sparkles size={13} /> Assistente AI
             </button>
+            <button className={tab === 'guide' ? 'on' : ''} onClick={() => setTab('guide')}>
+              <BookOpen size={13} /> Guida
+            </button>
             <button className={tab === 'about' ? 'on' : ''} onClick={() => setTab('about')}>
               <Info size={13} /> Informazioni
             </button>
           </nav>
-          <div className="settings-content">
-            {tab === 'ai' ? <AiSettings toast={toast} /> : <AboutPanel />}
+          <div className={`settings-content ${tab === 'guide' ? 'flush' : ''}`}>
+            {tab === 'ai' ? (
+              <AiSettings toast={toast} />
+            ) : tab === 'guide' ? (
+              <GuideView compact onOpenFull={openGuideTab} />
+            ) : (
+              <AboutPanel onOpenGuide={openGuideTab} />
+            )}
           </div>
         </div>
       </div>

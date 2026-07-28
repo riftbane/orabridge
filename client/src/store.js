@@ -246,6 +246,21 @@ export const useStore = create(
         set({ historyFilterConnId: connId });
       },
 
+      // Guida dell'app: scheda singleton, e la sezione aperta è condivisa con
+      // la copia mostrata nelle impostazioni (si riprende da dov'era).
+      guideSection: 'intro',
+      setGuideSection(id) {
+        set({ guideSection: id });
+      },
+      openGuide(sectionId) {
+        if (sectionId) set({ guideSection: sectionId });
+        const id = 'guide';
+        if (!get().tabs.find((t) => t.id === id)) {
+          set((s) => ({ tabs: [...s.tabs, { id, kind: 'guide', title: 'Guida' }] }));
+        }
+        set({ activeTabId: id });
+      },
+
       // Confronto fra due database: più schede insieme sono legittime
       // (confronti diversi), quindi niente singleton.
       openDiff() {
@@ -303,6 +318,7 @@ export const useStore = create(
         maxRows: s.maxRows,
         ui: s.ui,
         aiSessionId: s.aiSessionId,
+        guideSection: s.guideSection,
       }),
       // Una versione salvata prima dell'introduzione dei pannelli non ha `ui`:
       // si completa con i valori di default invece di partire con campi vuoti.

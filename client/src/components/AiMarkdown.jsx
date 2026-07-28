@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { Check, Copy, FileCode2 } from 'lucide-react';
 import { parseMarkdown } from '../markdown.js';
 import { tokenizeCode } from '../codeTokens.js';
@@ -7,14 +7,42 @@ import { tokenizeCode } from '../codeTokens.js';
 // `parseMarkdown` diventa elementi React (niente HTML grezzo), con i blocchi di
 // codice colorati, copiabili e — se sono SQL — apribili in un foglio.
 
+// Opzioni di rendering usate dalla guida. Via context perché `Inline` è
+// ricorsivo e le prop dovrebbero attraversarlo tutto per arrivare a un nodo
+// annidato in un elenco o in una tabella.
+//
+// - `onInternalLink`: i collegamenti `[testo](#sezione)` saltano da una sezione
+//   all'altra invece di aprire una pagina esterna.
+// - `softBreaks`: gli a capo singoli valgono come spazi. Serve ai testi scritti
+//   a mano con le righe già mandate a capo nel sorgente, che altrimenti
+//   resterebbero spezzate in quel punto invece di adattarsi alla larghezza del
+//   pannello. Nelle risposte dell'assistente resta l'a capo vero: lì il modello
+//   manda a capo dove intende farlo.
+const MdOptionsContext = React.createContext({});
+
 function Inline({ nodes }) {
+  const { onInternalLink, softBreaks } = useContext(MdOptionsContext);
   return (
     <>
       {nodes.map((n, i) => {
         if (typeof n === 'string') return <React.Fragment key={i}>{n}</React.Fragment>;
-        if (n.type === 'br') return <br key={i} />;
+        if (n.type === 'br') return softBreaks ? ' ' : <br key={i} />;
         if (n.type === 'code') return <code key={i}>{n.text}</code>;
         if (n.type === 'link') {
+          if (onInternalLink && n.href?.startsWith('#')) {
+            return (
+              <a
+                key={i}
+                href={n.href}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onInternalLink(n.href.slice(1));
+                }}
+              >
+                <Inline nodes={n.children} />
+              </a>
+            );
+          }
           return (
             <a key={i} href={n.href} target="_blank" rel="noreferrer noopener">
               <Inline nodes={n.children} />
@@ -160,11 +188,20 @@ function Blocks({ blocks, onOpenSql }) {
   );
 }
 
-export default function AiMarkdown({ text, onOpenSql }) {
+export default function AiMarkdown({
+  text,
+  onOpenSql,
+  onInternalLink,
+  softBreaks = false,
+  className = 'md',
+}) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
+  const options = useMemo(() => ({ onInternalLink, softBreaks }), [onInternalLink, softBreaks]);
   return (
-    <div className="md">
-      <Blocks blocks={blocks} onOpenSql={onOpenSql} />
-    </div>
+    <MdOptionsContext.Provider value={options}>
+      <div className={className}>
+        <Blocks blocks={blocks} onOpenSql={onOpenSql} />
+      </div>
+    </MdOptionsContext.Provider>
   );
 }

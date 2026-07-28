@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  BookOpen,
   GitCompare,
   History,
   PanelBottom,
@@ -17,6 +18,7 @@ import DbDiff from './components/DbDiff.jsx';
 import AiPanel from './components/AiPanel.jsx';
 import Resizer from './components/Resizer.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
+import GuideView from './components/GuideView.jsx';
 import PasswordPrompt from './components/PasswordPrompt.jsx';
 import { TypeIcon } from './components/ObjectTree.jsx';
 
@@ -46,6 +48,10 @@ function TabBar() {
               <span className="type-icon" style={{ color: '#e8734a', borderColor: '#e8734a' }}>
                 <GitCompare size={10} />
               </span>
+            ) : t.kind === 'guide' ? (
+              <span className="type-icon" style={{ color: '#6cb6ff', borderColor: '#6cb6ff' }}>
+                <BookOpen size={10} />
+              </span>
             ) : (
               <TypeIcon type={t.type} />
             )}
@@ -71,6 +77,7 @@ function LayoutActions({ onOpenSettings }) {
   const ui = useStore((s) => s.ui);
   const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const toggleUi = useStore((s) => s.toggleUi);
+  const openGuide = useStore((s) => s.openGuide);
 
   return (
     <div className="layout-actions">
@@ -97,6 +104,9 @@ function LayoutActions({ onOpenSettings }) {
         <PanelRight size={14} />
       </button>
       <span className="layout-sep" />
+      <button className="icon-btn" title="Guida dell'app (F1)" onClick={() => openGuide()}>
+        <BookOpen size={14} />
+      </button>
       <button className="icon-btn" title="Impostazioni (Ctrl+,)" onClick={onOpenSettings}>
         <Settings size={14} />
       </button>
@@ -153,6 +163,9 @@ function EmptyState() {
         <div>
           <kbd>Ctrl</kbd>+<kbd>Spazio</kbd> autocomplete
         </div>
+        <div>
+          <kbd>F1</kbd> guida
+        </div>
       </div>
     </div>
   );
@@ -178,6 +191,11 @@ export default function App() {
   // Scorciatoie sui pannelli, nello spirito di VS Code.
   useEffect(() => {
     const onKey = (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        useStore.getState().openGuide();
+        return;
+      }
       if (!e.ctrlKey && !e.metaKey) return;
       const { toggleUi } = useStore.getState();
       if (e.key === 'b' && !e.altKey && !e.shiftKey) {
@@ -230,6 +248,8 @@ export default function App() {
                 <HistoryPanel />
               ) : t.kind === 'diff' ? (
                 <DbDiff tab={t} />
+              ) : t.kind === 'guide' ? (
+                <GuideView />
               ) : (
                 <ObjectDetail tab={t} />
               )}

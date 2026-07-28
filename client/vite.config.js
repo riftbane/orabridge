@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// La versione finisce nel bundle (guida e scheda «Informazioni»): i tre
+// package.json sono allineati dal workflow di rilascio, quindi basta leggere
+// questo.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 // Nel bundle che finisce dentro l'app desktop la PWA non serve (il server è
 // locale) e il suo service worker faceva vedere la versione precedente al primo
@@ -35,6 +41,9 @@ const pwaPlugin = VitePWA({
 
 export default defineConfig({
   plugins: [react(), ...(isDesktop ? [] : [pwaPlugin])],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     port: 5173,
     proxy: {

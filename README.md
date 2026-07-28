@@ -76,6 +76,10 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   popolati da applicativi web legacy, che salvano il testo già codificato
   (`Attivit&agrave; in corso`). È solo a video e spento di default — il dato che
   si modifica, si esporta in CSV o si ordina resta quello del database
+- **Guida integrata** (`F1` o l'icona del libro in alto a destra): manuale d'uso
+  di tutte le funzioni, con indice, ricerca e la sezione «Aggiornamenti e
+  novità» che riporta la versione installata e cosa è cambiato. La stessa guida
+  si consulta da **Impostazioni → Guida**; il testo sta in `client/src/guide.js`
 - Solo **localhost**: la porta è pubblicata su `127.0.0.1`, nessun accesso dalla rete
 - **Installabile come PWA**: dal browser (Chrome/Edge «Installa app», Safari «Aggiungi
   a Home») apre in una finestra propria, senza barra degli indirizzi
@@ -197,6 +201,7 @@ CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 | `Ctrl+J` | Mostra/nascondi i risultati del foglio SQL |
 | `Ctrl+Alt+I` | Mostra/nascondi l'assistente AI |
 | `Ctrl+,` | Impostazioni |
+| `F1` | Guida dell'app |
 
 Ricerca, sostituzione e formattazione valgono in tutti gli editor: fogli SQL,
 sorgenti PL/SQL (package body, funzioni, trigger) e viste in sola lettura
