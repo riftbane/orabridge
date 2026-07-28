@@ -37,6 +37,8 @@ La versione arriva nel bundle da vite.config.js (__APP_VERSION__).
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.17.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.0/Orabridge%20Setup%201.17.0.exe) (2026-07-28).
+
 ## v1.16.0 — 2026-07-28
 
 - **Nuovo:** chiede la password quando manca o non è valida Connettendosi a una connessione senza password salvata (tipico dopo un
