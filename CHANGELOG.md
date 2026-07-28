@@ -2,6 +2,26 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.16.0 — 2026-07-28
+
+- **Nuovo:** chiede la password quando manca o non è valida Connettendosi a una connessione senza password salvata (tipico dopo un
+import senza chiave di cifratura) o con la password ormai cambiata sul
+database, l'app apriva solo un toast di errore. Ora compare una finestra
+che chiede la password: se il login riesce viene salvata sulla
+connessione, così la volta dopo il doppio click basta da solo.
+
+Il prompt è unico per tutta l'app (stato `passwordPrompt` nello store),
+quindi vale per ogni punto da cui si avvia una connessione: doppio click
+in sidebar, menu di contesto, pulsanti "Connetti" del foglio SQL, della
+scheda oggetto e del pannello AI.
+
+Lato server `POST /api/connections/:id/connect` accetta una password
+opzionale nel body e la salva solo a login riuscito; segnala con
+`needsPassword` i casi in cui ha senso richiederla (password non salvata,
+ORA-01017/ORA-01005), lasciando invariati gli altri errori.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.15.0 — 2026-07-28
 
 - **Nuovo:** tasto "Carica altro" nell'albero degli oggetti L'albero disegnava al massimo 300 nodi per cartella e chiudeva con
