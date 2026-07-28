@@ -2,6 +2,18 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.13.1 — 2026-07-28
+
+- **Fix:** autocomplete senza corrispondenze sparse CodeMirror accettava anche le lettere digitate sparpagliate ovunque nel
+nome: su uno schema con migliaia di oggetti "sele" proponeva
+DBMS_SCHEDULER o SPRINT_ELEMENTS_OLD. I candidati vengono ora filtrati
+nella sorgente prima di passarli a CodeMirror: restano i nomi che
+contengono il testo digitato, quelli che ne ricalcano le iniziali delle
+parole e quelli che lo si può leggere dall'inizio saltando di parola in
+parola (wbsd -> WBS_DEFAULT_OWNER).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.13.0 — 2026-07-28
 
 - **Nuovo:** decodifica opzionale delle entità HTML nella griglia I database popolati da applicativi web legacy contengono testo già
