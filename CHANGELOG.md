@@ -2,6 +2,16 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.17.1 — 2026-07-28
+
+- **Fix:** i modali non si chiudono più cliccando fuori Il click sullo sfondo chiudeva la finestra anche mentre si stava
+lavorando, perdendo i dati inseriti. Ora i modali sono persistenti e si
+chiudono solo dal pulsante di chiusura (o dai bottoni Annulla/Chiudi già
+presenti): connessione, impostazioni, importa connessioni, password,
+anteprima valore cella e i dialoghi DDL (tabelle e oggetti).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.17.0 — 2026-07-28
 
 - **Nuovo:** guida dell'app consultabile da scheda e impostazioni Le funzioni erano documentate solo nel README del repository: chi usa
