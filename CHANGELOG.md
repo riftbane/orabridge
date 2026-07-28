@@ -2,6 +2,19 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.15.0 — 2026-07-28
+
+- **Nuovo:** tasto "Carica altro" nell'albero degli oggetti L'albero disegnava al massimo 300 nodi per cartella e chiudeva con
+"…altri N (usa il filtro)", quindi la lista completa delle tabelle era
+raggiungibile solo restringendo la ricerca. Ora al posto di quel testo
+c'è un tasto "Carica altro (N)" che aggiunge 300 nodi per volta, fino a
+mostrare tutti gli oggetti; il conteggio riparte da capo quando si
+cambia filtro o si ricarica la cartella. Se il server ha davvero
+troncato l'elenco (oltre 5000 oggetti) resta una nota esplicita al
+posto del tasto, così non sembra che la lista sia completa.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.14.0 — 2026-07-28
 
 - **Nuovo:** formattazione SQL più curata per Oracle Il formattatore lavorava bene sui blocchi PL/SQL ma lasciava intatte le
