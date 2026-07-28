@@ -109,6 +109,43 @@ function broadcastUpdateStatus(status, extra) {
   if (mainWindow) mainWindow.webContents.send('orabridge:update-status', { status, ...extra });
 }
 
+// Codici di electron-updater che significano «la release non ha (ancora) i
+// file per l'aggiornamento»: capita mentre il workflow di CI ha già creato il
+// tag/la release ma non ha ancora pubblicato l'installer e `latest.yml`.
+// Per l'utente non è un errore: semplicemente non c'è una nuova versione.
+const UPDATE_NOT_READY_CODES = new Set([
+  'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND',
+  'ERR_UPDATER_LATEST_VERSION_NOT_FOUND',
+  'ERR_UPDATER_NO_PUBLISHED_VERSIONS',
+  'ERR_UPDATER_ASSET_NOT_FOUND',
+]);
+
+function isUpdateNotReady(err) {
+  if (!err) return false;
+  if (UPDATE_NOT_READY_CODES.has(err.code)) return true;
+  // Il codice si perde se l'errore viene riavvolto: ripieghiamo sul messaggio.
+  const message = String((err && err.message) || err);
+  return /Cannot find [\w.-]+\.yml|No published versions|please ensure a production release exists/i.test(message);
+}
+
+// Il messaggio di electron-updater include lo stack e gli header HTTP: in UI
+// serve solo la prima riga, altrimenti il riquadro diventa illeggibile.
+function shortErrorMessage(err) {
+  const message = String((err && err.message) || err || 'errore sconosciuto');
+  const firstLine = message.split('\n')[0].trim();
+  return firstLine.length > 200 ? `${firstLine.slice(0, 200)}…` : firstLine;
+}
+
+function reportUpdateError(err, origine) {
+  if (isUpdateNotReady(err)) {
+    log(`aggiornamenti (${origine}): nessuna release pronta al download,`, shortErrorMessage(err));
+    broadcastUpdateStatus('not-available');
+    return;
+  }
+  log(`aggiornamenti (${origine}): errore,`, err && err.stack ? err.stack : err);
+  broadcastUpdateStatus('error', { message: shortErrorMessage(err) });
+}
+
 function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -126,8 +163,7 @@ function setupAutoUpdater() {
     broadcastUpdateStatus('not-available');
   });
   autoUpdater.on('error', (err) => {
-    log('aggiornamenti: errore,', err && err.stack ? err.stack : err);
-    broadcastUpdateStatus('error', { message: err && err.message ? err.message : String(err) });
+    reportUpdateError(err, 'evento');
   });
   autoUpdater.on('download-progress', (progress) => {
     broadcastUpdateStatus('downloading', { percent: Math.round(progress.percent) });
@@ -150,7 +186,8 @@ function setupAutoUpdater() {
   });
 
   const check = () => {
-    autoUpdater.checkForUpdates().catch((err) => log('aggiornamenti: controllo fallito,', err && err.stack ? err.stack : err));
+    // L'evento 'error' ha già notificato la UI: qui basta non far esplodere la promise.
+    autoUpdater.checkForUpdates().catch(() => {});
   };
   check();
   setInterval(check, UPDATE_CHECK_INTERVAL_MS);
@@ -170,9 +207,8 @@ ipcMain.handle('orabridge:check-for-updates', async () => {
     await autoUpdater.checkForUpdates();
     return { ok: true };
   } catch (err) {
-    log('aggiornamenti: controllo manuale fallito,', err && err.stack ? err.stack : err);
-    broadcastUpdateStatus('error', { message: err && err.message ? err.message : String(err) });
-    return { ok: false, reason: 'error' };
+    reportUpdateError(err, 'controllo manuale');
+    return { ok: false, reason: isUpdateNotReady(err) ? 'not-available' : 'error' };
   }
 });
 
