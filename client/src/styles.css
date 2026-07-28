@@ -134,6 +134,10 @@ body {
   color: var(--fg);
   background: var(--bg-active);
 }
+.mini-btn.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 input,
 select {

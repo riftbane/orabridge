@@ -70,6 +70,10 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
 - Esecuzione istruzione al cursore (`Ctrl+Invio` / `F9`), script completo (`F5`),
   explain plan, commit/rollback espliciti con indicatore di transazione aperta, annulla query
 - DBMS Output, export CSV, griglia risultati virtualizzata (regge decine di migliaia di righe)
+- **Decodifica entità HTML** (pulsante `&→à` sopra la griglia): per i database
+  popolati da applicativi web legacy, che salvano il testo già codificato
+  (`Attivit&agrave; in corso`). È solo a video e spento di default — il dato che
+  si modifica, si esporta in CSV o si ordina resta quello del database
 - Solo **localhost**: la porta è pubblicata su `127.0.0.1`, nessun accesso dalla rete
 - **Installabile come PWA**: dal browser (Chrome/Edge «Installa app», Safari «Aggiungi
   a Home») apre in una finestra propria, senza barra degli indirizzi

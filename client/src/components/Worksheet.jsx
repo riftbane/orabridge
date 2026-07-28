@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { useStore } from '../store.js';
 import { splitStatements, statementAt, executableSql } from '../sqlSplit.js';
 import Editor from './Editor.jsx';
-import Grid, { exportCsv } from './Grid.jsx';
+import Grid, { exportCsv, DecodeEntitiesToggle } from './Grid.jsx';
 import Resizer from './Resizer.jsx';
 
 function firstLine(sql) {
@@ -288,6 +288,7 @@ export default function Worksheet({ tab }) {
           {pane === 'results' && res && (
             <>
               <span className="pane-info">{res.elapsedMs} ms</span>
+              <DecodeEntitiesToggle />
               <button className="mini-btn" onClick={() => exportCsv(res.columns, res.rows)}>
                 CSV
               </button>

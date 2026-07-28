@@ -33,6 +33,10 @@ export const useStore = create(
         aiFull: false,
         results: true,
         resultsHeight: 280,
+        // Mostra le entità HTML dei valori testuali decodificate (`&agrave;` →
+        // `à`): serve con i dati scritti da applicativi web legacy. Spento di
+        // default — la griglia deve mostrare il dato com'è nel database.
+        decodeEntities: false,
       },
       setUi(patch) {
         set((s) => ({ ui: { ...s.ui, ...patch } }));

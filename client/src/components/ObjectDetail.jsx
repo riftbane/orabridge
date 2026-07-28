@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Hammer, Pencil, RefreshCw } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
-import Grid, { exportCsv } from './Grid.jsx';
+import Grid, { exportCsv, DecodeEntitiesToggle } from './Grid.jsx';
 import Editor from './Editor.jsx';
 import { TypeIcon } from './ObjectTree.jsx';
 import ObjectCreateDialog from './ObjectDialogs.jsx';
@@ -185,12 +185,15 @@ function DataTab({ tab }) {
           Conta
         </button>
         {data && (
-          <button
-            className="mini-btn"
-            onClick={() => exportCsv(data.columns, data.rows, `${tab.name}.csv`)}
-          >
-            CSV
-          </button>
+          <>
+            <DecodeEntitiesToggle />
+            <button
+              className="mini-btn"
+              onClick={() => exportCsv(data.columns, data.rows, `${tab.name}.csv`)}
+            >
+              CSV
+            </button>
+          </>
         )}
       </div>
       {data ? (

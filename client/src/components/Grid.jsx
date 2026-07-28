@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { EDITABLE_CELL_TYPES } from '../ddl.js';
+import { decodeEntities } from '../htmlEntities.js';
+import { useStore } from '../store.js';
 
 const ROW_H = 26;
 const HEADER_H = 28;
@@ -9,13 +11,13 @@ const HEADER_H = 28;
 // the real value, so those cells fall back to the read-only value modal.
 const TRUNCATED_RE = /… \(\d+ caratteri\)$/;
 
-function computeWidths(columns, rows) {
+function computeWidths(columns, rows, show) {
   return columns.map((c, i) => {
     let max = c.name.length;
     const sample = Math.min(rows.length, 50);
     for (let r = 0; r < sample; r++) {
       const v = rows[r][i];
-      if (v != null) max = Math.max(max, String(v).length);
+      if (v != null) max = Math.max(max, show(v).length);
     }
     return Math.min(480, Math.max(60, max * 7.2 + 20));
   });
@@ -52,9 +54,16 @@ export default function Grid({
   onCellEdit,
   dirtyResetKey,
 }) {
+  // Decodifica opt-in delle entità HTML (vedi ui.decodeEntities): riguarda
+  // solo ciò che si vede — celle, modale del valore e copia della selezione.
+  // Ordinamento, editing ed export CSV lavorano sempre sul valore grezzo che
+  // arriva dal database.
+  const decode = useStore((s) => s.ui.decodeEntities);
+  const show = useCallback((v) => (decode ? decodeEntities(String(v)) : String(v)), [decode]);
+
   const scrollRef = useRef(null);
   const [range, setRange] = useState([0, 80]);
-  const [widths, setWidths] = useState(() => computeWidths(columns, rows));
+  const [widths, setWidths] = useState(() => computeWidths(columns, rows, show));
   const [sort, setSort] = useState(null); // { col, dir }
   const [sel, setSel] = useState(null); // { r1, c1, r2, c2 }
   const [dragging, setDragging] = useState(false);
@@ -69,7 +78,7 @@ export default function Grid({
   // in-place row patch a successful cell edit applies — that would otherwise
   // wipe sort/selection/scroll and the dirty highlight right after every edit.
   useEffect(() => {
-    setWidths(computeWidths(columns, rows));
+    setWidths(computeWidths(columns, rows, show));
     setSort(null);
     setSel(null);
     setEdit(null);
@@ -85,6 +94,13 @@ export default function Grid({
     setDirtyRows(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirtyResetKey]);
+
+  // Il testo decodificato è più corto: ricalcola le larghezze quando si
+  // accende o spegne la decodifica, senza toccare ordinamento e selezione.
+  useEffect(() => {
+    setWidths(computeWidths(columns, rows, show));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decode]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -154,7 +170,7 @@ export default function Grid({
         const cells = [];
         for (let c = c1; c <= c2; c++) {
           const v = sorted[r]?.[c];
-          cells.push(v == null ? '' : String(v));
+          cells.push(v == null ? '' : show(v));
         }
         text.push(cells.join('\t'));
       }
@@ -319,7 +335,7 @@ export default function Grid({
                       ) : v == null ? (
                         <span className="null">(null)</span>
                       ) : (
-                        String(v)
+                        show(v)
                       )}
                     </div>
                   );
@@ -338,11 +354,11 @@ export default function Grid({
                 <X size={14} />
               </button>
             </div>
-            <pre className="value-pre">{String(modal.value)}</pre>
+            <pre className="value-pre">{show(modal.value)}</pre>
             <div className="modal-foot">
               <button
                 className="btn"
-                onClick={() => navigator.clipboard?.writeText(String(modal.value))}
+                onClick={() => navigator.clipboard?.writeText(show(modal.value))}
               >
                 Copia
               </button>
@@ -351,6 +367,26 @@ export default function Grid({
         </div>
       )}
     </div>
+  );
+}
+
+// Interruttore della decodifica delle entità HTML: preferenza globale (vale
+// per tutte le griglie) e persistita insieme al resto della disposizione.
+export function DecodeEntitiesToggle() {
+  const on = useStore((s) => s.ui.decodeEntities);
+  const setUi = useStore((s) => s.setUi);
+  return (
+    <button
+      className={`mini-btn ${on ? 'on' : ''}`}
+      onClick={() => setUi({ decodeEntities: !on })}
+      title={
+        on
+          ? 'Entità HTML decodificate: clicca per rivedere il dato grezzo del database'
+          : 'Mostra le entità HTML decodificate (&agrave; → à): solo a video, il dato non cambia'
+      }
+    >
+      &amp;→à
+    </button>
   );
 }
 
