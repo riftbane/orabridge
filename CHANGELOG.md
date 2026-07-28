@@ -28,6 +28,8 @@ costruzioni tipiche di Oracle.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.14.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.14.0/Orabridge%20Setup%201.14.0.exe) (2026-07-28).
+
 ## v1.13.1 — 2026-07-28
 
 - **Fix:** autocomplete senza corrispondenze sparse CodeMirror accettava anche le lettere digitate sparpagliate ovunque nel
