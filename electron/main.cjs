@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -46,6 +46,25 @@ async function startBackend() {
   const port = backend.server.address().port;
   log('backend in ascolto sulla porta', port);
   return port;
+}
+
+// Il client è anche una PWA: il suo service worker precarica la app shell e la
+// serve dalla cache. Nel desktop il server locale usa sempre la stessa origine
+// (127.0.0.1:3000), quindi il service worker sopravviveva agli aggiornamenti e
+// al primo avvio dopo un update mostrava ancora la versione precedente: serviva
+// un secondo riavvio per vedere le modifiche. Qui il server è in-process, di
+// offline non ce ne facciamo nulla: cancelliamo service worker e cache prima di
+// caricare la finestra, così parte sempre dai file appena installati.
+async function purgeWebCaches() {
+  try {
+    await session.defaultSession.clearStorageData({
+      storages: ['serviceworkers', 'cachestorage'],
+    });
+    await session.defaultSession.clearCache();
+    log('cache del renderer ripulita (service worker + cache HTTP)');
+  } catch (err) {
+    log('pulizia cache del renderer fallita,', err && err.stack ? err.stack : err);
+  }
 }
 
 async function createWindow(port) {
@@ -164,6 +183,7 @@ app.whenReady().then(async () => {
     log('Orabridge desktop in avvio, isPackaged =', app.isPackaged, 'resourcesRoot =', resourcesRoot());
 
     const port = await startBackend();
+    await purgeWebCaches();
     await createWindow(port);
 
     if (app.isPackaged) setupAutoUpdater();

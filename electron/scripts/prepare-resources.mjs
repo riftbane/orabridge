@@ -17,16 +17,24 @@ const skipInstantClient = process.argv.includes('--skip-instantclient');
 const INSTANTCLIENT_URL =
   'https://download.oracle.com/otn_software/nt/instantclient/1923000/instantclient-basiclite-windows.x64-19.23.0.0.0dbru.zip';
 
-function run(cmd, args, cwd) {
+function run(cmd, args, cwd, env) {
   console.log(`$ ${cmd} ${args.join(' ')}  (in ${cwd})`);
-  const res = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+  const res = spawnSync(cmd, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env: { ...process.env, ...env },
+  });
   if (res.status !== 0) {
     throw new Error(`${cmd} ${args.join(' ')} è uscito con codice ${res.status}`);
   }
 }
 
 function buildClient() {
-  run('npm', ['run', 'build'], clientDir);
+  // ORABRIDGE_TARGET=desktop esclude il service worker della PWA: nell'app
+  // desktop il server è locale e la cache dell'app shell faceva vedere la
+  // versione precedente al primo avvio dopo un aggiornamento.
+  run('npm', ['run', 'build'], clientDir, { ORABRIDGE_TARGET: 'desktop' });
 }
 
 function copyServer() {
