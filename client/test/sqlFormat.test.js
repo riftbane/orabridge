@@ -46,17 +46,56 @@ test('spezza le clausole SQL e tiene insieme i join', () => {
     out,
     [
       'SELECT a.x',
-      'FROM t a',
-      'LEFT OUTER JOIN u b ON a.id = b.id',
-      'WHERE a.y = 1 AND b.z = 2',
-      'ORDER BY 1',
+      '  FROM t a',
+      '  LEFT OUTER JOIN u b ON a.id = b.id',
+      ' WHERE a.y = 1',
+      '   AND b.z = 2',
+      ' ORDER BY 1',
     ].join('\n')
   );
 });
 
+test('allinea le clausole nel fiume e le voci sotto la prima', () => {
+  const out = safeFormatSql(
+    `select c.ragione_sociale, o.totale from clienti c, ordini o where o.cliente_id = c.id and o.totale > 13000;`
+  );
+  assert.equal(
+    out,
+    [
+      'SELECT c.ragione_sociale,',
+      '       o.totale',
+      '  FROM clienti c,',
+      '       ordini o',
+      ' WHERE o.cliente_id = c.id',
+      '   AND o.totale > 13000;',
+    ].join('\n')
+  );
+});
+
+test('SELECT … INTO e UPDATE … SET allineano gli elenchi', () => {
+  assert.equal(
+    safeFormatSql(`begin select a, b into v1, v2 from t where id = 1; end;`),
+    ['BEGIN', '  SELECT a,', '         b', '    INTO v1,', '         v2', '    FROM t', '   WHERE id = 1;', 'END;'].join(
+      '\n'
+    )
+  );
+  assert.equal(
+    safeFormatSql(`update clienti set nome = 'a', citta = 'b' where id = 1;`),
+    ['UPDATE clienti', "   SET nome = 'a',", "       citta = 'b'", ' WHERE id = 1;'].join('\n')
+  );
+});
+
+test('FOR UPDATE resta una clausola sola, il FOR di un ciclo no', () => {
+  assert.equal(
+    safeFormatSql(`select a from t where x = 1 for update of a nowait`),
+    ['SELECT a', '  FROM t', ' WHERE x = 1', '   FOR UPDATE OF a NOWAIT'].join('\n')
+  );
+  assert.match(safeFormatSql(`begin for r in (select id from t) loop null; end loop; end;`), /^ {2}FOR r IN \($/m);
+});
+
 test('non spezza BETWEEN … AND né le funzioni con FROM', () => {
   const out = safeFormatSql(`select extract(year from d) from t where x between 1 and 2`);
-  assert.equal(out, ['SELECT EXTRACT(YEAR FROM d)', 'FROM t', 'WHERE x BETWEEN 1 AND 2'].join('\n'));
+  assert.equal(out, ['SELECT EXTRACT(YEAR FROM d)', '  FROM t', ' WHERE x BETWEEN 1 AND 2'].join('\n'));
 });
 
 test('IS di un cursore o di un tipo non apre un blocco', () => {
@@ -67,7 +106,7 @@ test('IS di un cursore o di un tipo non apre un blocco', () => {
       'DECLARE',
       '  CURSOR c IS',
       '  SELECT 1',
-      '  FROM dual;',
+      '    FROM dual;',
       '  SUBTYPE s IS NUMBER;',
       'BEGIN',
       '  NULL;',
@@ -137,19 +176,22 @@ test('manda a capo i rami di un CASE espressione troppo lungo', () => {
     out,
     [
       'SELECT id,',
-      '  CASE',
-      "    WHEN stato = 'A' THEN 'Cliente attivo e in regola'",
-      "    WHEN stato = 'S' THEN 'Cliente sospeso per morosita'",
-      "    ELSE 'Cliente chiuso'",
-      '  END descrizione',
-      'FROM clienti',
+      '       CASE',
+      "         WHEN stato = 'A' THEN 'Cliente attivo e in regola'",
+      "         WHEN stato = 'S' THEN 'Cliente sospeso per morosita'",
+      "         ELSE 'Cliente chiuso'",
+      '       END descrizione',
+      '  FROM clienti',
     ].join('\n')
   );
 });
 
 test('una parola dopo il punto è un nome, non una parola chiave', () => {
   const out = safeFormatSql(`select t.date, t.level, s.deferrable from t join s on s.id = t.id`);
-  assert.equal(out, ['SELECT t.date, t.level, s.deferrable', 'FROM t', 'JOIN s ON s.id = t.id'].join('\n'));
+  assert.equal(
+    out,
+    ['SELECT t.date,', '       t.level,', '       s.deferrable', '  FROM t', '  JOIN s ON s.id = t.id'].join('\n')
+  );
 });
 
 test('separa i rami di un MERGE', () => {
@@ -160,8 +202,9 @@ test('separa i rami di un MERGE', () => {
     out,
     [
       'MERGE INTO d USING (',
-      '  SELECT id, valore',
-      '  FROM s',
+      '  SELECT id,',
+      '         valore',
+      '    FROM s',
       ') s ON (d.id = s.id)',
       'WHEN MATCHED THEN',
       '  UPDATE SET d.valore = s.valore',
@@ -221,7 +264,7 @@ end;`;
 
 test('safeFormatSql rifiuta un risultato che perde token', () => {
   const src = 'select 1 from dual';
-  assert.equal(safeFormatSql(src), 'SELECT 1\nFROM dual');
+  assert.equal(safeFormatSql(src), 'SELECT 1\n  FROM dual');
   // La verifica confronta i token: un output alterato deve far fallire.
   const tokens = tokenize(formatSql(src));
   assert.deepEqual(

@@ -266,9 +266,20 @@ CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 
 Ricerca, sostituzione e formattazione valgono in tutti gli editor: fogli SQL,
 sorgenti PL/SQL (package body, funzioni, trigger) e viste in sola lettura
-(dove la sostituzione è disattivata). La formattazione è conservativa: se il
-codice non viene riconosciuto token per token, il testo resta invariato e
-compare un avviso.
+(dove la sostituzione è disattivata). La formattazione allinea le clausole a
+destra del «fiume» e manda a capo una voce per riga, allineata sotto la prima:
+
+```sql
+SELECT c.ragione_sociale,
+       o.totale
+  FROM clienti c,
+       ordini o
+ WHERE o.cliente_id = c.id
+   AND o.totale > 13000;
+```
+
+È conservativa: se il codice non viene riconosciuto token per token, il testo
+resta invariato e compare un avviso.
 
 Le connessioni si organizzano in gruppi: clic destro su una connessione →
 «Sposta in…» per spostarla in un altro gruppo (o crearne uno nuovo).

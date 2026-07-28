@@ -272,10 +272,20 @@ sostituzione è disattivata).
 ## Formattazione
 
 \`Ctrl+Maiusc+F\` formatta la selezione, \`Ctrl+Alt+F\` tutto il foglio. Il
-formattatore conosce il dialetto Oracle: indenta i blocchi PL/SQL, i rami di un
-\`CASE\` e di un \`MERGE\`, spezza a cascata le righe troppo lunghe (separatori,
-concatenazioni \`||\`, gruppi di parentesi) e non tratta come parole chiave i
-nomi che seguono un punto (\`t.date\` resta \`t.date\`).
+formattatore conosce il dialetto Oracle: allinea le clausole a destra del
+«fiume» e manda a capo una voce per riga sotto la prima, indenta i blocchi
+PL/SQL, i rami di un \`CASE\` e di un \`MERGE\`, spezza a cascata le righe troppo
+lunghe (separatori, concatenazioni \`||\`, gruppi di parentesi) e non tratta come
+parole chiave i nomi che seguono un punto (\`t.date\` resta \`t.date\`).
+
+\`\`\`sql
+SELECT c.ragione_sociale,
+       o.totale
+  FROM clienti c,
+       ordini o
+ WHERE o.cliente_id = c.id
+   AND o.totale > 13000;
+\`\`\`
 
 È **conservativo**: se il testo non viene riconosciuto token per token resta
 esattamente com'era e compare un avviso, invece di restituire codice
