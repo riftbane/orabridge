@@ -204,12 +204,15 @@ export default function App() {
           </>
         )}
         <main className="main">
-          <div className="tabbar-row">
-            <TabBar />
-            {/* Nel desktop gli interruttori dei pannelli stanno nella barra del
-                titolo: qui lo spazio resta tutto alle schede. */}
-            {!CUSTOM_TITLE_BAR && <LayoutActions onOpenSettings={openSettings} />}
-          </div>
+          {/* Nel desktop gli interruttori dei pannelli stanno nella barra del
+              titolo: qui lo spazio resta tutto alle schede, e senza schede
+              aperte la riga sparisce invece di restare vuota. */}
+          {(!CUSTOM_TITLE_BAR || tabs.length > 0) && (
+            <div className="tabbar-row">
+              <TabBar />
+              {!CUSTOM_TITLE_BAR && <LayoutActions onOpenSettings={openSettings} />}
+            </div>
+          )}
           <div className="tab-panels">
             {!tabs.length && <EmptyState />}
             {tabs.map((t) => (

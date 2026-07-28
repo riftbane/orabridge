@@ -20,7 +20,11 @@ export default function TitleBar({ onOpenSettings, onNewConnection, onImportConn
           <path d="M4 22c4-8 20-8 24 0" stroke="currentColor" strokeWidth="3" fill="none" />
           <path d="M4 22h24" stroke="currentColor" strokeWidth="2" />
         </svg>
-        <span className="logo-ora">Ora</span>bridge
+        {/* Il nome sta in un solo elemento: il `gap` del flex lo spezzerebbe
+            in «Ora bridge». */}
+        <span>
+          <span className="logo-ora">Ora</span>bridge
+        </span>
       </span>
       <div className="titlebar-group">
         <button className="icon-btn" title="Nuova connessione" onClick={onNewConnection}>
