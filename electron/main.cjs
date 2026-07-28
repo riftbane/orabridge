@@ -1,10 +1,21 @@
-const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+// Barra del titolo disegnata dall'app invece che dal sistema: nascondiamo il
+// frame nativo e teniamo solo i tre pulsanti di Windows, sovrapposti nei colori
+// dell'app (vedi TitleBar.jsx lato client). Su macOS no: i semafori stanno a
+// sinistra e finirebbero sopra il logo.
+const CUSTOM_TITLE_BAR = process.platform !== 'darwin';
+const TITLE_BAR_OVERLAY = {
+  color: '#1e1f24', // --bg-panel
+  symbolColor: '#8b90a0', // --fg-dim
+  height: 36,
+};
 
 app.setName('Orabridge');
 
@@ -67,19 +78,52 @@ async function purgeWebCaches() {
   }
 }
 
+// Scorciatoie da browser che in un client SQL sono solo un modo per rompere
+// qualcosa: DevTools (F12, Ctrl+Shift+I/J/C) e ricarica della pagina (Ctrl+R,
+// che qui butterebbe via schede e risultati). Nel pacchetto vengono ignorate;
+// in sviluppo F12 resta l'unico modo per aprire gli strumenti, visto che non
+// c'è più il menu.
+function blockBrowserShortcuts(contents) {
+  contents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const key = (input.key || '').toLowerCase();
+    const devTools =
+      key === 'f12' || (input.control && input.shift && ['i', 'j', 'c'].includes(key));
+    const reload = input.control && key === 'r';
+    if (!devTools && !reload) return;
+    event.preventDefault();
+    if (devTools && !app.isPackaged) contents.toggleDevTools();
+  });
+  // Rete di sicurezza: qualunque altra strada porti agli strumenti (menu di
+  // sistema, estensioni, chiamate accidentali) li richiude subito.
+  contents.on('devtools-opened', () => {
+    if (app.isPackaged) contents.closeDevTools();
+  });
+}
+
 async function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     title: 'Orabridge',
-    autoHideMenuBar: true,
+    backgroundColor: '#17181c', // --bg: niente lampo bianco prima del primo paint
     icon: path.join(__dirname, 'build', 'icon.ico'),
+    ...(CUSTOM_TITLE_BAR
+      ? { titleBarStyle: 'hidden', titleBarOverlay: TITLE_BAR_OVERLAY }
+      : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      // «Vedere il sorgente del sito» non deve essere possibile nell'app
+      // installata: senza DevTools non c'è nulla da aprire.
+      devTools: !app.isPackaged,
+      // Il preload è sandboxed e non può leggere le costanti di questo file:
+      // la scelta sulla barra del titolo gli arriva come argomento di avvio.
+      additionalArguments: [`--orabridge-titlebar=${CUSTOM_TITLE_BAR ? '1' : '0'}`],
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
+  blockBrowserShortcuts(mainWindow.webContents);
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -221,6 +265,12 @@ ipcMain.handle('orabridge:check-for-updates', async () => {
 
 app.whenReady().then(async () => {
   try {
+    // Niente barra dei menu: File/Modifica/Visualizza/Finestra è cromo da
+    // browser e su Windows bastava Alt per farla comparire sopra la UI. Su
+    // macOS resta quello predefinito, perché lì il menu applicativo porta con
+    // sé le scorciatoie di sistema (copia/incolla, chiudi finestra).
+    if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+
     fs.mkdirSync(app.getPath('userData'), { recursive: true });
     logStream = fs.createWriteStream(path.join(app.getPath('userData'), 'main.log'), { flags: 'a' });
     log('Orabridge desktop in avvio, isPackaged =', app.isPackaged, 'resourcesRoot =', resourcesRoot());

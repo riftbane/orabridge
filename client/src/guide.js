@@ -29,6 +29,12 @@ come PWA installabile dal browser: le funzioni sono le stesse ovunque.
 | **Pannello dei risultati** (in basso) | Risultati, messaggi, log dello script, DBMS Output |
 | **Assistente AI** (destra) | Chat che interroga e modifica il database su richiesta |
 
+I comandi generali (nuova connessione, importazione, cronologia, DB Diff,
+interruttori dei pannelli, guida, impostazioni) stanno **nella striscia in
+alto**: nell'app desktop è la barra del titolo della finestra, nel client web
+sono divisi fra la cima della barra laterale e il fondo della barra delle
+schede.
+
 I tre pannelli si nascondono con gli interruttori in alto a destra
 (\`Ctrl+B\`, \`Ctrl+J\`, \`Ctrl+Alt+I\`) e si ridimensionano trascinandone il
 bordo: **doppio clic sul bordo** riporta il pannello alla misura predefinita.
@@ -37,7 +43,7 @@ si ritrovano al riavvio.
 
 ## Da zero al primo risultato
 
-1. Crea una connessione con **＋** in alto nella barra laterale (vedi
+1. Crea una connessione con **＋** fra i comandi in alto (vedi
    [Connessioni](#connessioni)).
 2. **Doppio clic** sulla connessione per collegarti: il pallino diventa verde e
    sotto compare l'albero degli oggetti.
@@ -59,7 +65,7 @@ disponibili ai riavvii. Le password sono cifrate con AES-256-GCM.
 
 ## Creare una connessione
 
-**＋** in cima alla barra laterale. I campi:
+**＋** fra i comandi in alto. I campi:
 
 - **Nome** — come compare nell'elenco (es. \`DEV — HR\`).
 - **Gruppo** — cartella in cui raccoglierla (facoltativo, con suggerimento dei
@@ -102,7 +108,7 @@ modifiche non ancora confermate, si chiude con commit o rollback dal foglio SQL
 
 ## Importare da SQL Developer
 
-L'icona di importazione (la freccia verso l'alto, in cima alla barra laterale)
+L'icona di importazione (la freccia verso l'alto, fra i comandi in alto)
 apre la procedura guidata: si sceglie il file **.json** esportato da SQL
 Developer, si vede l'elenco delle connessioni trovate e si spunta quali
 importare. Si può assegnare un **gruppo** a tutte le connessioni importate in un
@@ -358,7 +364,7 @@ Dopo ogni DDL l'albero e i metadati dell'autocomplete si ricaricano da soli.
     title: 'DB Diff',
     summary: 'Confrontare due schemi e generare lo script di allineamento.',
     md: `
-L'icona **⇄** in cima alla barra laterale apre il confronto fra due schemi: su
+L'icona **⇄** fra i comandi in alto apre il confronto fra due schemi: su
 connessioni diverse o sulla stessa connessione (per esempio due schemi dello
 stesso database). Si possono tenere aperti più confronti insieme.
 
@@ -405,7 +411,8 @@ Lo script viene generato dalle fotografie dei due schemi, senza
     title: 'Assistente AI',
     summary: 'Configurazione, sessioni, permessi e approvazioni.',
     md: `
-Il pannello ✨ (\`Ctrl+Alt+I\`) è una chat che lavora sul database: elenca
+L'assistente (\`Ctrl+Alt+I\`, o l'interruttore del pannello destro in alto) è
+una chat che lavora sul database: elenca
 schemi e oggetti, legge la struttura di una tabella (colonne, vincoli, foreign
 key, indici, commenti), legge sorgenti e DDL, esegue SELECT e — se glielo
 consenti — istruzioni di modifica.
@@ -472,8 +479,9 @@ cronologia, marcate con ✨.
     summary: 'Ritrovare, riaprire e ripulire le istruzioni già eseguite.',
     md: `
 La cronologia raccoglie le istruzioni eseguite, con connessione, orario ed
-esito. Si apre dall'icona nella barra laterale (tutte le connessioni) o dal
-tasto **Cronologia** di un foglio SQL (già filtrata su quella connessione).
+esito. Si apre dall'icona dell'orologio fra i comandi in alto (tutte le
+connessioni) o dal tasto **Cronologia** di un foglio SQL (già filtrata su quella
+connessione).
 
 - **Cerca nel testo SQL…** filtra per contenuto; la tendina filtra per
   connessione.

@@ -13,9 +13,9 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
+import { CUSTOM_TITLE_BAR } from '../appInfo.js';
 import ObjectTree from './ObjectTree.jsx';
 import ConnectionModal from './ConnectionModal.jsx';
-import ImportConnectionsModal from './ImportConnectionsModal.jsx';
 import ContextMenu from './ContextMenu.jsx';
 
 function statusInfo(active) {
@@ -195,10 +195,8 @@ function ConnGroup({ title, items, collapsed, onToggle, groups, plain }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ onNewConnection, onImportConnections }) {
   const conns = useStore((s) => s.conns);
-  const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [open, setOpen] = useState({});
   const [search, setSearch] = useState('');
   const openHistory = useStore((s) => s.openHistory);
@@ -244,30 +242,35 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar" style={{ width, minWidth: width }}>
-      <div className="sidebar-head">
-        <span className="logo">
-          <span className="logo-ora">Ora</span>bridge
-        </span>
-        <button
-          className="icon-btn"
-          title="Assistente AI (Ctrl+Alt+I)"
-          onClick={() => toggleUi('ai')}
-        >
-          <Sparkles size={14} />
-        </button>
-        <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
-          <GitCompare size={14} />
-        </button>
-        <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
-          <History size={14} />
-        </button>
-        <button className="icon-btn" title="Importa connessioni" onClick={() => setImporting(true)}>
-          <Upload size={14} />
-        </button>
-        <button className="icon-btn add-conn" title="Nuova connessione" onClick={() => setCreating(true)}>
-          <Plus size={16} />
-        </button>
-      </div>
+      {/* Nell'app desktop logo e comandi globali stanno nella barra del titolo
+          (TitleBar.jsx): qui la testata sarebbe un doppione che ruba altezza
+          all'elenco delle connessioni. */}
+      {!CUSTOM_TITLE_BAR && (
+        <div className="sidebar-head">
+          <span className="logo">
+            <span className="logo-ora">Ora</span>bridge
+          </span>
+          <button
+            className="icon-btn"
+            title="Assistente AI (Ctrl+Alt+I)"
+            onClick={() => toggleUi('ai')}
+          >
+            <Sparkles size={14} />
+          </button>
+          <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
+            <GitCompare size={14} />
+          </button>
+          <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
+            <History size={14} />
+          </button>
+          <button className="icon-btn" title="Importa connessioni" onClick={onImportConnections}>
+            <Upload size={14} />
+          </button>
+          <button className="icon-btn add-conn" title="Nuova connessione" onClick={onNewConnection}>
+            <Plus size={16} />
+          </button>
+        </div>
+      )}
       {!!conns.length && (
         <div className="sidebar-search">
           <Search size={13} className="sidebar-search-icon" />
@@ -283,10 +286,10 @@ export default function Sidebar() {
         {!conns.length && (
           <div className="empty-conns">
             Nessuna connessione.
-            <button className="btn primary" onClick={() => setCreating(true)}>
+            <button className="btn primary" onClick={onNewConnection}>
               Crea la prima
             </button>
-            <button className="btn" onClick={() => setImporting(true)}>
+            <button className="btn" onClick={onImportConnections}>
               Importa da file
             </button>
           </div>
@@ -306,8 +309,6 @@ export default function Sidebar() {
           />
         ))}
       </div>
-      {creating && <ConnectionModal onClose={() => setCreating(false)} />}
-      {importing && <ImportConnectionsModal onClose={() => setImporting(false)} />}
     </aside>
   );
 }

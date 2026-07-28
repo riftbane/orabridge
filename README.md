@@ -27,7 +27,7 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
 - **Sorgente PL/SQL modificabile**: scheda «Sorgente» con «Compila» (`Ctrl+Invio`) ed
   elenco errori di compilazione cliccabili (da `ALL_ERRORS`)
 - **Drop guidato** dal menu contestuale (clic destro su un oggetto nell'albero)
-- **DB Diff** (icona ⇄ in alto nella barra laterale): confronta due schemi — su
+- **DB Diff** (icona ⇄ fra i comandi in alto): confronta due schemi — su
   connessioni diverse o sulla stessa — e genera lo script di allineamento
   - confronta tabelle (colonne, vincoli, indici, commenti), viste, viste
     materializzate, sequenze, sinonimi, procedure, funzioni, package, trigger e tipi
@@ -135,6 +135,15 @@ Oltre a Docker e alla PWA, Orabridge può essere pacchettizzato come vera app
 desktop Windows (Electron): un installer `.exe` che al doppio clic avvia
 anche il backend al proprio interno, senza Docker né comandi da lanciare a
 parte.
+
+La finestra non ha niente da browser: **nessuna barra dei menu** (File/Modifica/
+Visualizza) e **nessuno strumento di sviluppo** (`F12`, `Ctrl+Shift+I`), che
+nella versione installata è proprio disattivato. La **barra del titolo** è
+disegnata dall'app nei suoi colori e ospita logo e comandi generali (nuova
+connessione, importazione, cronologia, DB Diff, interruttori dei pannelli,
+guida, impostazioni): Windows continua a disegnarci sopra solo i tre pulsanti
+della finestra, e il resto della striscia si trascina come una barra del titolo
+qualsiasi.
 
 ### Scaricare o aggiornare
 

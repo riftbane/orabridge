@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import {
-  BookOpen,
-  GitCompare,
-  History,
-  PanelBottom,
-  PanelLeft,
-  PanelRight,
-  Settings,
-  X,
-} from 'lucide-react';
+import { BookOpen, GitCompare, History, X } from 'lucide-react';
 import { useStore } from './store.js';
+import { CUSTOM_TITLE_BAR } from './appInfo.js';
 import Sidebar from './components/Sidebar.jsx';
+import TitleBar from './components/TitleBar.jsx';
+import LayoutActions from './components/LayoutActions.jsx';
+import ConnectionModal from './components/ConnectionModal.jsx';
+import ImportConnectionsModal from './components/ImportConnectionsModal.jsx';
 import Worksheet from './components/Worksheet.jsx';
 import ObjectDetail from './components/ObjectDetail.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
@@ -68,48 +64,6 @@ function TabBar() {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// Interruttori dei pannelli, in alto a destra come in VS Code.
-function LayoutActions({ onOpenSettings }) {
-  const ui = useStore((s) => s.ui);
-  const activeTab = useStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
-  const toggleUi = useStore((s) => s.toggleUi);
-  const openGuide = useStore((s) => s.openGuide);
-
-  return (
-    <div className="layout-actions">
-      <button
-        className={`icon-btn ${ui.sidebar ? 'on' : ''}`}
-        title="Mostra/nascondi la barra laterale (Ctrl+B)"
-        onClick={() => toggleUi('sidebar')}
-      >
-        <PanelLeft size={14} />
-      </button>
-      <button
-        className={`icon-btn ${ui.results ? 'on' : ''}`}
-        title="Mostra/nascondi il pannello dei risultati (Ctrl+J)"
-        onClick={() => toggleUi('results')}
-        disabled={activeTab?.kind !== 'worksheet'}
-      >
-        <PanelBottom size={14} />
-      </button>
-      <button
-        className={`icon-btn ${ui.ai ? 'on' : ''}`}
-        title="Mostra/nascondi l'assistente AI (Ctrl+Alt+I)"
-        onClick={() => toggleUi('ai')}
-      >
-        <PanelRight size={14} />
-      </button>
-      <span className="layout-sep" />
-      <button className="icon-btn" title="Guida dell'app (F1)" onClick={() => openGuide()}>
-        <BookOpen size={14} />
-      </button>
-      <button className="icon-btn" title="Impostazioni (Ctrl+,)" onClick={onOpenSettings}>
-        <Settings size={14} />
-      </button>
     </div>
   );
 }
@@ -182,6 +136,10 @@ export default function App() {
   // Cambia ad ogni chiusura delle impostazioni: il pannello AI se ne accorge e
   // rilegge chiavi, modelli e permessi invece di restare con i vecchi.
   const [settingsRev, setSettingsRev] = useState(0);
+  // Nuova connessione e importazione si aprono sia dalla barra laterale sia
+  // dalla barra del titolo: lo stato vive qui, sopra le due.
+  const [creatingConn, setCreatingConn] = useState(false);
+  const [importingConns, setImportingConns] = useState(false);
 
   useEffect(() => {
     refreshConnections().catch((err) => toast(`Server non raggiungibile: ${err.message}`, 'error'));
@@ -218,62 +176,73 @@ export default function App() {
 
   const setUi = useStore((s) => s.setUi);
 
+  const openConnModal = () => setCreatingConn(true);
+  const openImportModal = () => setImportingConns(true);
+  const openSettings = () => setSettingsOpen(true);
+
   return (
-    <div className="app">
-      {ui.sidebar && (
-        <>
-          <Sidebar />
-          <Resizer
-            direction="left"
-            value={ui.sidebarWidth}
-            onChange={(v) => setUi({ sidebarWidth: v })}
-            onReset={() => setUi({ sidebarWidth: 280 })}
-            min={200}
-            max={640}
-          />
-        </>
-      )}
-      <main className="main">
-        <div className="tabbar-row">
-          <TabBar />
-          <LayoutActions onOpenSettings={() => setSettingsOpen(true)} />
-        </div>
-        <div className="tab-panels">
-          {!tabs.length && <EmptyState />}
-          {tabs.map((t) => (
-            <div key={t.id} className="tab-panel" hidden={t.id !== activeTabId}>
-              {t.kind === 'worksheet' ? (
-                <Worksheet tab={t} />
-              ) : t.kind === 'history' ? (
-                <HistoryPanel />
-              ) : t.kind === 'diff' ? (
-                <DbDiff tab={t} />
-              ) : t.kind === 'guide' ? (
-                <GuideView />
-              ) : (
-                <ObjectDetail tab={t} />
-              )}
-            </div>
-          ))}
-        </div>
-      </main>
-      {ui.ai && !ui.aiFull && (
-        <Resizer
-          direction="right"
-          value={ui.aiWidth}
-          onChange={(v) => setUi({ aiWidth: v })}
-          onReset={() => setUi({ aiWidth: 400 })}
-          min={280}
-          max={900}
+    <div className={`app-shell ${CUSTOM_TITLE_BAR ? 'has-titlebar' : ''}`}>
+      {CUSTOM_TITLE_BAR && (
+        <TitleBar
+          onOpenSettings={openSettings}
+          onNewConnection={openConnModal}
+          onImportConnections={openImportModal}
         />
       )}
-      {/* Sempre montato: lo streaming della sessione prosegue anche a pannello
-          chiuso, e riaprendolo si ritrova la conversazione già aggiornata. */}
-      <AiPanel
-        hidden={!ui.ai}
-        onOpenSettings={() => setSettingsOpen(true)}
-        settingsRev={settingsRev}
-      />
+      <div className="app">
+        {ui.sidebar && (
+          <>
+            <Sidebar onNewConnection={openConnModal} onImportConnections={openImportModal} />
+            <Resizer
+              direction="left"
+              value={ui.sidebarWidth}
+              onChange={(v) => setUi({ sidebarWidth: v })}
+              onReset={() => setUi({ sidebarWidth: 280 })}
+              min={200}
+              max={640}
+            />
+          </>
+        )}
+        <main className="main">
+          <div className="tabbar-row">
+            <TabBar />
+            {/* Nel desktop gli interruttori dei pannelli stanno nella barra del
+                titolo: qui lo spazio resta tutto alle schede. */}
+            {!CUSTOM_TITLE_BAR && <LayoutActions onOpenSettings={openSettings} />}
+          </div>
+          <div className="tab-panels">
+            {!tabs.length && <EmptyState />}
+            {tabs.map((t) => (
+              <div key={t.id} className="tab-panel" hidden={t.id !== activeTabId}>
+                {t.kind === 'worksheet' ? (
+                  <Worksheet tab={t} />
+                ) : t.kind === 'history' ? (
+                  <HistoryPanel />
+                ) : t.kind === 'diff' ? (
+                  <DbDiff tab={t} />
+                ) : t.kind === 'guide' ? (
+                  <GuideView />
+                ) : (
+                  <ObjectDetail tab={t} />
+                )}
+              </div>
+            ))}
+          </div>
+        </main>
+        {ui.ai && !ui.aiFull && (
+          <Resizer
+            direction="right"
+            value={ui.aiWidth}
+            onChange={(v) => setUi({ aiWidth: v })}
+            onReset={() => setUi({ aiWidth: 400 })}
+            min={280}
+            max={900}
+          />
+        )}
+        {/* Sempre montato: lo streaming della sessione prosegue anche a pannello
+            chiuso, e riaprendolo si ritrova la conversazione già aggiornata. */}
+        <AiPanel hidden={!ui.ai} onOpenSettings={openSettings} settingsRev={settingsRev} />
+      </div>
       <Toasts />
       {/* La chiave sul connId riparte da zero cambiando connessione, ma tiene
           quanto digitato se il primo tentativo fallisce. */}
@@ -286,6 +255,8 @@ export default function App() {
           }}
         />
       )}
+      {creatingConn && <ConnectionModal onClose={() => setCreatingConn(false)} />}
+      {importingConns && <ImportConnectionsModal onClose={() => setImportingConns(false)} />}
     </div>
   );
 }

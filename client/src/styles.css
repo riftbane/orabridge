@@ -51,9 +51,82 @@ body {
   background: #4a4d59;
 }
 
+/* Guscio dell'app: la barra del titolo (solo desktop) sopra, l'area di lavoro
+   sotto. Nel client web c'è solo la seconda. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .app {
   display: flex;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- barra del titolo (app desktop) ---------- */
+/* Il frame di sistema è nascosto (vedi main.cjs): questa striscia ne prende il
+   posto e ospita logo, comandi globali e interruttori dei pannelli. Windows
+   continua a disegnare i suoi tre pulsanti in alto a destra, negli stessi
+   colori; `env(titlebar-area-*)` è l'area che ci lascia libera, i fallback
+   valgono se il Window Controls Overlay non è attivo. */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: env(titlebar-area-height, 36px);
+  margin-left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  padding: 0 8px 0 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+/* Quello che si clicca non deve trascinare la finestra. */
+.titlebar button,
+.titlebar .layout-actions {
+  -webkit-app-region: no-drag;
+}
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding-right: 4px;
+}
+.titlebar-mark {
+  color: var(--accent);
+}
+.titlebar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 7px;
+  border-left: 1px solid var(--border);
+}
+/* Il vuoto tra i due gruppi: è la parte che si afferra per spostare la finestra
+   (doppio clic = ingrandisci/ripristina, come sulla barra di sistema). */
+.titlebar-drag {
+  flex: 1;
+  align-self: stretch;
+  min-width: 24px;
+}
+.titlebar .layout-actions {
+  border-left: none;
+  padding: 0;
+}
+.titlebar .icon-btn {
+  padding: 4px 6px;
+}
+/* I pulsanti della finestra li disegna Windows sopra la pagina: i toast partono
+   sotto la barra, altrimenti finirebbero dietro la X. */
+.app-shell.has-titlebar .toasts {
+  top: calc(env(titlebar-area-height, 36px) + 12px);
 }
 
 /* ---------- buttons & inputs ---------- */
