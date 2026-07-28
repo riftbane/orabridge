@@ -13,6 +13,8 @@ vengono trattati come «nessun aggiornamento disponibile»; gli errori veri
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.12.6.exe`](https://github.com/riftbane/orabridge/releases/download/v1.12.6/Orabridge%20Setup%201.12.6.exe) (2026-07-28).
+
 ## v1.12.5 — 2026-07-28
 
 - **Fix:** connessioni attive non visibili nei gruppi chiusi Con i gruppi chiusi non c'era modo di sapere dove fosse una connessione
