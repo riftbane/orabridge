@@ -10,6 +10,8 @@ vuoto. Ora la paginazione usa ROWNUM, compatibile con tutte le versioni.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.17.2.exe`](https://github.com/riftbane/orabridge/releases/download/v1.17.2/Orabridge%20Setup%201.17.2.exe) (2026-07-28).
+
 ## v1.17.1 — 2026-07-28
 
 - **Fix:** i modali non si chiudono più cliccando fuori Il click sullo sfondo chiudeva la finestra anche mentre si stava
