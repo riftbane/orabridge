@@ -15,6 +15,8 @@ posto del tasto, così non sembra che la lista sia completa.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge Setup 1.15.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.15.0/Orabridge%20Setup%201.15.0.exe) (2026-07-28).
+
 ## v1.14.0 — 2026-07-28
 
 - **Nuovo:** formattazione SQL più curata per Oracle Il formattatore lavorava bene sui blocchi PL/SQL ma lasciava intatte le
