@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRight, Copy, FileCode, Play, RefreshCw, Search } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileCode,
+  Play,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 import Editor from './Editor.jsx';
@@ -26,6 +35,19 @@ const STATUS = {
   different: ['diverso', 'mod'],
   same: ['uguale', 'same'],
 };
+
+// Filtri per stato, con l'etichetta corta usata sui chip e la chiave del
+// conteggio restituito dal server.
+const STATUS_FILTERS = [
+  ['only-source', 'solo origine', 'onlySource'],
+  ['only-target', 'solo destinazione', 'onlyTarget'],
+  ['different', 'diversi', 'different'],
+  ['same', 'uguali', 'same'],
+];
+
+// All'apertura del risultato interessano le differenze: gli oggetti identici
+// si mostrano solo se richiesti.
+const DEFAULT_STATUSES = ['only-source', 'only-target', 'different'];
 
 // Confronto sul testo: il diff riga per riga si chiede al server solo per
 // l'oggetto aperto.
@@ -257,14 +279,23 @@ function Detail({ runId, item, source, target }) {
 
 // ---- pannello dello script ----
 
-function ScriptPane({ runId, items, selected, source, target, connLabel }) {
+// Lo script vive nella scheda, non qui: passando alle differenze e tornando
+// indietro resta quello già generato, e non serve rifarlo per rileggerlo.
+function ScriptPane({
+  runId,
+  count,
+  selected,
+  source,
+  target,
+  connLabel,
+  includeDrops,
+  setIncludeDrops,
+  script,
+  setScript,
+}) {
   const toast = useStore((s) => s.toast);
-  const [includeDrops, setIncludeDrops] = useState(false);
-  const [script, setScript] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
-
-  const count = items.filter((i) => i.status !== 'same' && selected.has(i.key)).length;
 
   const generate = async () => {
     setBusy(true);
@@ -307,7 +338,9 @@ function ScriptPane({ runId, items, selected, source, target, connLabel }) {
           />
           includi le eliminazioni (DROP)
         </label>
-        <span className="pane-info">{count} oggetti selezionati</span>
+        <span className="pane-info">
+          {count} {count === 1 ? 'oggetto selezionato' : 'oggetti selezionati'}
+        </span>
         <div style={{ flex: 1 }} />
         {script && (
           <>
@@ -373,8 +406,17 @@ export default function DbDiff({ tab }) {
   const [selected, setSelected] = useState(() => new Set());
   const [current, setCurrent] = useState(null);
   const [pane, setPane] = useState('Differenze');
-  const [showSame, setShowSame] = useState(false);
+  const [statuses, setStatuses] = useState(() => new Set(DEFAULT_STATUSES));
+  const [collapsed, setCollapsed] = useState(() => new Set());
   const [listFilter, setListFilter] = useState('');
+  const [includeDrops, setIncludeDrops] = useState(false);
+  const [script, setScript] = useState(null);
+
+  // Uno script generato con un'altra selezione è peggio di nessuno script:
+  // meglio rifarlo che rischiare di copiarne uno che non corrisponde più.
+  useEffect(() => {
+    setScript(null);
+  }, [selected, includeDrops]);
 
   const toggleType = (t) =>
     setTypes((s) => {
@@ -410,6 +452,9 @@ export default function DbDiff({ tab }) {
       setSelected(new Set(diffs.map((i) => i.key)));
       setCurrent(diffs[0]?.key ?? null);
       setPane('Differenze');
+      setStatuses(new Set(DEFAULT_STATUSES));
+      setCollapsed(new Set());
+      setListFilter('');
       setSetupOpen(false);
       useStore
         .getState()
@@ -425,24 +470,24 @@ export default function DbDiff({ tab }) {
     }
   };
 
-  const groups = useMemo(() => {
-    if (!result) return [];
+  const { groups, visible } = useMemo(() => {
+    if (!result) return { groups: [], visible: [] };
     const q = listFilter.trim().toLowerCase();
     const visible = result.items.filter(
-      (i) =>
-        (showSame || i.status !== 'same') && (!q || i.name.toLowerCase().includes(q))
+      (i) => statuses.has(i.status) && (!q || i.name.toLowerCase().includes(q))
     );
     const byType = new Map();
     for (const it of visible) {
       if (!byType.has(it.type)) byType.set(it.type, []);
       byType.get(it.type).push(it);
     }
-    return TYPES.filter(([t]) => byType.has(t)).map(([t, label]) => ({
+    const groups = TYPES.filter(([t]) => byType.has(t)).map(([t, label]) => ({
       type: t,
       label,
       items: byType.get(t),
     }));
-  }, [result, showSame, listFilter]);
+    return { groups, visible };
+  }, [result, statuses, listFilter]);
 
   const toggleSel = (key) =>
     setSelected((s) => {
@@ -456,9 +501,10 @@ export default function DbDiff({ tab }) {
   // visibili.
   const selectable = (items) => items.filter((i) => i.status !== 'same');
 
-  const groupChecked = (items) => {
+  const groupState = (items) => {
     const list = selectable(items);
-    return list.length > 0 && list.every((i) => selected.has(i.key));
+    const n = list.filter((i) => selected.has(i.key)).length;
+    return { all: list.length > 0 && n === list.length, some: n > 0 && n < list.length };
   };
 
   const toggleGroup = (items) =>
@@ -469,6 +515,37 @@ export default function DbDiff({ tab }) {
       for (const i of list) (all ? n.delete(i.key) : n.add(i.key));
       return n;
     });
+
+  // Selezione di massa: agisce su ciò che è in elenco in quel momento, così
+  // filtrando per stato o per nome si sceglie un blocco intero in un colpo
+  // solo invece di spuntare gruppo per gruppo.
+  const bulkSelect = (mode) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      for (const i of selectable(visible)) {
+        if (mode === 'all') n.add(i.key);
+        else if (mode === 'none') n.delete(i.key);
+        else n.has(i.key) ? n.delete(i.key) : n.add(i.key);
+      }
+      return n;
+    });
+
+  const toggleStatus = (st) =>
+    setStatuses((s) => {
+      const n = new Set(s);
+      n.has(st) ? n.delete(st) : n.add(st);
+      return n;
+    });
+
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.type));
+  const toggleAllGroups = () =>
+    setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.type)));
+
+  const selectedCount = useMemo(
+    () => (result ? result.items.filter((i) => i.status !== 'same' && selected.has(i.key)).length : 0),
+    [result, selected]
+  );
+  const visibleSelectable = selectable(visible).length;
 
   const currentItem = result?.items.find((i) => i.key === current) || null;
 
@@ -517,7 +594,15 @@ export default function DbDiff({ tab }) {
         {setupOpen && (
           <div className="diff-setup-body">
             <div className="diff-opt-group">
-              <span className="diff-opt-title">Tipi di oggetto</span>
+              <span className="diff-opt-title">
+                Tipi di oggetto
+                <button className="mini-btn" onClick={() => setTypes(new Set(TYPES.map(([t]) => t)))}>
+                  tutti
+                </button>
+                <button className="mini-btn" onClick={() => setTypes(new Set())}>
+                  nessuno
+                </button>
+              </span>
               <div className="diff-types">
                 {TYPES.map(([t, label]) => (
                   <button
@@ -594,14 +679,53 @@ export default function DbDiff({ tab }) {
                       onChange={(e) => setListFilter(e.target.value)}
                       placeholder="filtra per nome…"
                     />
-                    <label className="diff-check" title="Mostra anche gli oggetti identici">
-                      <input
-                        type="checkbox"
-                        checked={showSame}
-                        onChange={(e) => setShowSame(e.target.checked)}
-                      />
-                      uguali
-                    </label>
+                  </div>
+                  <div className="diff-list-tools">
+                    {STATUS_FILTERS.map(([st, label, countKey]) => (
+                      <button
+                        key={st}
+                        className={`col-chip ${statuses.has(st) ? 'on' : ''}`}
+                        title={`Mostra o nascondi gli oggetti «${STATUS[st][0]}»`}
+                        onClick={() => toggleStatus(st)}
+                      >
+                        {label} <span className="tree-count">{result.counts[countKey]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="diff-list-tools">
+                    <span className="diff-tools-label">selezione</span>
+                    <button
+                      className="mini-btn"
+                      title="Seleziona tutti gli oggetti in elenco"
+                      disabled={!visibleSelectable}
+                      onClick={() => bulkSelect('all')}
+                    >
+                      tutti
+                    </button>
+                    <button
+                      className="mini-btn"
+                      title="Togli la selezione da tutti gli oggetti in elenco"
+                      disabled={!visibleSelectable}
+                      onClick={() => bulkSelect('none')}
+                    >
+                      nessuno
+                    </button>
+                    <button
+                      className="mini-btn"
+                      title="Inverti la selezione degli oggetti in elenco"
+                      disabled={!visibleSelectable}
+                      onClick={() => bulkSelect('invert')}
+                    >
+                      inverti
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      className="mini-btn"
+                      disabled={!groups.length}
+                      onClick={toggleAllGroups}
+                    >
+                      {allCollapsed ? 'espandi' : 'comprimi'}
+                    </button>
                   </div>
                   <div className="diff-list-body">
                     {!groups.length && <div className="tree-info">Nessun oggetto da mostrare</div>}
@@ -610,33 +734,54 @@ export default function DbDiff({ tab }) {
                         <div className="diff-group-head">
                           <input
                             type="checkbox"
-                            checked={groupChecked(g.items)}
+                            checked={groupState(g.items).all}
+                            ref={(el) => {
+                              if (el) el.indeterminate = groupState(g.items).some;
+                            }}
                             disabled={!selectable(g.items).length}
+                            title="Seleziona o deseleziona tutta la categoria"
                             onChange={() => toggleGroup(g.items)}
                           />
-                          <span className="diff-group-title">{g.label}</span>
-                          <span className="tree-count">{g.items.length}</span>
-                        </div>
-                        {g.items.map((it) => (
-                          <div
-                            key={it.key}
-                            className={`diff-row ${current === it.key ? 'on' : ''}`}
-                            onClick={() => setCurrent(it.key)}
+                          <button
+                            className="diff-group-toggle"
+                            onClick={() =>
+                              setCollapsed((s) => {
+                                const n = new Set(s);
+                                n.has(g.type) ? n.delete(g.type) : n.add(g.type);
+                                return n;
+                              })
+                            }
                           >
-                            <input
-                              type="checkbox"
-                              checked={selected.has(it.key)}
-                              disabled={it.status === 'same'}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => toggleSel(it.key)}
-                            />
-                            <TypeIcon type={it.type} />
-                            <span className="diff-row-name">{it.name}</span>
-                            <span className={`diff-badge ${STATUS[it.status][1]}`}>
-                              {STATUS[it.status][0]}
-                            </span>
-                          </div>
-                        ))}
+                            {collapsed.has(g.type) ? (
+                              <ChevronRight size={11} />
+                            ) : (
+                              <ChevronDown size={11} />
+                            )}
+                            <span className="diff-group-title">{g.label}</span>
+                            <span className="tree-count">{g.items.length}</span>
+                          </button>
+                        </div>
+                        {!collapsed.has(g.type) &&
+                          g.items.map((it) => (
+                            <div
+                              key={it.key}
+                              className={`diff-row ${current === it.key ? 'on' : ''}`}
+                              onClick={() => setCurrent(it.key)}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected.has(it.key)}
+                                disabled={it.status === 'same'}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleSel(it.key)}
+                              />
+                              <TypeIcon type={it.type} />
+                              <span className="diff-row-name">{it.name}</span>
+                              <span className={`diff-badge ${STATUS[it.status][1]}`}>
+                                {STATUS[it.status][0]}
+                              </span>
+                            </div>
+                          ))}
                       </div>
                     ))}
                   </div>
@@ -653,11 +798,15 @@ export default function DbDiff({ tab }) {
             ) : (
               <ScriptPane
                 runId={result.runId}
-                items={result.items}
+                count={selectedCount}
                 selected={selected}
                 source={result.source}
                 target={result.target}
                 connLabel={connLabel}
+                includeDrops={includeDrops}
+                setIncludeDrops={setIncludeDrops}
+                script={script}
+                setScript={setScript}
               />
             )}
           </div>

@@ -35,11 +35,18 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
     **diverso**; le differenze strutturali si leggono in tabella, quelle di
     codice in un **confronto affiancato riga per riga**
   - i vincoli e gli indici con nome generato (`SYS_C…`) si accoppiano per
-    definizione invece che per nome, e i riferimenti allo schema di origine
-    valgono come quelli allo schema di destinazione: niente differenze finte
+    definizione invece che per nome, i riferimenti allo schema di origine
+    valgono come quelli allo schema di destinazione e le colonne di identità si
+    confrontano sul tipo di generazione, non sulla sequenza `ISEQ$$…` che
+    Oracle numera in modo diverso in ogni database: niente differenze finte
+  - filtri per stato con i conteggi, categorie comprimibili e selezione di
+    massa (*tutti / nessuno / inverti*) su ciò che è in elenco
   - lo **script di sincronizzazione** (CREATE/ALTER, con i DROP opzionali) si
     genera per gli oggetti spuntati e si apre in un foglio SQL sulla
     destinazione — Orabridge non esegue mai nulla da sé
+  - lo script crea le colonne di identità e quelle virtuali con la loro
+    sintassi, rimappa sulla destinazione anche i `DEFAULT` che citano una
+    sequenza e segnala quello che va rifatto a mano
 - **Assistente AI** (icona ✨ o `Ctrl+Alt+I`): un pannello di chat che lavora
   davvero sul database, non solo sul testo della domanda
   - piattaforme supportate: **OpenRouter, Anthropic, Google Gemini, OpenAI** —

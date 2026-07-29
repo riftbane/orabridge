@@ -2020,10 +2020,18 @@ kbd {
   gap: 6px;
 }
 .diff-opt-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-dim);
+}
+.diff-opt-title .mini-btn {
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0 6px;
 }
 .diff-types {
   display: flex;
@@ -2121,6 +2129,30 @@ kbd {
   padding: 2px 6px;
   font-size: 11.5px;
 }
+.diff-list-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.diff-list-tools .col-chip {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  gap: 4px;
+}
+.diff-tools-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  margin-right: 2px;
+}
+.diff-list-tools .mini-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .diff-list-body {
   flex: 1;
   overflow: auto;
@@ -2136,12 +2168,28 @@ kbd {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
+.diff-group-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.diff-group-toggle:hover {
+  color: var(--fg);
+}
 .diff-group-title {
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--fg-dim);
+  color: inherit;
   flex: 1;
+  text-align: left;
 }
 .diff-row {
   display: flex;

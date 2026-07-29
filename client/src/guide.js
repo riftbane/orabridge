@@ -400,10 +400,20 @@ Ogni oggetto è marcato come **solo in origine**, **solo in destinazione** o
   affiancato riga per riga**.
 
 Per evitare differenze finte, i vincoli e gli indici con nome generato
-(\`SYS_C…\`) vengono accoppiati per definizione invece che per nome, e un
+(\`SYS_C…\`) vengono accoppiati per definizione invece che per nome, un
 riferimento allo schema di origine vale quanto lo stesso riferimento allo
-schema di destinazione. La casella *Mostra anche gli oggetti identici* serve a
-verificare che un oggetto sia stato effettivamente confrontato.
+schema di destinazione, e le colonne di identità si confrontano sul tipo di
+generazione: la sequenza che Oracle si crea dietro le quinte
+(\`ISEQ$$_176443\`) ha un numero diverso in ogni database, quindi non fa testo
+— e per lo stesso motivo quelle sequenze non compaiono nell'elenco.
+
+## Restringere l'elenco
+
+Sotto la casella di ricerca ci sono i **filtri per stato** (solo origine, solo
+destinazione, diversi, uguali) con il rispettivo conteggio: gli oggetti
+identici sono nascosti finché non si chiedono, e serve chiederli per
+verificare che un oggetto sia stato davvero confrontato. Il titolo di ogni
+categoria la **comprime**, e *comprimi* le chiude tutte insieme.
 
 ## Script di sincronizzazione
 
@@ -411,6 +421,13 @@ Si spuntano gli oggetti da allineare e si genera lo script (CREATE/ALTER, con i
 DROP opzionali): si apre in un **foglio SQL sulla connessione di destinazione**,
 pronto da leggere ed eseguire. **Orabridge non esegue mai niente da sé**: la
 decisione, e il commit, restano tuoi.
+
+Dopo il confronto è spuntato tutto: i pulsanti *tutti*, *nessuno* e *inverti*
+agiscono su ciò che è in elenco in quel momento, quindi combinati con i filtri
+per stato o per nome scelgono un blocco intero in un colpo solo — per esempio
+*solo origine* + *tutti* per creare nella destinazione ciò che le manca.
+Cambiando la selezione lo script già generato viene azzerato: quello che si
+copia corrisponde sempre a ciò che è spuntato.
 
 Lo script viene generato dalle fotografie dei due schemi, senza
 \`DBMS_METADATA\`: funziona anche con utenze dai privilegi minimi.
