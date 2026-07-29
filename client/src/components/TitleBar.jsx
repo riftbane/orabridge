@@ -1,5 +1,4 @@
-import React from 'react';
-import { GitCompare, History, Plus, Upload } from 'lucide-react';
+import { GitCompare, History, Network, Plus, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import LayoutActions from './LayoutActions.jsx';
 
@@ -38,6 +37,13 @@ export default function TitleBar({ onOpenSettings, onNewConnection, onImportConn
         </button>
         <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
           <GitCompare size={14} />
+        </button>
+        <button
+          className="icon-btn"
+          title="Diagramma — editor a nodi (beta)"
+          onClick={() => useStore.getState().openGraph()}
+        >
+          <Network size={14} />
         </button>
       </div>
       {/* Zona di trascinamento: è quello che resta della barra del titolo. */}
