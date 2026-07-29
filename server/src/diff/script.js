@@ -283,6 +283,13 @@ export function buildSyncScript(src, tgt, items, options = {}) {
             d.columns.onlySource.map((c) => columnDdl(c, srcOwner, owner)).join(',\n  ') +
             `\n)`
         );
+        // Il commento di una colonna appena aggiunta: `d.columnComments`
+        // copre solo le colonne presenti da entrambe le parti, e senza questo
+        // andrebbe perso (mentre in una tabella creata da zero viene emesso).
+        if (opts.compareComments)
+          for (const c of d.columns.onlySource)
+            if (c.comment)
+              put('COMMENTI', `COMMENT ON COLUMN ${table}.${ident(c.name)} IS ${lit(c.comment)}`);
       }
       for (const [a, b] of d.columns.changed) {
         // Identità ed espressione di una colonna virtuale non si cambiano con

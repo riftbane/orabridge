@@ -442,6 +442,18 @@ test('CREATE TABLE completo, con FK e indici a parte', () => {
   assert.match(sql, /COMMENT ON COLUMN "PROD"\."ORDINI"\."CREATO_IL" IS 'quando'/);
 });
 
+test('una colonna aggiunta si porta dietro il suo commento', () => {
+  const base = (columns) =>
+    snapshot('DEV', { tables: byName([table('T', columns)]) });
+  const src = base([col('ID', 'NUMBER'), col('NOTE', 'VARCHAR2(10)', { comment: 'appunti' })]);
+  const tgt = { ...base([col('ID', 'NUMBER')]), owner: 'PROD' };
+
+  const items = compareSnapshots(src, tgt).items;
+  const { sql } = buildSyncScript(src, tgt, items, {});
+  assert.match(sql, /ALTER TABLE "PROD"\."T" ADD \(/);
+  assert.match(sql, /COMMENT ON COLUMN "PROD"\."T"\."NOTE" IS 'appunti'/);
+});
+
 test('sorgenti PL/SQL: CREATE OR REPLACE chiuso da /', () => {
   const pkg = (body) =>
     snapshot('DEV', {
