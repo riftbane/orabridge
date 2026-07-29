@@ -2,6 +2,59 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.23.0 — 2026-07-29
+
+- **Nuovo:** selezione massiva e filtri per stato nel confronto fra database
+
+  Deselezionare gli oggetti voleva dire togliere la spunta a una categoria
+  per volta, scorrendo l'elenco fino in fondo. Ora sotto la casella di
+  ricerca ci sono tutti / nessuno / inverti, che agiscono su ciò che è in
+  elenco in quel momento: combinati con i filtri per stato — solo origine,
+  solo destinazione, diversi, uguali, ognuno con il suo conteggio — scelgono
+  un blocco intero in un colpo solo, per esempio «solo origine» + «tutti»
+  per creare nella destinazione ciò che le manca. I filtri per stato
+  prendono il posto della casella che mostrava anche gli oggetti identici.
+
+  Le categorie si comprimono, una alla volta dal titolo o tutte insieme, e la
+  spunta di gruppo mostra lo stato intermedio quando la selezione è parziale.
+  Anche i tipi di oggetto da confrontare hanno il loro tutti / nessuno.
+
+  Lo script di sincronizzazione ora sopravvive al passaggio fra le due schede
+  — prima tornando alle differenze andava perso e bisognava rigenerarlo — e
+  viene invece azzerato quando cambia la selezione o l'opzione dei DROP, così
+  quello che si copia corrisponde sempre a ciò che è spuntato.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+- **Fix:** il confronto non inventa più differenze sulle colonne di identità
+
+  Il DEFAULT di una colonna era l'unico pezzo di DDL a non passare dal remap
+  dello schema: la tabella creata nella destinazione continuava a pescare
+  dalla sequenza dell'origine ("SPAEC"."ACQUISTO_RFQ" con DEFAULT
+  "SPASS"."SEQ_ID_RFQ"."NEXTVAL"). Stesso buco nelle espressioni degli indici
+  funzionali.
+
+  Le colonne di identità venivano confrontate sul testo del loro default,
+  cioè sul nome della sequenza che Oracle si crea dietro le quinte: quel
+  numero è un id interno del database, quindi "SSPE"."ISEQ$$_176443".nextval
+  e "SS"."ISEQ$$_593557".nextval risultavano diversi pur essendo la stessa
+  cosa. Ora la colonna si legge da all_tab_identity_cols e si confronta sul
+  tipo di generazione, e le sequenze ISEQ$$ spariscono dall'elenco degli
+  oggetti, dove erano rumore garantito (comparivano sempre in coppia, una
+  solo in origine e una solo in destinazione). Se quella vista non è
+  leggibile — 11g o privilegi scarsi — resta una rete di sicurezza che
+  riconosce quei default dal nome. Lo script emette GENERATED … AS IDENTITY
+  invece di agganciare la tabella a una sequenza che nella destinazione non
+  esiste.
+
+  Nell'occasione, altre tre cose che producevano DDL da correggere a mano: le
+  colonne virtuali venivano ricreate con l'espressione di calcolo al posto
+  del DEFAULT, una colonna NOT NULL senza DEFAULT non può essere aggiunta a
+  una tabella che ha già righe (ora c'è un avviso prima dell'istruzione) e
+  identità ed espressioni virtuali non si cambiano con un MODIFY: vengono
+  segnalate invece di generare un'istruzione che fallisce.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.22.0 — 2026-07-28
 
 - **Nuovo:** il formattatore SQL allinea le clausole a destra del «fiume»
