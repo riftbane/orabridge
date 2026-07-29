@@ -8,6 +8,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   TitleBar.jsx (usata al posto della sidebar-head quando CUSTOM_TITLE_BAR è attivo) non era stata aggiornata insieme a Sidebar.jsx quando è arrivato l'editor a nodi.
 
+- Build: [`Orabridge-Setup-1.24.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.24.1/Orabridge-Setup-1.24.1.exe) (2026-07-29).
+
 ## v1.24.0 — 2026-07-29
 
 - **Nuovo:** editor a nodi per disegnare e modificare lo schema (beta)
