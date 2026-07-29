@@ -8,7 +8,7 @@
 // Lo script non viene mai eseguito da Orabridge: si apre in un foglio SQL, si
 // rilegge e si lancia a mano.
 
-import { tableDelta, diffOptions } from './compare.js';
+import { tableDelta, diffOptions, describeColumn, isIdentityDefault } from './compare.js';
 import { sourceKey } from './snapshot.js';
 
 // Gli identificatori arrivano dal dizionario, quindi già nella forma esatta in
@@ -27,9 +27,25 @@ function remapDdl(text, from, to) {
   return String(text).replace(rx, `$1${ident(to)}.`);
 }
 
-function columnDdl(c) {
+// Il DEFAULT di una colonna può citare una sequenza dello schema di origine
+// (`"DEV"."SEQ_ID"."NEXTVAL"`): va rimappato come tutto il resto, altrimenti
+// la tabella creata nella destinazione continua a pescare dall'origine.
+function columnDdl(c, srcOwner, tgtOwner) {
+  const def = c.default == null ? null : remapDdl(c.default, srcOwner, tgtOwner);
+  // Se il dizionario non ha detto quali colonne sono di identità, il default
+  // che punta a una ISEQ$$ lo tradisce: ricopiarlo creerebbe una tabella
+  // agganciata a una sequenza che nella destinazione non esiste.
+  const identity = c.identity || (isIdentityDefault(c.default) ? 'BY DEFAULT' : null);
+  // Per identità e colonne virtuali il valore non è un DEFAULT: la sequenza
+  // di sistema e l'espressione di calcolo hanno una sintassi tutta loro.
+  // Il tipo di una colonna virtuale lo deduce Oracle dall'espressione:
+  // dichiararlo può solo entrare in conflitto.
+  if (c.virtual && def != null)
+    return `${ident(c.name)} AS (${def}) VIRTUAL${c.notNull ? ' NOT NULL' : ''}`;
   let s = `${ident(c.name)} ${c.type}`;
-  if (c.default != null) s += ` DEFAULT ${c.default}`;
+  // Una colonna di identità è già obbligatoria: ripetere NOT NULL è superfluo.
+  if (identity) return `${s} GENERATED ${identity} AS IDENTITY`;
+  if (def != null) s += ` DEFAULT ${def}`;
   if (c.notNull) s += ' NOT NULL';
   return s;
 }
@@ -52,21 +68,22 @@ function constraintClause(c, srcOwner, tgtOwner) {
 }
 
 // Le colonne di un indice possono essere espressioni (indice funzionale):
-// quelle vanno lasciate come sono, i nomi semplici vanno citati.
-function indexColumnDdl(col) {
+// quelle vanno lasciate come sono — a parte lo schema, che va rimappato —
+// mentre i nomi semplici vanno citati.
+function indexColumnDdl(col, srcOwner, tgtOwner) {
   const m = /^(.*?)( DESC)?$/.exec(col);
   const expr = m[1];
   const plain = /^[A-Za-z][A-Za-z0-9_$#]*$/.test(expr);
-  return (plain ? ident(expr) : expr) + (m[2] || '');
+  return (plain ? ident(expr) : remapDdl(expr, srcOwner, tgtOwner)) + (m[2] || '');
 }
 
-const createIndexDdl = (i, table, owner) =>
+const createIndexDdl = (i, table, owner, srcOwner) =>
   `CREATE ${i.unique ? 'UNIQUE ' : ''}${i.type === 'BITMAP' ? 'BITMAP ' : ''}INDEX ` +
   `${qual(owner, i.name)} ON ${qual(owner, table)} ` +
-  `(${i.columns.map(indexColumnDdl).join(', ')})`;
+  `(${i.columns.map((c) => indexColumnDdl(c, srcOwner, owner)).join(', ')})`;
 
 function createTableDdl(t, owner, srcOwner) {
-  const lines = t.columns.map(columnDdl);
+  const lines = t.columns.map((c) => columnDdl(c, srcOwner, owner));
   for (const c of t.constraints) {
     if (c.type === 'R') continue; // le FK arrivano dopo, a tabelle create
     lines.push(constraintClause(c, srcOwner, owner));
@@ -103,10 +120,13 @@ function alterSequenceDdl(s, t, owner) {
 
 // MODIFY minimale: elencare attributi già uguali fa fallire l'istruzione
 // (ORA-01442 se la colonna è già NOT NULL).
-function modifyColumnDdl(a, b) {
+function modifyColumnDdl(a, b, srcOwner, tgtOwner) {
+  const def = a.default == null ? null : remapDdl(a.default, srcOwner, tgtOwner);
   let s = ident(a.name);
   if (a.type !== b.type) s += ` ${a.type}`;
-  if ((a.default ?? null) !== (b.default ?? null)) s += ` DEFAULT ${a.default ?? 'NULL'}`;
+  // Il confronto è sul default già rimappato: uno che cita lo schema di
+  // origine e uno che cita quello di destinazione sono lo stesso default.
+  if (def !== (b.default ?? null)) s += ` DEFAULT ${def ?? 'NULL'}`;
   if (a.notNull !== b.notNull) s += a.notNull ? ' NOT NULL' : ' NULL';
   return s;
 }
@@ -227,7 +247,7 @@ export function buildSyncScript(src, tgt, items, options = {}) {
           const backing = s.constraints.some(
             (c) => (c.type === 'P' || c.type === 'U') && c.name === i.name
           );
-          if (!backing) put('VINCOLI E INDICI', createIndexDdl(i, name, owner));
+          if (!backing) put('VINCOLI E INDICI', createIndexDdl(i, name, owner, srcOwner));
         }
         if (s.comment) put('COMMENTI', `COMMENT ON TABLE ${qual(owner, name)} IS ${lit(s.comment)}`);
         for (const c of s.columns)
@@ -245,10 +265,38 @@ export function buildSyncScript(src, tgt, items, options = {}) {
       const d = tableDelta(s, t, opts);
       const table = qual(owner, name);
 
-      if (d.columns.onlySource.length)
-        put('TABELLE', `ALTER TABLE ${table} ADD (\n  ${d.columns.onlySource.map(columnDdl).join(',\n  ')}\n)`);
-      for (const [a, b] of d.columns.changed)
-        put('TABELLE', `ALTER TABLE ${table} MODIFY (${modifyColumnDdl(a, b)})`);
+      if (d.columns.onlySource.length) {
+        // Una colonna obbligatoria senza valore di riempimento fa fallire
+        // l'ADD se la tabella ha già delle righe: meglio dirlo prima.
+        const senzaDefault = d.columns.onlySource.filter(
+          (c) => c.notNull && c.default == null && !c.identity && !c.virtual
+        );
+        if (senzaDefault.length)
+          note(
+            'TABELLE',
+            `${name}: colonne NOT NULL senza DEFAULT — l'ADD fallisce se la tabella contiene già righe ` +
+              `(${senzaDefault.map((c) => c.name).join(', ')})`
+          );
+        put(
+          'TABELLE',
+          `ALTER TABLE ${table} ADD (\n  ` +
+            d.columns.onlySource.map((c) => columnDdl(c, srcOwner, owner)).join(',\n  ') +
+            `\n)`
+        );
+      }
+      for (const [a, b] of d.columns.changed) {
+        // Identità ed espressione di una colonna virtuale non si cambiano con
+        // un MODIFY: la colonna va rifatta, decidendo cosa fare dei dati.
+        if (a.identity || b.identity || a.virtual || b.virtual) {
+          note(
+            'TABELLE',
+            `${name}.${a.name}: colonna di identità o virtuale diversa — va ricreata a mano ` +
+              `(origine: ${describeColumn(a)} / destinazione: ${describeColumn(b)})`
+          );
+          continue;
+        }
+        put('TABELLE', `ALTER TABLE ${table} MODIFY (${modifyColumnDdl(a, b, srcOwner, owner)})`);
+      }
       if (d.columns.onlyTarget.length) {
         if (includeDrops) {
           dropped += d.columns.onlyTarget.length;
@@ -281,8 +329,10 @@ export function buildSyncScript(src, tgt, items, options = {}) {
 
       for (const [, b] of d.indexes.changed)
         put('VINCOLI E INDICI', `DROP INDEX ${qual(owner, b.name)}`);
-      for (const [a] of d.indexes.changed) put('VINCOLI E INDICI', createIndexDdl(a, name, owner));
-      for (const i of d.indexes.onlySource) put('VINCOLI E INDICI', createIndexDdl(i, name, owner));
+      for (const [a] of d.indexes.changed)
+        put('VINCOLI E INDICI', createIndexDdl(a, name, owner, srcOwner));
+      for (const i of d.indexes.onlySource)
+        put('VINCOLI E INDICI', createIndexDdl(i, name, owner, srcOwner));
       if (d.indexes.onlyTarget.length) {
         if (includeDrops) {
           dropped += d.indexes.onlyTarget.length;

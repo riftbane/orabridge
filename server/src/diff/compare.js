@@ -47,12 +47,49 @@ const sameText = (a, b, opts) => normalizeText(a, opts) === normalizeText(b, opt
 
 // ---- descrizioni leggibili, usate sia nella UI sia per decidere l'uguaglianza ----
 
+// Riferimento a una sequenza di identità (`"S"."ISEQ$$_176443".nextval`): il
+// numero è un id interno del database, quindi due colonne identiche in due
+// database hanno per forza un default diverso. Nel confronto diventa un
+// segnaposto. Serve solo come rete di sicurezza per gli snapshot in cui
+// all_tab_identity_cols non era leggibile: quando lo è, il default di una
+// colonna di identità non viene nemmeno letto (vedi snapshot.js).
+const IDENTITY_DEFAULT_RX =
+  /(?:(?:"[^"]+"|[A-Za-z0-9_$#]+)\s*\.\s*)?"?ISEQ\$\$_\d+"?/gi;
+
+// NEXTVAL/CURRVAL sono parole chiave: la loro grafia non è una differenza.
+const SEQ_PSEUDOCOL_RX = /\.\s*(nextval|currval)\b/gi;
+
+// Colonna di identità riconosciuta dal solo default, senza l'aiuto di
+// all_tab_identity_cols.
+export const isIdentityDefault = (value) => /"?ISEQ\$\$_\d+"?/i.test(String(value ?? ''));
+
+export function normalizeDefault(value, opts = {}) {
+  if (value == null) return null;
+  const s = String(value)
+    .replace(IDENTITY_DEFAULT_RX, '__IDENTITY__')
+    .replace(SEQ_PSEUDOCOL_RX, (_, kw) => '.' + kw.toUpperCase());
+  return normalizeText(s, { ...opts, ignoreWhitespace: true });
+}
+
 export function describeColumn(c) {
   let s = c.type;
-  if (c.default != null) s += ` DEFAULT ${c.default}`;
+  if (c.identity) s += ` GENERATED ${c.identity} AS IDENTITY`;
+  else if (c.virtual && c.default != null) s += ` AS (${c.default}) VIRTUAL`;
+  else if (c.default != null) s += ` DEFAULT ${c.default}`;
   if (c.notNull) s += ' NOT NULL';
   return s;
 }
+
+// Uguaglianza di due colonne: come describeColumn, ma con il default
+// normalizzato (schema rimappato, sequenze di identità neutralizzate).
+export const columnSignature = (c, opts) =>
+  [
+    c.type,
+    c.identity ?? '',
+    c.virtual ? 'V' : '',
+    normalizeDefault(c.default, opts) ?? '',
+    c.notNull ? 'NN' : '',
+  ].join('|');
 
 export function describeConstraint(c) {
   const cols = c.columns.join(', ');
@@ -144,7 +181,9 @@ const change = (kind, name, change, source, target) => ({ kind, name, change, so
 // l'accoppiamento fra le due tabelle è calcolato una volta sola.
 export function tableDelta(s, t, opts) {
   const columns = pairItems(s.columns, t.columns, () => '', { ignoreGeneratedNames: false });
-  columns.changed = columns.pairs.filter(([a, b]) => describeColumn(a) !== describeColumn(b));
+  columns.changed = columns.pairs.filter(
+    ([a, b]) => columnSignature(a, opts) !== columnSignature(b, opts)
+  );
 
   const constraints = opts.compareConstraints
     ? pairItems(s.constraints, t.constraints, constraintSignature, opts)

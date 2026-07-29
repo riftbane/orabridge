@@ -78,6 +78,18 @@ export function isGeneratedName(name) {
   return /^(SYS_C\d|SYS_IL\d|SYS_NC\d|BIN\$)/i.test(String(name || ''));
 }
 
+// Sequenza creata da Oracle dietro una colonna di identità: appartiene alla
+// tabella, non allo schema. Il numero nel nome è un id interno, diverso in
+// ogni database, quindi confrontarla come oggetto a sé produrrebbe solo
+// falsi "solo in origine"/"solo in destinazione".
+export function isIdentitySequence(name) {
+  return /^ISEQ\$\$_\d+$/i.test(String(name || ''));
+}
+
+// GENERATION_TYPE di all_tab_identity_cols, normalizzato: quello che finisce
+// nel DDL deve essere una delle due forme previste dalla sintassi.
+const identityKind = (v) => (String(v || '').toUpperCase() === 'ALWAYS' ? 'ALWAYS' : 'BY DEFAULT');
+
 // Converte il filtro nomi digitato dall'utente in un predicato.
 // Con % o _ vale come LIKE di Oracle, altrimenti è una sottostringa.
 export function nameMatcher(pattern) {
@@ -159,9 +171,31 @@ export async function readSnapshot(entry, owner, { types = DIFF_TYPES, filter = 
           WHERE c.owner = :owner AND c.table_name NOT LIKE 'BIN$%'
           ORDER BY c.table_name, c.column_id`
       );
+      // Colonne di identità (12c) e colonne virtuali: per entrambe il
+      // data_default letto sopra non è un vero DEFAULT — per le prime è la
+      // sequenza di sistema, per le seconde l'espressione di calcolo — e
+      // ricopiarlo tale e quale produrrebbe DDL non valido nella
+      // destinazione. Query separate e best-effort: su 11g la prima vista
+      // non esiste e si ottiene semplicemente una lista vuota.
+      const identityRows = await optional(
+        `SELECT table_name, column_name, generation_type
+           FROM all_tab_identity_cols WHERE owner = :owner`
+      );
+      const virtualRows = await optional(
+        `SELECT table_name, column_name FROM all_tab_cols
+          WHERE owner = :owner AND virtual_column = 'YES' AND hidden_column = 'NO'
+            AND table_name NOT LIKE 'BIN$%'`
+      );
+      const colKey = (table, column) => `${table}\u0000${column}`;
+      const identityBy = new Map(
+        identityRows.map(([table, column, kind]) => [colKey(table, column), identityKind(kind)])
+      );
+      const virtualCols = new Set(virtualRows.map(([table, column]) => colKey(table, column)));
+
       for (const r of colRows) {
         const t = snap.tables[r[0]];
         if (!t) continue;
+        const identity = identityBy.get(colKey(r[0], r[1])) || null;
         t.columns.push({
           name: r[1],
           id: r[2],
@@ -175,7 +209,11 @@ export async function readSnapshot(entry, owner, { types = DIFF_TYPES, filter = 
             scale: r[9],
           }),
           notNull: r[10] === 'N',
-          default: cleanDefault(r[11]),
+          // Per una colonna di identità il default è la sequenza di sistema:
+          // l'informazione utile è già in `identity`.
+          default: identity ? null : cleanDefault(r[11]),
+          identity,
+          virtual: virtualCols.has(colKey(r[0], r[1])),
           comment: clean(r[12]),
         });
       }
@@ -345,7 +383,7 @@ export async function readSnapshot(entry, owner, { types = DIFF_TYPES, filter = 
            FROM all_sequences WHERE sequence_owner = :owner`
       );
       for (const [name, min, max, inc, cycle, order, cache, last] of rows) {
-        if (!match(name)) continue;
+        if (!match(name) || isIdentitySequence(name)) continue;
         snap.sequences[name] = {
           name,
           min,
