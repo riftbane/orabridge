@@ -51,6 +51,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.24.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.24.0/Orabridge-Setup-1.24.0.exe) (2026-07-29).
+
 ## v1.23.0 — 2026-07-29
 
 - **Nuovo:** selezione massiva e filtri per stato nel confronto fra database
