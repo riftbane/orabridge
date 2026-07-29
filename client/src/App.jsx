@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, GitCompare, History, X } from 'lucide-react';
+import { BookOpen, GitCompare, History, Network, X } from 'lucide-react';
 import { useStore } from './store.js';
 import { CUSTOM_TITLE_BAR } from './appInfo.js';
 import Sidebar from './components/Sidebar.jsx';
@@ -11,6 +11,7 @@ import Worksheet from './components/Worksheet.jsx';
 import ObjectDetail from './components/ObjectDetail.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
 import DbDiff from './components/DbDiff.jsx';
+import GraphView from './components/graph/GraphView.jsx';
 import AiPanel from './components/AiPanel.jsx';
 import Resizer from './components/Resizer.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
@@ -47,6 +48,10 @@ function TabBar() {
             ) : t.kind === 'guide' ? (
               <span className="type-icon" style={{ color: '#6cb6ff', borderColor: '#6cb6ff' }}>
                 <BookOpen size={10} />
+              </span>
+            ) : t.kind === 'graph' ? (
+              <span className="type-icon" style={{ color: '#c678dd', borderColor: '#c678dd' }}>
+                <Network size={10} />
               </span>
             ) : (
               <TypeIcon type={t.type} />
@@ -225,6 +230,8 @@ export default function App() {
                   <DbDiff tab={t} />
                 ) : t.kind === 'guide' ? (
                   <GuideView />
+                ) : t.kind === 'graph' ? (
+                  <GraphView tab={t} />
                 ) : (
                   <ObjectDetail tab={t} />
                 )}

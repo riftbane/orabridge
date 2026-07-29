@@ -434,6 +434,88 @@ Lo script viene generato dalle fotografie dei due schemi, senza
 `,
   },
   {
+    id: 'diagramma',
+    title: 'Diagramma (beta)',
+    summary: "Editor a nodi: vedere e modificare lo schema come un grafo.",
+    md: `
+L'icona a **rete** fra i comandi in alto apre il diagramma: ogni tabella è un
+nodo, ogni foreign key un collegamento fra due colonne. È una **beta**: fa già
+tutto quello che serve sulle tabelle e sulle loro relazioni, ma è la parte più
+giovane di Orabridge.
+
+## Aprire
+
+Si sceglie connessione e schema, e — su schemi grandi — un **filtro sui nomi**
+(accetta \`%\` e \`_\`): un canvas con quattrocento tabelle non si legge. Quello
+che resta fuori dal disegno **non viene toccato**: il diagramma tiene comunque
+lo schema intero, altrimenti applicare le modifiche proporrebbe di cancellare
+tutto il resto.
+
+La disposizione dei nodi si salva da sola: i padri a sinistra, i figli a
+destra, le tabelle senza collegamenti in una griglia a parte. Riaprendo il
+diagramma la si ritrova com'era.
+
+## Muoversi
+
+| | |
+| --- | --- |
+| rotella | ingrandisci · **Maiusc**+rotella scorri |
+| trascina il vuoto | selezione a rettangolo |
+| **Alt**+trascina, o tasto centrale | sposta la vista |
+| **F** / **Maiusc+F** | inquadra la selezione / tutto |
+| **N** | nuova tabella |
+| **Canc** | elimina la selezione |
+| **Ctrl+Z** / **Ctrl+Maiusc+Z** | annulla / ripeti |
+
+Allontanandosi i nodi si semplificano da soli: prima restano le sole colonne
+chiave, poi il solo nome. L'icona della **chiave** nella barra tiene le sole
+colonne chiave a qualsiasi ingrandimento.
+
+## Modificare
+
+**Doppio clic su un nodo** e la tabella si apre lì dov'è: colonne, vincoli,
+indici e commento, senza finestre di mezzo. Non c'è un pulsante «salva» —
+niente tocca il database finché non si applica, e \`Ctrl+Z\` annulla tutto.
+
+Rinominando una colonna **la seguono da sole** la chiave primaria, gli indici e
+ogni foreign key che la referenzia, in tutto il diagramma: i collegamenti
+puntano all'identità della colonna, non al suo nome.
+
+## Foreign key
+
+Si trascina una colonna sopra un'altra tabella: rilasciando su una **colonna**
+si collega quella, rilasciando sull'**intestazione** si punta alla chiave
+primaria. **Doppio clic sulla linea** apre le impostazioni del vincolo: nome,
+\`ON DELETE\`, stato, e la casella che crea l'**indice sulle colonne figlie** —
+una FK senza quell'indice fa sì che ogni \`DELETE\` sul padre blocchi la
+tabella figlia.
+
+## Controlli
+
+A destra ci sono le **modifiche in sospeso**, raggruppate per tabella e
+annullabili una per una, e i **controlli**: nomi duplicati o troppo lunghi per
+la versione di Oracle in uso (30 caratteri prima della 12.2, 128 dopo), tipi
+incompatibili fra le due parti di una foreign key, riferimenti a colonne non
+uniche, tabelle senza chiave primaria. Gli errori bloccano l'applicazione, gli
+avvisi no.
+
+## Applicare
+
+Il pulsante **Applica** rilegge lo schema, calcola la differenza fra il
+disegno e il database e ne ricava lo script — con le **rinomine in cima**,
+perché tutto il resto le dà per fatte. Prima di eseguire qualsiasi cosa lo
+script si vede, e per le tabelle da eliminare compare il **numero di righe**
+che contengono.
+
+Due strade: **aprire lo script in un foglio SQL** e lanciarlo a mano, oppure
+eseguirlo da lì. Se nel frattempo qualcun altro ha modificato il database, il
+diagramma lo dice e si ferma.
+
+Le modifiche non applicate **non vengono salvate**: chiudendo la scheda si
+perdono, e Orabridge lo chiede prima.
+`,
+  },
+  {
     id: 'ai',
     title: 'Assistente AI',
     summary: 'Configurazione, sessioni, permessi e approvazioni.',

@@ -87,6 +87,13 @@ export const api = {
     j('GET', `/api/diff/${runId}/detail?${q({ type, name })}`),
   diffScript: (runId, body) => j('POST', `/api/diff/${runId}/script`, body),
 
+  // editor a nodi (beta)
+  graphSession: (body) => j('POST', '/api/graph/session', body),
+  graphPlan: (sessionId, body) => j('POST', `/api/graph/${sessionId}/plan`, body),
+  graphLayout: (connId, owner) => j('GET', `/api/graph/diagram/${connId}/${encodeURIComponent(owner)}`),
+  saveGraphLayout: (connId, owner, body) =>
+    j('PUT', `/api/graph/diagram/${connId}/${encodeURIComponent(owner)}`, body),
+
   // assistente AI
   aiSettings: () => j('GET', '/api/ai/settings'),
   saveAiSettings: (body) => j('PUT', '/api/ai/settings', body),

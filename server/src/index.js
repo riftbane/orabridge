@@ -7,6 +7,7 @@ import metadataRouter from './routes/metadata.js';
 import sqlRouter from './routes/sql.js';
 import historyRouter from './routes/history.js';
 import diffRouter from './routes/diff.js';
+import graphRouter from './routes/graph.js';
 import aiRouter from './routes/ai.js';
 import releasesRouter from './routes/releases.js';
 import { pools } from './pools.js';
@@ -122,6 +123,9 @@ function createApp({ token = TOKEN, host = HOST } = {}) {
   app.use('/api/history', historyRouter);
   // Il confronto fra due database tocca due connessioni: sta fuori da /api/conn/:id.
   app.use('/api/diff', diffRouter);
+  // Editor a nodi: una sessione tiene la fotografia dello schema su cui si
+  // calcolano le modifiche, quindi non sta sotto /api/conn/:id.
+  app.use('/api/graph', graphRouter);
   // Assistente AI: impostazioni, elenco modelli e sessioni di chat.
   app.use('/api/ai', aiRouter);
   // Novità delle versioni, lette da GitHub Releases e messe in cache.

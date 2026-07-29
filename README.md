@@ -47,6 +47,27 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - lo script crea le colonne di identità e quelle virtuali con la loro
     sintassi, rimappa sulla destinazione anche i `DEFAULT` che citano una
     sequenza e segnala quello che va rifatto a mano
+- **Diagramma — editor a nodi** (icona a rete fra i comandi in alto, **beta**):
+  lo schema come grafo, e ci si lavora dentro
+  - ogni tabella è un nodo, ogni foreign key un collegamento fra due colonne;
+    disposizione automatica a livelli (padri a sinistra, figli a destra) e
+    posizioni salvate per connessione+schema
+  - allontanandosi i nodi si semplificano da sé — prima le sole colonne chiave,
+    poi il solo nome — così anche uno schema da centinaia di tabelle resta
+    navigabile; all'apertura si può caricare un sottoinsieme con un filtro
+  - **doppio clic su un nodo** e la tabella si modifica lì dov'è: colonne,
+    vincoli, indici, commento. Rinominando una colonna la seguono da sole la
+    chiave, gli indici e ogni FK che la referenzia, in tutto il diagramma
+  - le **foreign key** si creano trascinando una colonna su un'altra tabella;
+    doppio clic sulla linea apre `ON DELETE`, stato e la casella che crea
+    l'indice sulle colonne figlie (senza, ogni `DELETE` sul padre blocca la figlia)
+  - controlli continui su tutto lo schema: nomi duplicati o troppo lunghi per la
+    versione di Oracle in uso, tipi incompatibili fra le due parti di una FK,
+    riferimenti a colonne non uniche
+  - **Applica** rilegge lo schema, calcola la differenza con il disegno e ne
+    ricava lo script — rinomine in cima, con il numero di righe delle tabelle da
+    eliminare e la conferma da digitare. Lo si vede sempre prima: si apre in un
+    foglio SQL o si esegue da lì
 - **Assistente AI** (icona ✨ o `Ctrl+Alt+I`): un pannello di chat che lavora
   davvero sul database, non solo sul testo della domanda
   - piattaforme supportate: **OpenRouter, Anthropic, Google Gemini, OpenAI** —
@@ -374,9 +395,11 @@ server/                  Express + node-oracledb (thin)
   src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
-  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
+  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/graph, /api/ai
   src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
+  src/graph/             editor a nodi: modello del diagramma, rinomine, piano DDL
+  src/diagrams.js        disposizione dei diagrammi, per connessione+schema
   src/ai/providers.js    adattatori OpenRouter/Anthropic/Gemini/OpenAI + modello locale
   src/ai/localModels.js  catalogo Gemma 4, download con ripresa e avanzamento
   src/ai/localLlama.js   llama.cpp: caricamento del modello, tool calling, token
@@ -407,6 +430,18 @@ Confronto e generazione dello script sono funzioni pure, coperte da test
 (`npm test` in `server/` e in `client/`). Anche la classificazione delle
 istruzioni che regola i permessi dell'assistente e la normalizzazione dei
 conteggi di token sono coperte da test.
+
+Il **diagramma** poggia sullo stesso motore: il disegno *è* una fotografia dello
+schema, e applicare le modifiche è il confronto fra quella disegnata e quella
+letta dal database. Il disegno però è indicizzato per id stabile invece che per
+nome — il confronto accoppia gli oggetti per nome, e una tabella rinominata
+sembrerebbe «eliminata e ricreata» — quindi un passaggio dedicato emette le
+rinomine, che vanno in cima allo script, e riscrive la fotografia di partenza
+come sarà dopo di esse. Da lì in poi il confronto vede solo le differenze vere.
+Anche questo è tutto puro e testato, invariante compreso: aprire un diagramma e
+applicarlo senza toccare nulla produce uno script vuoto. Il progetto e lo stato
+del lavoro stanno in [`docs/editor-a-nodi.md`](docs/editor-a-nodi.md) e
+[`docs/editor-a-nodi-roadmap.md`](docs/editor-a-nodi-roadmap.md).
 
 ## Risoluzione problemi
 

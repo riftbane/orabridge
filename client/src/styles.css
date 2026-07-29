@@ -3761,3 +3761,563 @@ body.resizing .cm-editor {
   color: var(--accent);
   flex: none;
 }
+
+/* ---------- editor a nodi (beta) ---------- */
+
+.graph-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.beta-badge {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #c678dd22;
+  color: #c678dd;
+  border: 1px solid #c678dd55;
+}
+.graph-schema {
+  font-weight: 600;
+  font-size: 12px;
+}
+.graph-zoom {
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  min-width: 42px;
+  text-align: right;
+}
+.graph-search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-dim);
+}
+.graph-search input {
+  border: none;
+  background: none;
+  width: 150px;
+  padding: 4px 0;
+}
+.graph-toolbar .icon-btn.on {
+  color: var(--accent);
+  background: var(--bg-active);
+}
+
+.graph-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.graph-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* La superficie: una griglia tenue dà il senso dello spostamento, che su uno
+   sfondo piatto si perderebbe del tutto. */
+.gcanvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--bg-editor);
+  background-image: radial-gradient(circle, #2a2c34 1px, transparent 1px);
+  background-size: 22px 22px;
+  touch-action: none;
+  cursor: default;
+}
+.gcanvas.panning {
+  cursor: grabbing;
+}
+.gworld {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.gband {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: #e8734a1f;
+  pointer-events: none;
+}
+
+/* ---- archi ---- */
+
+.gedges {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  color: #6b7080;
+}
+.gedge {
+  pointer-events: auto;
+}
+.gedge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  cursor: pointer;
+}
+.gedge-line {
+  fill: none;
+  stroke: #6b7080;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+.gedge.on .gedge-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.gedge.on {
+  color: var(--accent);
+}
+.gedge-line.linking {
+  stroke: var(--accent);
+  stroke-dasharray: 4 3;
+}
+.gedge-badge {
+  fill: var(--fg-dim);
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* ---- nodo ---- */
+
+.gnode {
+  position: absolute;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 11.5px;
+  box-shadow: 0 2px 8px #0006;
+  user-select: none;
+  cursor: default;
+}
+.gnode.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 3px 12px #0008;
+}
+.gnode.changed {
+  border-left: 3px solid var(--warn);
+}
+.gnode.created {
+  border-left: 3px solid var(--ok);
+}
+.gnode.deleted {
+  opacity: 0.5;
+  border-left: 3px solid var(--err);
+}
+.gnode.has-error {
+  border-color: var(--err);
+}
+.gnode.far {
+  display: flex;
+  align-items: center;
+  height: 30px;
+}
+.gnode.editing {
+  z-index: 30;
+  cursor: default;
+  box-shadow: 0 8px 32px #000a;
+}
+
+.gnode-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-active);
+  border-radius: 4px 4px 0 0;
+  cursor: grab;
+}
+.gnode.far .gnode-head {
+  border-bottom: none;
+  height: 100% !important;
+  flex: 1;
+}
+.gnode-chev {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  display: flex;
+  padding: 0;
+  cursor: pointer;
+}
+.gnode-icon {
+  color: #61afef;
+  flex: none;
+}
+.gnode-title {
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gnode-alert.err {
+  color: var(--err);
+}
+.gnode-alert.warn {
+  color: var(--warn);
+}
+
+.gnode-rows {
+  padding: 1px 0;
+}
+.gnode-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  position: relative;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.gnode-row:hover {
+  background: var(--bg-hover);
+}
+.gnode-row.more {
+  color: var(--fg-dim);
+  font-style: italic;
+  justify-content: center;
+  font-family: var(--sans);
+}
+.gnode-key {
+  width: 12px;
+  display: flex;
+  flex: none;
+}
+.gnode-key .pk {
+  color: var(--warn);
+}
+.gnode-key .fk {
+  color: #61afef;
+}
+.gnode-colname {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gnode-coltype {
+  color: var(--fg-dim);
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gnode-nn {
+  color: var(--err);
+  flex: none;
+}
+.gnode-foot {
+  border-top: 1px solid var(--border);
+  padding: 1px 6px;
+  font-size: 9.5px;
+  color: var(--fg-dim);
+  text-align: right;
+}
+
+/* Le maniglie da cui parte una foreign key: si vedono solo avvicinandosi al
+   nodo, altrimenti il diagramma sarebbe punteggiato di pallini. */
+.gnode-port {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid var(--bg-panel);
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  cursor: crosshair;
+  transition: opacity 0.12s;
+}
+.gnode-port.left {
+  left: -5px;
+}
+.gnode-port.right {
+  right: -5px;
+}
+.gnode:hover .gnode-port {
+  opacity: 0.85;
+}
+.gnode-port:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.25);
+}
+.gnode-droptarget {
+  display: none;
+}
+
+/* ---- modifica in place ---- */
+
+.gedit {
+  cursor: default;
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.gedit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.gedit-name {
+  font-weight: 600;
+  width: 190px;
+}
+.gedit-body {
+  padding: 8px;
+  max-height: 380px;
+  overflow: auto;
+}
+.gnode-cols-grid {
+  grid-template-columns: 22px 1.3fr 1.3fr 26px 1fr 1fr 62px;
+}
+.gedit-rowbtns {
+  display: flex;
+  gap: 1px;
+}
+.gedit-dropped {
+  color: var(--err);
+  text-decoration: line-through;
+  align-self: center;
+  font-size: 11px;
+}
+.gedit-cols .btn {
+  margin-top: 8px;
+}
+.linkish {
+  background: none;
+  border: none;
+  color: #61afef;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font: inherit;
+}
+
+/* ---- pannelli ---- */
+
+.gpanel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px #000a;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+.gpanel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.gpanel-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.gpanel-foot {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+.gfk-pairs {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gfk-pairs-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--bg-active);
+  font-size: 11px;
+  font-weight: 600;
+}
+.gfk-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.gfk-pair span:first-child {
+  flex: 1;
+}
+.gfk-pair span:last-child {
+  flex: 1;
+  text-align: right;
+}
+.gfk-arrow {
+  color: var(--fg-dim);
+}
+.gfk-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 4px;
+  background: #e5c07b14;
+  border: 1px solid #e5c07b44;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* ---- modifiche in sospeso ---- */
+
+.gchanges {
+  width: 300px;
+  flex: none;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+.gchanges-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+.gchanges-count {
+  background: var(--bg-active);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+.gchanges-count.err {
+  background: #e06c7533;
+  color: var(--err);
+}
+.gchanges-count.warn {
+  background: #e5c07b33;
+  color: var(--warn);
+}
+.gchanges-list {
+  padding: 4px 0;
+}
+.gchange {
+  padding: 5px 10px;
+  border-bottom: 1px solid #ffffff08;
+}
+.gchange-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.gchange-head .ok {
+  color: var(--ok);
+}
+.gchange-head .err {
+  color: var(--err);
+}
+.gchange-head .warn {
+  color: var(--warn);
+}
+.gchange-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 12px;
+}
+.gchange-details {
+  list-style: none;
+  margin: 2px 0 0 17px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+.gissue {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.gissue:hover {
+  background: var(--bg-hover);
+}
+.gissue.error {
+  color: var(--err);
+}
+.gissue.warn {
+  color: var(--warn);
+}
+.gissue svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* ---- applicazione ---- */
+
+.gapply-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.gapply-stats .err {
+  color: var(--err);
+}
+.gdrift {
+  margin: 6px 0 6px 18px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}

@@ -8,6 +8,15 @@ let toastId = 1;
 // Caricamenti di metadati in corso, per non ripetere la stessa richiesta.
 const pendingMeta = new Map();
 
+// Schede che possono opporsi alla propria chiusura (il diagramma, quando ha
+// modifiche non applicate). Vivono fuori dallo stato: sono funzioni, e non
+// hanno niente da fare in qualcosa che viene persistito.
+const closeGuards = new Map();
+export const setCloseGuard = (tabId, guard) => {
+  if (guard) closeGuards.set(tabId, guard);
+  else closeGuards.delete(tabId);
+};
+
 export const useStore = create(
   persist(
     (set, get) => ({
@@ -268,6 +277,16 @@ export const useStore = create(
         set((s) => ({ tabs: [...s.tabs, { id, kind: 'diff', title: 'DB Diff' }], activeTabId: id }));
       },
 
+      // Editor a nodi (beta). Come il confronto, più schede insieme sono
+      // legittime: sono diagrammi diversi.
+      openGraph(connId, owner) {
+        const id = `graph-${Date.now()}-${wsCounter++}`;
+        set((s) => ({
+          tabs: [...s.tabs, { id, kind: 'graph', connId, owner, title: 'Diagramma' }],
+          activeTabId: id,
+        }));
+      },
+
       setTabTitle(id, title) {
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)) }));
       },
@@ -284,6 +303,10 @@ export const useStore = create(
       },
 
       closeTab(id) {
+        // Una scheda con lavoro non applicato chiede conferma prima di
+        // sparire: il diagramma non persiste le modifiche in sospeso.
+        if (closeGuards.get(id)?.() === false) return;
+        closeGuards.delete(id);
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           const tabs = s.tabs.filter((t) => t.id !== id);

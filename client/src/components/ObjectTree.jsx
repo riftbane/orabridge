@@ -229,6 +229,16 @@ function Folder({ connId, owner, label, type, filter }) {
             {type === 'TABLE' && (
               <button
                 onClick={() => {
+                  useStore.getState().openGraph(connId, owner);
+                  setMenu(null);
+                }}
+              >
+                Apri nel diagramma
+              </button>
+            )}
+            {type === 'TABLE' && (
+              <button
+                onClick={() => {
                   setEditing(menu.name);
                   setMenu(null);
                 }}
