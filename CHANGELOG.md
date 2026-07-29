@@ -2,6 +2,55 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.24.0 — 2026-07-29
+
+- **Nuovo:** editor a nodi per disegnare e modificare lo schema (beta)
+
+  Lo schema come grafo: ogni tabella è un nodo, ogni foreign key un
+  collegamento fra due colonne, e ci si lavora dentro senza tornare
+  all'albero degli oggetti.
+
+  Il disegno *è* una fotografia dello schema, quindi applicare le modifiche
+  è il confronto fra quella disegnata e quella letta dal database, generato
+  con il motore che già serve il DB Diff. Il disegno però è indicizzato per
+  id stabile invece che per nome: il confronto accoppia gli oggetti per
+  nome, e una tabella rinominata sembrerebbe «eliminata e ricreata». Un
+  passaggio dedicato emette le rinomine — che vanno in cima allo script — e
+  riscrive la fotografia di partenza come sarà dopo di esse, così da lì in
+  poi si vedono solo le differenze vere. Dallo stesso accorgimento arriva la
+  propagazione automatica: rinominando una colonna la seguono da sole la
+  chiave, gli indici e ogni FK che la referenzia.
+
+  - disposizione automatica a livelli, posizioni salvate per
+    connessione+schema; allontanandosi i nodi si semplificano da sé, così
+    anche uno schema grande resta navigabile
+  - doppio clic su un nodo e la tabella si modifica lì dov'è; le FK si
+    creano trascinando una colonna su un'altra tabella, e il pannello del
+    vincolo offre l'indice sulle colonne figlie
+  - controlli continui su tutto lo schema: nomi duplicati o troppo lunghi
+    per la versione di Oracle in uso, tipi incompatibili fra le due parti di
+    una FK, riferimenti a colonne non uniche
+  - l'applicazione rilegge lo schema e si ferma se il database è cambiato
+    nel frattempo; lo script si vede sempre prima, con il conteggio righe
+    delle tabelle da eliminare e la conferma da digitare
+
+  Modello, rinomine e generazione dello script sono funzioni pure e
+  testate, invariante compreso: aprire un diagramma e applicarlo senza
+  toccare nulla produce uno script vuoto.
+
+  Progetto e stato del lavoro in docs/editor-a-nodi.md e
+  docs/editor-a-nodi-roadmap.md.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+- **Fix:** il confronto non perde più il commento di una colonna aggiunta
+
+  `d.columnComments` accoppia solo le colonne presenti da entrambe le parti:
+  il commento di una colonna *aggiunta* a una tabella che esiste già non
+  finiva nello script, mentre in una tabella creata da zero veniva emesso.
+  Asimmetria non voluta, che riguardava anche il DB Diff.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.23.0 — 2026-07-29
 
 - **Nuovo:** selezione massiva e filtri per stato nel confronto fra database
