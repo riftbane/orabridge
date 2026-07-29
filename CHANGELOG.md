@@ -55,6 +55,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.23.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.23.0/Orabridge-Setup-1.23.0.exe) (2026-07-29).
+
 ## v1.22.0 — 2026-07-28
 
 - **Nuovo:** il formattatore SQL allinea le clausole a destra del «fiume»
