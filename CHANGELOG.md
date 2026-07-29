@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.24.1 — 2026-07-29
+
+- **Fix:** il bottone del diagramma a nodi non compariva nella barra del titolo dell'app desktop
+
+  TitleBar.jsx (usata al posto della sidebar-head quando CUSTOM_TITLE_BAR è attivo) non era stata aggiornata insieme a Sidebar.jsx quando è arrivato l'editor a nodi.
+
 ## v1.24.0 — 2026-07-29
 
 - **Nuovo:** editor a nodi per disegnare e modificare lo schema (beta)
