@@ -74,6 +74,41 @@ Due cose da sapere prima di toccarla:
 I file `.gguf` si scaricano a runtime da HuggingFace nella cartella dati
 (`DATA_DIR/models`), con ripresa: non vanno mai committati né impacchettati.
 
+## Integrazione MCP con gli editor esterni (Copilot)
+
+`server/src/mcp/` + `electron/mcp-bridge.cjs` espongono i database **già
+collegati** a VS Code. Quattro invarianti da non rompere:
+
+- **È di sola lettura, e non per convenzione.** L'elenco degli strumenti nasce da
+  `TOOL_DEFS.filter(t => t.permission === 'read')` e `runTool` viene chiamato con
+  `readOnly: true`, che rifiuta gli strumenti di scrittura anche se invocato
+  direttamente. Aggiungere uno strumento a `ai/tools.js` con permesso `read` lo
+  espone automaticamente a Copilot: se non deve uscire dall'app, non è `read`.
+- **`run_query` ha due modalità di esecuzione.** Con `ctx.pooled` gira su una
+  connessione del pool, altrimenti sulla sessione dedicata del foglio SQL. L'MCP
+  usa la prima: unificarle rimetterebbe Copilot dentro la transazione aperta
+  dell'utente e in coda alle sue query.
+- **Il ponte va copiato in `resources/`.** `electron/resources/` è in
+  `.gitignore`: il sorgente sta in `electron/mcp-bridge.cjs` e ci arriva tramite
+  `prepare-resources.mjs` (`copyMcpBridge`). Senza quel passaggio l'app si
+  costruisce ma la configurazione mostrata nelle impostazioni non compare
+  (`desktopPaths()` controlla che il file esista).
+- **Su WSL serve `WSLENV`.** Il ponte gira come Node dell'eseguibile
+  (`ELECTRON_RUN_AS_NODE=1`), ma lanciato da WSL quella variabile non attraversa
+  il confine se non è elencata in `WSLENV`: senza, si apre la finestra dell'app
+  invece del ponte. Vale per qualunque env var da passare a un processo Windows.
+
+Il protocollo è scritto a mano in `mcp/protocol.js` (nessun SDK: porterebbe 17
+dipendenze e un secondo Express dentro l'installer). La specifica si muove — la
+revisione 2026-07-28 ha reso il protocollo stateless — quindi non si tiene stato
+di sessione e in `initialize` si risponde con la revisione chiesta dal client se
+è fra quelle conosciute. Porta e token per il ponte stanno in
+`DATA_DIR/mcp-endpoint.json`, che esiste **solo** a integrazione accesa.
+
+Test: `server/test/mcp.test.js` (protocollo, sola lettura, risoluzione della
+connessione, endpoint HTTP) e `server/test/mcpBridge.test.js`, che avvia il ponte
+come processo vero e gli parla su stdio.
+
 L'app desktop controlla da sola gli aggiornamenti via `electron-updater`
 (vedi `electron/main.cjs`, funzione `setupAutoUpdater`): all'avvio e ogni
 4 ore, scarica in background l'ultima release GitHub e chiede all'utente se

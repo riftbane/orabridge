@@ -43,8 +43,9 @@ export const history = {
       rows: entry.rows,
       rowsAffected: entry.rowsAffected,
       elapsedMs: entry.elapsedMs,
-      // Chi ha lanciato l'istruzione: foglio SQL ('sql') o assistente ('ai').
-      source: entry.source === 'ai' ? 'ai' : 'sql',
+      // Chi ha lanciato l'istruzione: foglio SQL ('sql'), assistente ('ai')
+      // oppure un editor esterno collegato via MCP ('mcp').
+      source: ['ai', 'mcp'].includes(entry.source) ? entry.source : 'sql',
       ts: new Date().toISOString(),
     });
     save(list.length > MAX_ENTRIES ? list.slice(list.length - MAX_ENTRIES) : list);

@@ -40,6 +40,9 @@ async function startBackend() {
   // dell'app non litigano per la stessa porta.
   process.env.PORT = '0';
   process.env.HOST = '127.0.0.1';
+  // Serve al server per indicare nelle impostazioni il percorso del ponte MCP
+  // da mettere in mcp.json: `app.isPackaged` lo sa solo Electron.
+  process.env.ORABRIDGE_RESOURCES = resourcesRoot();
 
   if (app.isPackaged) {
     process.env.ORACLE_THICK_MODE = '1';
@@ -57,7 +60,9 @@ async function startBackend() {
 
   const mod = await import(pathToFileURL(entry).href);
   // Il server accetta solo le richieste che portano questo token: lo generiamo
-  // a ogni avvio e non lo scriviamo da nessuna parte (vedi injectAuthToken).
+  // a ogni avvio e la finestra lo riceve senza che passi da un file (vedi
+  // injectAuthToken). L'unica eccezione è l'integrazione MCP, se accesa: lì il
+  // token finisce nel file di scoperta che serve al ponte (server/src/mcp/endpoint.js).
   const token = randomBytes(32).toString('hex');
   backend = await mod.startServer({ token });
   const port = backend.port;

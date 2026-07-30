@@ -204,6 +204,13 @@ e quelle già aperte. Per questo l'accesso è chiuso su più fronti.
   mandare header propri. Chi apre quell'indirizzo da fuori trova solo una pagina
   che gli dice di usare l'app. Nel deployment web/Docker il token non c'è e il
   controllo resta spento: lì il server *è* il servizio.
+- **L'unica altra porta è spenta di default.** L'integrazione MCP con gli editor
+  esterni (§ [Copilot in VS Code](#github-copilot-in-vs-code-mcp)) sta sotto
+  `/api`, quindi eredita tutti i controlli qui sopra, token compreso; in più
+  risponde solo se la si accende dalle impostazioni, ed espone soltanto strumenti
+  di lettura. Il file con porta e token che serve al ponte esiste solo a
+  integrazione accesa — chi può leggerlo può interrogare i database collegati, ed
+  è il motivo per cui non nasce da solo.
 
 ## Desktop (Windows)
 
@@ -402,6 +409,107 @@ blocchi PL/SQL guarda **anche** dentro le stringhe, perché è lì che si nascon
 l'SQL dinamico: nel dubbio chiede conferma. Un rifiuto viene spiegato al
 modello, che non ci riprova e propone l'SQL da lanciare a mano.
 
+## GitHub Copilot in VS Code (MCP)
+
+Orabridge può farsi interrogare da Copilot — o da qualunque editor che parli
+**MCP** (Model Context Protocol) — sui database **già collegati nell'app**. In
+chat, in modalità agente, Copilot legge schema, DDL, sorgenti PL/SQL e il
+risultato delle SELECT: ha il contesto del database accanto al codice, senza che
+nessuno gli configuri una seconda connessione Oracle.
+
+**È di sola lettura, per costruzione.** L'elenco degli strumenti si costruisce
+filtrando quelli dell'assistente sul permesso `read`, quindi `execute_sql` — che
+nel pannello AI c'è — da questa parte non esiste: non è nascosto dietro un
+interruttore, non è nell'elenco. Chi chiama passa da `runTool(..., readOnly)`,
+che rifiuta gli strumenti di scrittura anche se lo si invocasse direttamente.
+Niente INSERT, niente DROP, niente DELETE: le modifiche restano una cosa da fare
+dal foglio SQL. E le credenziali non escono dall'app in nessuna forma —
+`list_connections` restituisce nome, schema corrente e versione di Oracle, non
+utente, host, servizio né password. Le connessioni le apre e le chiude l'utente
+dentro Orabridge; da MCP non si possono nemmeno aprire.
+
+Si accende da **Impostazioni → Copilot e MCP** (parte spenta: apre una seconda
+porta verso i database collegati, e la decisione è dell'utente). Lì c'è anche la
+configurazione già compilata da incollare in `mcp.json`, coi percorsi
+dell'installazione — quello che segue è la stessa cosa spiegata.
+
+**Windows** — configurazione utente di VS Code, comando *MCP: Open User
+Configuration*:
+
+```json
+{
+  "servers": {
+    "orabridge": {
+      "type": "stdio",
+      "command": "C:\\Program Files\\Orabridge\\Orabridge.exe",
+      "args": ["C:\\Program Files\\Orabridge\\resources\\mcp-bridge.cjs"],
+      "env": { "ELECTRON_RUN_AS_NODE": "1" }
+    }
+  }
+}
+```
+
+**WSL** — per un workspace aperto in WSL, in `.vscode/mcp.json` (o nella
+configurazione utente remota):
+
+```json
+{
+  "servers": {
+    "orabridge": {
+      "type": "stdio",
+      "command": "/mnt/c/Program Files/Orabridge/Orabridge.exe",
+      "args": ["C:\\Program Files\\Orabridge\\resources\\mcp-bridge.cjs"],
+      "env": { "ELECTRON_RUN_AS_NODE": "1", "WSLENV": "ELECTRON_RUN_AS_NODE" }
+    }
+  }
+}
+```
+
+**Server avviato a mano o in Docker**: non serve nessun ponte, si punta
+direttamente all'endpoint —
+`{ "servers": { "orabridge": { "type": "http", "url": "http://127.0.0.1:3000/api/mcp" } } }`.
+
+### Perché un ponte, e perché funziona anche da WSL
+
+L'app desktop ascolta su una **porta effimera** e genera un **token nuovo a ogni
+avvio**: in un `mcp.json` statico non c'è niente di stabile da scrivere. Il ponte
+(`electron/mcp-bridge.cjs`, un file senza dipendenze) li rilegge a ogni messaggio
+da un file di scoperta nella cartella dati, e li tiene fuori dalla
+configurazione dell'editor. Se l'app si riavvia, il ponte raccoglie porta e token
+nuovi da solo; se l'app è chiusa, risponde comunque all'handshake — altrimenti VS
+Code segnerebbe il server come guasto e non riproverebbe più — e a spiegare il
+problema è il primo strumento che si usa.
+
+Il ponte gira come Node dell'eseguibile di Orabridge (`ELECTRON_RUN_AS_NODE=1`),
+quindi non c'è un runtime in più da installare. Da WSL il trucco è tutto lì:
+lanciato per percorso `/mnt/c/...`, resta un **processo Windows**, e solo dal lato
+Windows si raggiunge il `127.0.0.1` su cui l'app ascolta (in WSL con networking
+NAT, il loopback di Windows non è raggiungibile). Niente porte esposte sulla
+rete, nessuna regola di firewall, nessun requisito sulla versione di Windows.
+
+Attenzione a `WSLENV`: senza quella riga la variabile `ELECTRON_RUN_AS_NODE` non
+attraversa il confine fra Linux e Windows, e l'eseguibile aprirebbe la finestra
+di Orabridge invece di comportarsi da Node.
+
+### Come Copilot sceglie il database
+
+`list_connections` elenca le connessioni attive; ogni altro strumento accetta un
+parametro `connection` facoltativo. Con **una sola** connessione attiva si può
+omettere. Con più di una, l'errore elenca i nomi disponibili invece di
+scegliere a caso.
+
+Le query di Copilot girano su una connessione **del pool**, non sulla sessione
+dedicata del foglio SQL: non si accodano dietro alle query dell'utente, non
+vedono le sue modifiche non confermate e non gli lasciano lock in giro. Nella
+cronologia compaiono con l'icona della spina, per distinguerle da quelle del
+foglio e da quelle dell'assistente.
+
+Una cosa da sapere prima di accendere l'integrazione su un database di
+produzione: quello che Copilot legge finisce nel contesto del suo modello, cioè i
+dati interrogati **lasciano il computer**. E i commenti, i nomi degli oggetti e i
+dati stessi diventano input di un agente che nella stessa sessione può modificare
+file ed eseguire comandi: vale la pena saperlo.
+
 ## Architettura
 
 ```
@@ -414,7 +522,7 @@ server/                  Express + node-oracledb (thin)
   src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
-  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/graph, /api/ai
+  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/graph, /api/ai, /api/mcp
   src/routes/search.js   ricerca nel PL/SQL: predicato in SQL su ALL_SOURCE, timeout
   src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
@@ -427,6 +535,10 @@ server/                  Express + node-oracledb (thin)
   src/ai/tools.js        strumenti sul database esposti al modello
   src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
   src/ai/sessions.js     ciclo dell'agente, approvazioni, stream SSE verso il client
+  src/mcp/protocol.js    MCP: JSON-RPC 2.0, initialize/tools, senza dipendenze
+  src/mcp/tools.js       superficie di sola lettura per gli editor esterni
+  src/mcp/endpoint.js    porta e token su disco per il ponte stdio
+electron/mcp-bridge.cjs  ponte stdio ⇄ HTTP che VS Code lancia (anche da WSL)
 client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
 ```
 

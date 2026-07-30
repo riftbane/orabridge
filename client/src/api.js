@@ -100,6 +100,10 @@ export const api = {
   // assistente AI
   aiSettings: () => j('GET', '/api/ai/settings'),
   saveAiSettings: (body) => j('PUT', '/api/ai/settings', body),
+
+  // editor esterni (Copilot in VS Code) via MCP
+  mcpStatus: () => j('GET', '/api/mcp/status'),
+  setMcpEnabled: (enabled) => j('PUT', '/api/mcp/status', { enabled }),
   aiModels: (provider, refresh) =>
     j('GET', `/api/ai/models?${q({ provider, refresh: refresh ? '1' : '' })}`),
   aiSessions: () => j('GET', '/api/ai/sessions'),

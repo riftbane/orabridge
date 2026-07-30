@@ -94,6 +94,16 @@ function copyServer() {
   console.log('server + client copiati in', dest);
 }
 
+// Il ponte MCP per gli editor esterni: un file, nessuna dipendenza. Viene
+// lanciato dall'eseguibile di Orabridge in modalità Node, quindi non serve
+// impacchettare un runtime accanto.
+function copyMcpBridge() {
+  const dest = path.join(resourcesDir, 'mcp-bridge.cjs');
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  fs.copyFileSync(path.join(root, 'mcp-bridge.cjs'), dest);
+  console.log('ponte MCP copiato in', dest);
+}
+
 async function downloadInstantClient() {
   fs.mkdirSync(cacheDir, { recursive: true });
   const zipPath = path.join(cacheDir, 'instantclient-win-x64.zip');
@@ -129,6 +139,7 @@ async function downloadInstantClient() {
 
 buildClient();
 copyServer();
+copyMcpBridge();
 if (skipInstantClient) {
   console.log('--skip-instantclient: salto il download dell\'Instant Client (modalità thin).');
 } else {

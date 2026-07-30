@@ -18,6 +18,12 @@ const DEFAULTS = {
     // Righe massime restituite al modello da una SELECT.
     maxRows: 100,
   },
+  // Integrazione con gli editor esterni (Copilot in VS Code) via MCP. Spenta
+  // finché non la si accende a mano: apre una seconda porta verso i database
+  // collegati, e chi decide se aprirla è l'utente.
+  mcp: {
+    enabled: false,
+  },
 };
 
 function load() {
@@ -31,6 +37,7 @@ function load() {
       baseUrls: { ...(raw.ai?.baseUrls || {}) },
       permissions: { ...DEFAULTS.ai.permissions, ...(raw.ai?.permissions || {}) },
     },
+    mcp: { ...DEFAULTS.mcp, ...(raw.mcp || {}) },
   };
 }
 
@@ -71,6 +78,18 @@ export const settings = {
 
   ai() {
     return load().ai;
+  },
+
+  mcp() {
+    return load().mcp;
+  },
+
+  updateMcp(patch) {
+    const cur = load();
+    const mcp = { ...cur.mcp };
+    if (patch.enabled != null) mcp.enabled = !!patch.enabled;
+    writeJson(FILE, { ...cur, mcp });
+    return mcp;
   },
 
   updateAi(patch) {

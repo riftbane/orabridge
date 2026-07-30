@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, History, RefreshCw, Sparkles, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, History, Plug, RefreshCw, Sparkles, Trash2, XCircle } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 
@@ -60,6 +60,11 @@ function HistoryRow({ entry, conn, expanded, onToggle, onDeleted }) {
       {entry.source === 'ai' && (
         <span className="history-ai" title="Eseguita dall'assistente AI">
           <Sparkles size={11} />
+        </span>
+      )}
+      {entry.source === 'mcp' && (
+        <span className="history-ai" title="Eseguita da un editor esterno collegato (MCP)">
+          <Plug size={11} />
         </span>
       )}
       <span className="conn-dot" title={conn?.name || entry.connId} />
