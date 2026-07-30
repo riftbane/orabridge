@@ -2,6 +2,37 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.27.0 — 2026-07-30
+
+- **Nuovo:** Copilot si collega da solo, e ogni connessione decide se farsi vedere
+
+  L'integrazione MCP leggeva solo i database che l'utente aveva già collegato a
+  mano: metà delle volte Copilot rispondeva «chiedi all'utente di connettersi».
+  Adesso una connessione esposta si collega da sé alla prima richiesta, con la
+  password già salvata (senza password salvata non tenta niente e spiega cosa
+  fare). Chiamate in parallelo sullo stesso database aspettano lo stesso
+  collegamento, non ne aprono due.
+
+  In cambio, l'accesso è per connessione e non più globale: ogni connessione ha
+  il suo interruttore «Esponi a Copilot (MCP)», spento di default anche per
+  quelle già salvate, e i suoi permessi. Lettura si imposta; Modifica ed
+  Eliminazione si vedono e basta — sono forzate a false nello store, perché gli
+  strumenti che servirebbero da MCP non escono affatto. Una connessione non
+  esposta non compare in list_connections e non è nominabile nel parametro
+  `connection`.
+
+  Siccome Copilot lavora in un'altra finestra e ora apre connessioni da solo,
+  quello che fa si vede mentre lo fa: voci di attività trasmesse su
+  /api/mcp/events (SSE), la spina che pulsa accanto alla connessione nella barra
+  laterale, la riga «Copilot sta leggendo», l'avviso quando apre un collegamento
+  — che compare collegato come se l'avesse aperto l'utente — e la sezione
+  «Attività in tempo reale» nelle impostazioni.
+
+  Nel passaggio: una query di Copilot fallita finiva in cronologia marcata come
+  dell'assistente AI invece che come sua.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.26.1 — 2026-07-30
 
 - **Fix:** il ponte MCP perdeva la risposta se stdin veniva chiuso subito
