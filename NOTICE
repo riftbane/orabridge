@@ -1,0 +1,15 @@
+Orabridge
+Copyright 2026 Nichita Solonar
+
+Questo prodotto include software sviluppato nell'ambito del progetto Orabridge
+(https://github.com/riftbane/orabridge), rilasciato sotto Apache License 2.0.
+
+Orabridge è un progetto indipendente. Non è affiliato a Oracle Corporation, né
+sponsorizzato o approvato da essa. Oracle e Java sono marchi registrati di
+Oracle e/o delle sue affiliate. Altri nomi possono essere marchi dei rispettivi
+proprietari. I nomi di prodotti di terzi sono usati esclusivamente per
+identificare i sistemi con cui Orabridge interopera.
+
+I componenti di terze parti distribuiti insieme a Orabridge, o scaricati da
+Orabridge a tempo di build o di esecuzione, restano soggetti alle proprie
+licenze: l'elenco e i riferimenti sono in THIRD-PARTY-NOTICES.md.

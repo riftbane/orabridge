@@ -2,7 +2,13 @@
   "name": "orabridge-desktop",
   "version": "1.27.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Orabridge come app desktop (Electron): avvia il backend Express/Oracle in-process, nessun Docker richiesto.",
+  "homepage": "https://github.com/riftbane/orabridge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/riftbane/orabridge.git"
+  },
   "main": "main.cjs",
   "scripts": {
     "gen-icon": "node scripts/gen-icon.mjs",

@@ -1,7 +1,48 @@
 # Orabridge
 
-SQL veloce per Oracle, senza zavorra. Una piattaforma web leggera e dockerizzata per lavorare
-con database Oracle: pensata per developer che non vogliono la pesantezza di SQL Developer.
+**Un client per database Oracle: app desktop per Windows, container Docker o
+semplice pagina web.** Leggero da aprire e pensato per il lavoro di tutti i
+giorni su uno schema — scrivere SQL, girare fra gli oggetti, confrontare due
+database, modificare la struttura sapendo prima quale script verrà eseguito.
+
+[![Licenza: Apache 2.0](https://img.shields.io/badge/licenza-Apache--2.0-lightgrey)](LICENSE)
+[![Ultima release](https://img.shields.io/github/v/release/riftbane/orabridge?label=release)](https://github.com/riftbane/orabridge/releases/latest)
+![Piattaforme: Windows, Docker, web](https://img.shields.io/badge/piattaforme-Windows%20%7C%20Docker%20%7C%20web-lightgrey)
+![Database: Oracle 11.2+](https://img.shields.io/badge/database-Oracle%2011.2%2B-lightgrey)
+
+> **Progetto indipendente.** Orabridge non è affiliato a Oracle Corporation, né
+> sponsorizzato o approvato da essa. Oracle è un marchio registrato di Oracle
+> e/o delle sue affiliate, citato qui solo per indicare i database con cui
+> Orabridge interopera — vedi [Licenza e marchi](#licenza-e-marchi).
+
+Software libero sotto [Apache License 2.0](LICENSE), scritto in larga parte con
+l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
+[Costruito con l'AI](#costruito-con-lai).
+
+---
+
+## Indice
+
+- [Cosa sa fare](#cosa-sa-fare)
+- [Requisiti e compatibilità](#requisiti-e-compatibilità)
+- [Installazione](#installazione)
+  - [App desktop per Windows](#app-desktop-per-windows)
+  - [Docker](#docker)
+  - [Dai sorgenti (sviluppo)](#dai-sorgenti-sviluppo)
+- [Chi può parlare col server](#chi-può-parlare-col-server)
+- [Scorciatoie](#scorciatoie)
+- [Assistente AI](#assistente-ai)
+- [GitHub Copilot in VS Code (MCP)](#github-copilot-in-vs-code-mcp)
+- [Architettura](#architettura)
+- [Risoluzione problemi](#risoluzione-problemi)
+- [Contribuire](#contribuire)
+- [Sicurezza](#sicurezza)
+- [Costruito con l'AI](#costruito-con-lai)
+- [Licenza e marchi](#licenza-e-marchi)
+
+---
+
+## Cosa sa fare
 
 - **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM);
   se la password manca o non è più valida viene chiesta al momento della connessione
@@ -23,7 +64,7 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - **Connessione** (`Ctrl+Maiusc+E`): una connessione sola a tutta altezza — stato,
     versione di Oracle, comandi rapidi, **selettore di schema** e albero degli oggetti
   - **Ricerca nel codice** (`Ctrl+Maiusc+F`, vedi sotto)
-- **Browser oggetti** stile SQL Developer: tabelle, viste, viste materializzate, indici,
+- **Browser degli oggetti** ad albero: tabelle, viste, viste materializzate, indici,
   sequenze, procedure, funzioni, package, trigger, tipi, sinonimi + altri schemi
 - **Ricerca globale nel PL/SQL** (`Ctrl+Maiusc+F`): cerca un testo dentro il sorgente di
   procedure, funzioni, trigger e package body (e, a richiesta, specifiche dei package e
@@ -31,7 +72,7 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - interruttori maiuscole/minuscole, parola intera ed **espressione regolare**
     (sintassi Oracle, `REGEXP_LIKE`)
   - ambito: schema di lavoro, un solo schema, tutti gli schemi applicativi oppure
-    tutti compresi quelli di Oracle (`SYS`, `XDB`, `APEX_*`… normalmente esclusi)
+    tutti compresi quelli di sistema (`SYS`, `XDB`, `APEX_*`… normalmente esclusi)
   - risultati raggruppati per oggetto: **un clic apre l'oggetto sulla scheda Sorgente,
     salta alla riga e seleziona il testo trovato**
   - il filtro viaggia in SQL su `ALL_SOURCE` (niente sorgenti scaricati in blocco), con
@@ -54,8 +95,8 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - i vincoli e gli indici con nome generato (`SYS_C…`) si accoppiano per
     definizione invece che per nome, i riferimenti allo schema di origine
     valgono come quelli allo schema di destinazione e le colonne di identità si
-    confrontano sul tipo di generazione, non sulla sequenza `ISEQ$$…` che
-    Oracle numera in modo diverso in ogni database: niente differenze finte
+    confrontano sul tipo di generazione, non sulla sequenza `ISEQ$$…` che il
+    database numera in modo diverso su ogni istanza: niente differenze finte
   - filtri per stato con i conteggi, categorie comprimibili e selezione di
     massa (*tutti / nessuno / inverti*) su ciò che è in elenco
   - lo **script di sincronizzazione** (CREATE/ALTER, con i DROP opzionali) si
@@ -140,12 +181,81 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
 - **Installabile come PWA**: dal browser (Chrome/Edge «Installa app», Safari «Aggiungi
   a Home») apre in una finestra propria, senza barra degli indirizzi
 
-L'immagine Docker include **Oracle Instant Client 19c** (modalità thick del driver):
-compatibile con server Oracle dalla **11.2** in su e con utenze che hanno vecchi
-password verifier 10G. Senza Docker il driver parte in modalità **thin** (nessun
-client richiesto, ma serve server 12.1+ e verifier 11G/12C).
+## Requisiti e compatibilità
 
-## Avvio con Docker
+**Sul server di database** non va installato niente: Orabridge si collega come
+un qualsiasi client.
+
+Il driver ([node-oracledb](https://github.com/oracle/node-oracledb)) funziona in
+due modalità, e la differenza si sente sui database datati:
+
+| Modalità | Cosa serve | Server supportati | Password verifier |
+|---|---|---|---|
+| **thin** (predefinita dai sorgenti) | niente | Oracle Database 12.1+ | 11G / 12C |
+| **thick** | Oracle Instant Client | Oracle Database 11.2+ | anche il vecchio 10G |
+
+L'app desktop Windows e l'immagine Docker includono **Oracle Instant Client
+19.23**, quindi partono già in modalità thick: sono la strada buona se il
+database è vecchio o se l'utenza ha ancora il verifier 10G (vedi
+[NJS-116](#njs-116-password-verifier-type-0x939-is-not-supported--in-thin-mode)).
+L'Instant Client è software di Oracle, soggetto alle condizioni di licenza di
+Oracle: vedi [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Le connessioni si definiscono con host, porta e nome del servizio (o SID).
+
+**Per installare**, a seconda di come lo si usa:
+
+- *app desktop*: Windows 10/11 x64. Serve il **Microsoft Visual C++
+  Redistributable x64**, richiesto dall'Instant Client (quasi sempre già
+  presente).
+- *Docker*: Docker Engine con Compose v2. L'immagine è x86_64 (su Apple Silicon
+  vedi [Risoluzione problemi](#risoluzione-problemi)).
+- *dai sorgenti*: Node.js 22 e npm.
+
+## Installazione
+
+### App desktop per Windows
+
+L'installer di ogni versione rilasciata è pubblicato su
+**[GitHub Releases](https://github.com/riftbane/orabridge/releases/latest)**:
+scarica ed esegui `Orabridge-Setup-<versione>.exe`. Al doppio clic parte anche
+il backend, dentro l'applicazione: niente Docker, niente comandi.
+
+L'installer **non è firmato digitalmente** (non c'è un certificato di firma del
+codice): al primo avvio Windows SmartScreen segnala «editore sconosciuto», e per
+proseguire bisogna passare da *Ulteriori informazioni → Esegui comunque*.
+
+La finestra non ha niente da browser: **nessuna barra dei menu** (File/Modifica/
+Visualizza) e **nessuno strumento di sviluppo** (`F12`, `Ctrl+Maiusc+I`), che
+nella versione installata è proprio disattivato. La **barra del titolo** è
+disegnata dall'app nei suoi colori e ospita logo e comandi generali (nuova
+connessione, importazione, cronologia, DB Diff, interruttori dei pannelli,
+guida, impostazioni): Windows continua a disegnarci sopra solo i tre pulsanti
+della finestra, e il resto della striscia si trascina come una barra del titolo
+qualsiasi. Il backend che gira dentro l'app **risponde solo a quella finestra**:
+aprire il suo indirizzo con un browser non serve a niente (vedi
+[Chi può parlare col server](#chi-può-parlare-col-server)).
+
+Le connessioni salvate vivono in `%APPDATA%\Orabridge`, separate da quelle del
+deployment Docker.
+
+#### Aggiornamenti automatici
+
+Una volta installata, l'app **si aggiorna da sola**: ad ogni avvio (e ogni poche
+ore mentre resta aperta) controlla in background se c'è una versione più recente
+su GitHub Releases, la scarica, e quando è pronta chiede se riavviare subito per
+installarla o farlo più tardi. Non serve rieseguire l'installer manualmente.
+
+Le **novità delle versioni** non sono scritte a mano dentro l'app: la guida
+(`F1` → «Aggiornamenti e novità») e la scheda **Impostazioni → Informazioni**
+leggono le release pubblicate su GitHub, quindi mostrano sempre l'ultima
+davvero uscita e le sue note, con il confronto rispetto alla versione in uso.
+L'elenco passa dal server (`GET /api/releases`, mezz'ora di cache) e non dal
+browser: così la richiesta è una sola per tutti, non dipende dalla CORS di
+`api.github.com` e su una macchina senza internet si degrada in un punto solo —
+in quel caso la guida ripiega sulle novità incluse nel bundle.
+
+### Docker
 
 ```bash
 docker compose up -d --build
@@ -153,12 +263,18 @@ docker compose up -d --build
 
 Apri **http://localhost:7521**
 
-Le connessioni salvate sopravvivono ai riavvii (volume `orabridge-data`).
+Le connessioni salvate sopravvivono ai riavvii (volume `orabridge-data`, montato
+su `/data`).
 
 > **DB Oracle sulla stessa macchina?** Dentro il container usa come host
 > `host.docker.internal` (già configurato nel compose), non `localhost`.
 
-## Avvio senza Docker (sviluppo)
+La build scarica l'Oracle Instant Client dai server di Oracle: chi costruisce
+l'immagine lo fa alle condizioni di licenza di Oracle
+([dettagli](THIRD-PARTY-NOTICES.md)). Per farne a meno, `ORACLE_THICK_MODE=0`
+nel compose — si resta in modalità thin.
+
+### Dai sorgenti (sviluppo)
 
 ```bash
 # terminale 1 — API su :3000
@@ -178,6 +294,45 @@ cd ../server && npm install && npm start   # http://localhost:3000
 Il server ascolta solo su `127.0.0.1`: per raggiungerlo da un'altra macchina
 serve chiederlo esplicitamente con `HOST=0.0.0.0` (è quello che fa l'immagine
 Docker, dove la porta esce comunque solo verso `127.0.0.1` dell'host).
+
+I test si lanciano con `npm test` in `server/` e in `client/` — vedi
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+#### Buildare l'installer Windows in locale
+
+```bash
+cd electron
+npm install
+npm run dist:win
+```
+
+Il primo `dist:win` scarica anche l'Oracle Instant Client per Windows
+(~40 MB, messo in cache in `electron/.cache`) e lo include nell'installer per
+la modalità thick. L'installer viene generato in `electron/release/` — è solo
+locale, non viene pubblicato da nessuna parte.
+
+Per iterare rapidamente durante lo sviluppo (solo modalità thin, senza
+scaricare l'Instant Client):
+
+```bash
+npm start
+```
+
+Costruire l'installer richiede NSIS; da Linux/WSL2 senza Wine il passaggio
+`electron-builder --win` può fallire — in tal caso lanciare `npm run dist:win`
+da un vero ambiente Windows (anche puntando alla stessa cartella via
+`\\wsl.localhost\...`). Su Linux/WSL npm non installa i binari nativi Windows di
+`node-llama-cpp`, quindi una build locale esce senza motore per il modello
+locale: per un pacchetto completo serve la CI.
+
+#### Pipeline di rilascio (CI)
+
+Ogni push su `main` con almeno un commit `feat:`/`fix:`/`perf:` (o con una
+modifica "breaking") fa scattare `.github/workflows/release.yml`: la versione
+viene bumpata automaticamente nei tre `package.json`, il CHANGELOG aggiornato, e
+l'installer buildato e pubblicato su GitHub Releases da un runner Windows nativo.
+Dettagli e convenzione dei messaggi di commit in [`CLAUDE.md`](CLAUDE.md) e
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Chi può parlare col server
 
@@ -213,88 +368,8 @@ e quelle già aperte. Per questo l'accesso è chiuso su più fronti.
   — chi può leggerlo può interrogare i database esposti, ed è il motivo per cui
   non nasce da solo.
 
-## Desktop (Windows)
-
-Oltre a Docker e alla PWA, Orabridge può essere pacchettizzato come vera app
-desktop Windows (Electron): un installer `.exe` che al doppio clic avvia
-anche il backend al proprio interno, senza Docker né comandi da lanciare a
-parte.
-
-La finestra non ha niente da browser: **nessuna barra dei menu** (File/Modifica/
-Visualizza) e **nessuno strumento di sviluppo** (`F12`, `Ctrl+Shift+I`), che
-nella versione installata è proprio disattivato. La **barra del titolo** è
-disegnata dall'app nei suoi colori e ospita logo e comandi generali (nuova
-connessione, importazione, cronologia, DB Diff, interruttori dei pannelli,
-guida, impostazioni): Windows continua a disegnarci sopra solo i tre pulsanti
-della finestra, e il resto della striscia si trascina come una barra del titolo
-qualsiasi. Il backend che gira dentro l'app **risponde solo a quella finestra**:
-aprire il suo indirizzo con un browser non serve a niente (vedi «Chi può parlare
-col server»).
-
-### Scaricare o aggiornare
-
-L'installer di ogni versione rilasciata è pubblicato automaticamente su
-**[GitHub Releases](https://github.com/riftbane/orabridge/releases/latest)**:
-scarica `Orabridge-Setup-<versione>.exe` da lì per una prima installazione.
-
-Una volta installata, l'app **si aggiorna da sola**: ad ogni avvio (e ogni
-poche ore mentre resta aperta) controlla in background se c'è una versione
-più recente su GitHub Releases, la scarica, e quando è pronta chiede se
-riavviare subito per installarla o farlo più tardi. Non serve rieseguire
-l'installer manualmente per restare aggiornati.
-
-Le **novità delle versioni** non sono scritte a mano dentro l'app: la guida
-(`F1` → «Aggiornamenti e novità») e la scheda **Impostazioni → Informazioni**
-leggono le release pubblicate su GitHub, quindi mostrano sempre l'ultima
-davvero uscita e le sue note, con il confronto rispetto alla versione in uso.
-L'elenco passa dal server (`GET /api/releases`, mezz'ora di cache) e non dal
-browser: così la richiesta è una sola per tutti, non dipende dalla CORS di
-`api.github.com` e su una macchina senza internet si degrada in un punto solo —
-in quel caso la guida ripiega sulle novità incluse nel bundle.
-
-### Buildare l'installer localmente (sviluppo/test)
-
-```bash
-cd electron
-npm install
-npm run dist:win
-```
-
-Il primo `dist:win` scarica anche l'Oracle Instant Client per Windows
-(~40 MB, messo in cache in `electron/.cache`) e lo include nell'installer per
-la modalità thick (stessi verifier 10G supportati dal deployment Docker).
-L'installer viene generato in `electron/release/` — è solo locale, non viene
-pubblicato da nessuna parte (per quello serve la pipeline CI, vedi sotto).
-
-Per iterare rapidamente durante lo sviluppo (solo modalità thin, senza
-scaricare l'Instant Client):
-
-```bash
-npm start
-```
-
-Note:
-- **Prerequisito sul PC di destinazione**: Microsoft Visual C++ Redistributable
-  x64, richiesto dall'Instant Client (quasi sempre già presente su
-  Windows 10/11).
-- L'installer non è firmato digitalmente: al primo avvio Windows SmartScreen
-  segnala "editore sconosciuto" (nessun certificato di firma codice
-  disponibile).
-- Le connessioni salvate vivono in `%APPDATA%\Orabridge`, separate da quelle
-  del deployment Docker (`/data` nel volume `orabridge-data`).
-- Costruire l'installer richiede NSIS; da Linux/WSL2 senza Wine il passaggio
-  `electron-builder --win` può fallire — in tal caso lanciare `npm run dist:win`
-  da un vero ambiente Windows (anche puntando alla stessa cartella via
-  `\\wsl.localhost\...`).
-
-### Pipeline di rilascio (CI)
-
-Ogni push su `main` con almeno un commit `feat:`/`fix:`/`perf:` (o con una
-modifica "breaking", vedi `CLAUDE.md`) fa scattare
-`.github/workflows/release.yml`: la versione viene bumpata automaticamente
-nei tre `package.json`, il CHANGELOG aggiornato, e l'installer buildato e
-pubblicato su GitHub Releases da un runner Windows nativo (non serve Wine in
-CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
+Cosa è in scopo e cosa no, e come segnalare un problema di sicurezza: vedi
+[SECURITY.md](SECURITY.md).
 
 ## Scorciatoie
 
@@ -340,7 +415,7 @@ Le connessioni si organizzano in gruppi: clic destro su una connessione →
 «Sposta in…» per spostarla in un altro gruppo (o crearne uno nuovo).
 
 Gli statement si separano con `;`. I blocchi PL/SQL (`DECLARE`/`BEGIN`/`CREATE PROCEDURE`…)
-terminano con `/` su riga a sé, come in SQL*Plus.
+terminano con `/` su riga a sé, come in SQL\*Plus.
 
 ## Assistente AI
 
@@ -355,6 +430,11 @@ connessioni (`data/settings.json`, chiave in `data/.key`) e **non escono mai dal
 server**: il browser riceve solo l'informazione che una chiave è presente. Anche
 il dialogo con la piattaforma parte dal server, non dal browser — è quello che
 permette alle sessioni di continuare a lavorare in background.
+
+> **Dove finiscono i dati.** Con una piattaforma online, quello che l'assistente
+> legge dal database (struttura, sorgenti, righe delle SELECT) viene inviato ai
+> server di quella piattaforma, alle sue condizioni d'uso. Se non deve uscire
+> niente dal computer, c'è il modello locale.
 
 **Come lavora.** L'assistente non tira a indovinare sullo schema: ha degli
 strumenti per elencare schemi e oggetti, leggere la struttura di una tabella
@@ -385,7 +465,8 @@ installare, né Ollama né Python né compilatori. Va scaricato una volta il fil
 dei pesi, direttamente dalle impostazioni: si sceglie fra tre varianti di
 **Gemma 4**, la più piccola pesa circa 2,9 GB. Il download prosegue lato server
 con barra di avanzamento, si può chiudere la finestra, e se cade la rete riparte
-da dove si era fermato.
+da dove si era fermato. I pesi sono di Google e restano soggetti alle
+[Gemma Terms of Use](https://ai.google.dev/gemma/terms).
 
 Perché i pesi non sono dentro l'installer: la taglia più piccola di Gemma 4
 (E2B) quantizzata a 4 bit occupa 3,1 GB, oltre il limite di 2 GB per file delle
@@ -410,13 +491,17 @@ blocchi PL/SQL guarda **anche** dentro le stringhe, perché è lì che si nascon
 l'SQL dinamico: nel dubbio chiede conferma. Un rifiuto viene spiegato al
 modello, che non ci riprova e propone l'SQL da lanciare a mano.
 
+Resta comunque un assistente, non una garanzia: i permessi limitano cosa può
+eseguire, non rendono giusto quello che scrive. Su un database di produzione,
+leggere lo script prima di eseguirlo è ancora compito di chi lo esegue.
+
 ## GitHub Copilot in VS Code (MCP)
 
 Orabridge può farsi interrogare da Copilot — o da qualunque editor che parli
 **MCP** (Model Context Protocol) — sui database che l'utente gli **espone, uno
 per uno**. In chat, in modalità agente, Copilot legge schema, DDL, sorgenti
 PL/SQL e il risultato delle SELECT: ha il contesto del database accanto al
-codice, senza che nessuno gli configuri una seconda connessione Oracle.
+codice, senza che nessuno gli configuri una seconda connessione al database.
 
 **È di sola lettura, per costruzione.** L'elenco degli strumenti si costruisce
 filtrando quelli dell'assistente sul permesso `read`, quindi `execute_sql` — che
@@ -535,7 +620,8 @@ file ed eseguire comandi: vale la pena saperlo.
 
 ```
 docker-compose.yml       porta 127.0.0.1:7521 → container :3000
-Dockerfile               build multi-stage (vite build → node:22-alpine)
+Dockerfile               build multi-stage (vite su node:22-alpine → runtime
+                         node:22-slim + Oracle Instant Client)
 server/                  Express + node-oracledb (thin)
   src/index.js           avvio, guardie di accesso (Host, origine, token desktop)
   src/secret.js          cartella dati e cifratura AES-256-GCM condivise
@@ -604,8 +690,8 @@ L'utenza del DB ha solo il vecchio password verifier **10G** (capita su DB datat
 dopo upgrade senza reset password, o con `SEC_CASE_SENSITIVE_LOGON=FALSE`).
 Due soluzioni:
 
-1. **Usa Docker** (consigliato): l'immagine gira in modalità thick e supporta i
-   verifier 10G senza toccare il DB.
+1. **Usa l'app desktop o Docker** (consigliato): includono l'Instant Client,
+   girano in modalità thick e supportano i verifier 10G senza toccare il DB.
 2. **Rigenera i verifier** (serve un DBA se l'utenza non è tua):
    ```sql
    SELECT username, password_versions FROM dba_users WHERE username = 'TUO_UTENTE';
@@ -614,19 +700,101 @@ Due soluzioni:
    ```
    Il reset genera i verifier moderni solo se sul server
    `SQLNET.ALLOWED_LOGON_VERSION_SERVER` è ≥ 11 (default nelle versioni recenti).
-   Nota: se il server è Oracle 11g, la modalità thin non può connettersi comunque
-   (supporta solo 12.1+) — in quel caso serve la modalità thick.
+   Nota: se il server è Oracle Database 11g, la modalità thin non può connettersi
+   comunque (supporta solo 12.1+) — in quel caso serve la modalità thick.
 
-Fuori da Docker la thick si abilita installando l'Instant Client e avviando il
-server con `ORACLE_THICK_MODE=1` (e `ORACLE_CLIENT_LIB_DIR=/percorso` su
-Windows/macOS; su Linux basta che le librerie siano in `LD_LIBRARY_PATH` o ldconfig).
+Fuori da Docker e dall'app desktop, la thick si abilita installando l'Instant
+Client e avviando il server con `ORACLE_THICK_MODE=1` (e
+`ORACLE_CLIENT_LIB_DIR=/percorso` su Windows/macOS; su Linux basta che le
+librerie siano in `LD_LIBRARY_PATH` o ldconfig).
 
-L'Instant Client nell'immagine è x86_64: su host ARM (Apple Silicon) sostituisci
-l'URL nel Dockerfile con la variante ARM64 o imposta `ORACLE_THICK_MODE=0`.
+### Docker su Apple Silicon (ARM)
 
-## Note
+L'Instant Client nell'immagine è x86_64: su host ARM sostituisci l'URL nel
+Dockerfile con la variante ARM64 oppure imposta `ORACLE_THICK_MODE=0` per
+restare in modalità thin.
+
+### Altre note
 
 - Fogli SQL e loro contenuto vengono ricordati tra i riavvii (localStorage del browser).
 - Le API accettano solo `Content-Type: application/json` sulle scritture, come
   protezione dalle richieste cross-site di pagine web esterne.
-- La chiave di cifratura delle password è generata al primo avvio in `/data/.key`.
+- La chiave di cifratura delle password è generata al primo avvio in `/data/.key`
+  (`%APPDATA%\Orabridge` nell'app desktop).
+
+## Contribuire
+
+Issue e pull request sono benvenute: convenzioni, ambiente di sviluppo, test e
+formato dei messaggi di commit stanno in [CONTRIBUTING.md](CONTRIBUTING.md).
+La lingua del progetto è l'italiano.
+
+Il progetto è portato avanti da una persona sola nel tempo libero: le risposte
+possono non essere immediate.
+
+## Sicurezza
+
+Per segnalare una vulnerabilità **non aprire una issue pubblica**: usa la
+segnalazione privata di GitHub, come descritto in [SECURITY.md](SECURITY.md),
+dove è scritto anche cosa Orabridge promette di proteggere e cosa no.
+
+In breve: non c'è autenticazione, il server ascolta solo il loopback e chi ha
+accesso alla macchina ha accesso alle credenziali salvate. Orabridge non
+aggiunge privilegi a quelli dell'utenza Oracle con cui ci si collega.
+
+## Costruito con l'AI
+
+Orabridge è stato scritto in larga parte **in collaborazione con modelli
+linguistici** (Claude, in sessioni di programmazione assistita): dal codice ai
+test, dalla guida integrata a questo README. La direzione, le scelte di
+progetto, le revisioni e le prove sul campo sono umane; buona parte della
+scrittura no.
+
+Lo scrivo perché è un'informazione che serve a chi valuta se usarlo o se
+contribuire, non come vanto né come scusa:
+
+- il codice è pubblico e **si può leggere prima di fidarsi** — le parti
+  delicate (confronto degli schemi, generazione degli script, classificazione
+  dei permessi SQL, protocollo MCP) sono funzioni pure coperte da test;
+- Orabridge **non esegue mai da sé** uno script di modifica: DB Diff ed editor a
+  nodi aprono sempre lo SQL in un foglio, dove lo si legge e lo si lancia a mano;
+- valgono le limitazioni di responsabilità della [licenza](LICENSE): il software
+  è fornito «così com'è», senza garanzie. Su un database di produzione, il
+  backup e la lettura dello script prima di eseguirlo restano compito di chi li
+  esegue.
+
+I contributi assistiti dall'AI sono accettati alle stesse condizioni degli
+altri: vedi [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licenza e marchi
+
+Orabridge è distribuito sotto **[Apache License 2.0](LICENSE)**.
+Copyright © 2026 Nichita Solonar.
+
+I componenti di terze parti — a partire da **Oracle Instant Client**, incluso
+nell'installer Windows e nell'immagine Docker — restano soggetti alle proprie
+licenze, elencate in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). La
+licenza Apache di Orabridge non concede alcun diritto su di essi.
+
+**Marchi.** Orabridge è un progetto indipendente, **non affiliato a Oracle
+Corporation, né sponsorizzato o approvato da essa**. Oracle, Oracle Database,
+Oracle Instant Client e SQL\*Plus sono marchi o marchi registrati di Oracle e/o
+delle sue affiliate. Microsoft, Windows, Visual Studio Code e GitHub Copilot
+sono marchi del gruppo Microsoft; Docker è un marchio di Docker, Inc.; altri
+nomi possono essere marchi dei rispettivi proprietari.
+
+Questi nomi compaiono qui solo per **descrivere i sistemi con cui Orabridge
+interopera** e per aiutare chi legge a capire a cosa serve: non implicano
+alcun rapporto con i titolari dei marchi, e la licenza Apache 2.0 non concede
+diritti sui marchi (§ 6).
+
+Orabridge si collega ai database tramite
+[node-oracledb](https://github.com/oracle/node-oracledb), il driver **open
+source pubblicato da Oracle stessa** (Apache-2.0 oppure UPL-1.0, a scelta di chi
+lo riceve). L'unico componente non open source in gioco è l'Oracle Instant
+Client, incluso nell'installer Windows e nell'immagine Docker: viene scaricato
+dai canali ufficiali di Oracle al momento della build ed è usato e ridistribuito
+alle condizioni della licenza che Oracle gli dedica — vedi
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+L'uso di Oracle Database resta soggetto alle licenze che ciascuno ha con
+Oracle: Orabridge è un client, non modifica in alcun modo quegli accordi.
