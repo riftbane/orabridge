@@ -2,6 +2,35 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.26.0 — 2026-07-30
+
+- **Nuovo:** Copilot in VS Code legge i database collegati (MCP, sola lettura)
+
+  Orabridge si fa interrogare via MCP dagli editor esterni: Copilot, in modalità
+  agente, vede struttura, DDL, sorgenti PL/SQL e il risultato delle SELECT delle
+  connessioni già attive nell'app, senza configurare una seconda connessione
+  Oracle da nessuna parte.
+
+  È di sola lettura per costruzione: l'elenco degli strumenti nasce filtrando
+  quelli dell'assistente sul permesso `read`, quindi execute_sql non c'è, e
+  runTool in sola lettura rifiuta le scritture anche se invocato direttamente. Le
+  credenziali non escono dall'app: list_connections restituisce nome, schema
+  corrente e versione del database, non utenza, host, servizio né password.
+
+  Le query di Copilot girano su una connessione del pool e non sulla sessione
+  dedicata del foglio SQL: non si accodano dietro alle query dell'utente, non
+  vedono le sue modifiche non confermate e non gli lasciano lock in giro. In
+  cronologia sono marcate con l'icona della spina.
+
+  L'integrazione è spenta finché non si accende da Impostazioni → Copilot e MCP,
+  dove compare anche la configurazione già compilata per mcp.json nelle varianti
+  Windows e WSL. Il ponte stdio incluso nell'app risolve porta effimera e token
+  rotante rileggendoli a ogni messaggio, e da un workspace WSL gira sul lato
+  Windows tramite interop: nessuna porta esposta sulla rete, nessuna regola di
+  firewall.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.25.0 — 2026-07-30
 
 - **Nuovo:** ricerca globale nel codice PL/SQL e barra laterale a viste
