@@ -2,6 +2,22 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.26.1 — 2026-07-30
+
+- **Fix:** il ponte MCP perdeva la risposta se stdin veniva chiuso subito
+
+  Alla chiusura di stdin il ponte usciva con process.exit(0) senza aspettare le
+  richieste in volo: la risposta a un messaggio già accettato non veniva mai
+  scritta. Non si vede usandolo da VS Code, che tiene stdin aperto, ma chi lo
+  pilota da uno script — manda i messaggi e chiude il tubo — lo trovava muto.
+
+  Ora l'uscita aspetta che le richieste in corso scrivano la loro risposta, con
+  un tetto di 15 secondi perché un processo che non muore è peggio di una
+  risposta persa. Con la coda vuota, cioè il caso dell'editor, l'uscita resta
+  immediata.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.26.0 — 2026-07-30
 
 - **Nuovo:** Copilot in VS Code legge i database collegati (MCP, sola lettura)
