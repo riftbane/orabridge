@@ -207,10 +207,11 @@ e quelle già aperte. Per questo l'accesso è chiuso su più fronti.
 - **L'unica altra porta è spenta di default.** L'integrazione MCP con gli editor
   esterni (§ [Copilot in VS Code](#github-copilot-in-vs-code-mcp)) sta sotto
   `/api`, quindi eredita tutti i controlli qui sopra, token compreso; in più
-  risponde solo se la si accende dalle impostazioni, ed espone soltanto strumenti
-  di lettura. Il file con porta e token che serve al ponte esiste solo a
-  integrazione accesa — chi può leggerlo può interrogare i database collegati, ed
-  è il motivo per cui non nasce da solo.
+  risponde solo se la si accende dalle impostazioni, espone soltanto strumenti
+  di lettura e vede solo le connessioni esposte una per una (spente di default).
+  Il file con porta e token che serve al ponte esiste solo a integrazione accesa
+  — chi può leggerlo può interrogare i database esposti, ed è il motivo per cui
+  non nasce da solo.
 
 ## Desktop (Windows)
 
@@ -412,10 +413,10 @@ modello, che non ci riprova e propone l'SQL da lanciare a mano.
 ## GitHub Copilot in VS Code (MCP)
 
 Orabridge può farsi interrogare da Copilot — o da qualunque editor che parli
-**MCP** (Model Context Protocol) — sui database **già collegati nell'app**. In
-chat, in modalità agente, Copilot legge schema, DDL, sorgenti PL/SQL e il
-risultato delle SELECT: ha il contesto del database accanto al codice, senza che
-nessuno gli configuri una seconda connessione Oracle.
+**MCP** (Model Context Protocol) — sui database che l'utente gli **espone, uno
+per uno**. In chat, in modalità agente, Copilot legge schema, DDL, sorgenti
+PL/SQL e il risultato delle SELECT: ha il contesto del database accanto al
+codice, senza che nessuno gli configuri una seconda connessione Oracle.
 
 **È di sola lettura, per costruzione.** L'elenco degli strumenti si costruisce
 filtrando quelli dell'assistente sul permesso `read`, quindi `execute_sql` — che
@@ -425,13 +426,32 @@ che rifiuta gli strumenti di scrittura anche se lo si invocasse direttamente.
 Niente INSERT, niente DROP, niente DELETE: le modifiche restano una cosa da fare
 dal foglio SQL. E le credenziali non escono dall'app in nessuna forma —
 `list_connections` restituisce nome, schema corrente e versione di Oracle, non
-utente, host, servizio né password. Le connessioni le apre e le chiude l'utente
-dentro Orabridge; da MCP non si possono nemmeno aprire.
+utente, host, servizio né password.
 
-Si accende da **Impostazioni → Copilot e MCP** (parte spenta: apre una seconda
-porta verso i database collegati, e la decisione è dell'utente). Lì c'è anche la
-configurazione già compilata da incollare in `mcp.json`, coi percorsi
-dell'installazione — quello che segue è la stessa cosa spiegata.
+**Due interruttori, non uno.** Quello generale sta in **Impostazioni → Copilot e
+MCP** e apre la porta (parte spento: la decisione è dell'utente). Poi ogni
+connessione ha il suo, anch'esso spento di default: Copilot vede **solo** i
+database esposti, gli altri non compaiono nemmeno in `list_connections` e non
+sono nominabili nel parametro `connection`. Sotto l'interruttore della singola
+connessione ci sono i permessi — **Lettura** si imposta, *Modifica* ed
+*Eliminazione* si vedono e basta, perché gli strumenti che servirebbero da qui
+non escono affatto. L'interruttore per connessione sta anche nella finestra di
+modifica della connessione e nel menu contestuale della barra laterale.
+
+**Un database esposto si collega da solo.** Alla prima richiesta di Copilot,
+l'integrazione apre il pool con la password già salvata in Orabridge (`ensureOpen`
+in `server/src/mcp/tools.js`, con guardia sulle chiamate in parallelo: un
+collegamento solo). Senza password salvata non si tenta niente e lo strumento
+spiega che va collegata una volta a mano. Quello che succede si vede **in tempo
+reale** nella finestra di Orabridge: la connessione compare collegata nella barra
+laterale, con una spina che si accende mentre Copilot legge, e le impostazioni
+hanno una sezione *Attività in tempo reale* con le ultime richieste (strumento,
+database, durata o errore). Il flusso è un SSE su `/api/mcp/events`, alimentato
+da `server/src/mcp/activity.js`.
+
+Nelle impostazioni c'è anche la configurazione già compilata da incollare in
+`mcp.json`, coi percorsi dell'installazione — quello che segue è la stessa cosa
+spiegata.
 
 **Windows** — configurazione utente di VS Code, comando *MCP: Open User
 Configuration*:
@@ -493,10 +513,11 @@ di Orabridge invece di comportarsi da Node.
 
 ### Come Copilot sceglie il database
 
-`list_connections` elenca le connessioni attive; ogni altro strumento accetta un
-parametro `connection` facoltativo. Con **una sola** connessione attiva si può
-omettere. Con più di una, l'errore elenca i nomi disponibili invece di
-scegliere a caso.
+`list_connections` elenca i database esposti (segnalando quali sono già
+collegati); ogni altro strumento accetta un parametro `connection` facoltativo.
+Con **uno solo** esposto si può omettere; se sono più d'uno ma ne è collegato uno
+solo si usa quello — è il database su cui l'utente sta lavorando. Altrimenti
+l'errore elenca i nomi disponibili invece di scegliere a caso.
 
 Le query di Copilot girano su una connessione **del pool**, non sulla sessione
 dedicata del foglio SQL: non si accodano dietro alle query dell'utente, non

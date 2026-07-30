@@ -1,7 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Plug, X, XCircle } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
+import McpPermissions from './McpPermissions.jsx';
+
+// Nuova connessione: esposizione a MCP spenta: si accende una connessione alla
+// volta, mai per eredità.
+const NO_MCP = { enabled: false, permissions: { read: true, write: false, delete: false } };
 
 export default function ConnectionModal({ conn, onClose }) {
   const isEdit = !!conn?.id;
@@ -14,6 +19,7 @@ export default function ConnectionModal({ conn, onClose }) {
     user: conn?.user || '',
     password: '',
     group: conn?.group || '',
+    mcp: conn?.mcp ? { ...NO_MCP, ...conn.mcp, permissions: { ...NO_MCP.permissions, ...conn.mcp.permissions } } : NO_MCP,
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -134,6 +140,40 @@ export default function ConnectionModal({ conn, onClose }) {
               />
             </label>
           </div>
+          <section className="conn-mcp">
+            <label className="mcp-switch">
+              <input
+                type="checkbox"
+                checked={!!form.mcp.enabled}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mcp: { ...f.mcp, enabled: e.target.checked } }))
+                }
+              />
+              <span>
+                <strong>
+                  <Plug size={12} /> Esponi a Copilot (MCP)
+                </strong>
+                <em>
+                  Gli editor esterni vedono questo database e lo collegano da soli quando serve. Vale
+                  solo se l'integrazione è accesa in Impostazioni → Copilot e MCP.
+                </em>
+              </span>
+            </label>
+            {form.mcp.enabled && (
+              <>
+                <McpPermissions
+                  permissions={form.mcp.permissions}
+                  onChange={(permissions) => setForm((f) => ({ ...f, mcp: { ...f.mcp, permissions } }))}
+                />
+                {isEdit && !conn?.hasPassword && (
+                  <p className="mcp-note warn">
+                    Nessuna password salvata: il collegamento automatico non può partire. Collega
+                    una volta questa connessione dall'applicazione e la password verrà salvata.
+                  </p>
+                )}
+              </>
+            )}
+          </section>
           {testResult && (
             <div className={`test-result ${testResult.ok ? 'ok' : 'err'}`}>
               {testResult.ok ? <CheckCircle2 size={15} /> : <XCircle size={15} />}

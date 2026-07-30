@@ -76,14 +76,32 @@ I file `.gguf` si scaricano a runtime da HuggingFace nella cartella dati
 
 ## Integrazione MCP con gli editor esterni (Copilot)
 
-`server/src/mcp/` + `electron/mcp-bridge.cjs` espongono i database **già
-collegati** a VS Code. Quattro invarianti da non rompere:
+`server/src/mcp/` + `electron/mcp-bridge.cjs` espongono a VS Code i database che
+l'utente ha **esposto uno per uno**. Invarianti da non rompere:
 
 - **È di sola lettura, e non per convenzione.** L'elenco degli strumenti nasce da
   `TOOL_DEFS.filter(t => t.permission === 'read')` e `runTool` viene chiamato con
   `readOnly: true`, che rifiuta gli strumenti di scrittura anche se invocato
   direttamente. Aggiungere uno strumento a `ai/tools.js` con permesso `read` lo
   espone automaticamente a Copilot: se non deve uscire dall'app, non è `read`.
+- **Due interruttori, entrambi spenti di default.** Quello generale
+  (`settings.mcp().enabled`) apre la porta; quello per connessione (`mcp.enabled`
+  in `connections.json`, normalizzato da `normalizeMcp` in `store.js`) decide chi
+  si vede. `exposedConnections()` è l'unica fonte: una connessione non esposta non
+  compare in `list_connections` e non è nominabile nel parametro `connection`. I
+  permessi `write`/`delete` sono forzati a `false` nello store — esistono per
+  essere mostrati come non disponibili, non per essere concessi un domani da lì.
+- **Il collegamento lo apre l'integrazione.** `ensureOpen` fa `pools.connect` con
+  la password salvata, con una mappa `opening` che impedisce due pool per lo
+  stesso database quando arrivano chiamate in parallelo. Senza password salvata
+  non si tenta: si spiega di collegare la connessione una volta dall'app.
+- **Quello che fa Copilot si vede mentre lo fa.** `mcp/activity.js` tiene un
+  anello di voci (una per chiamata, aggiornata sul posto) e le trasmette su
+  `GET /api/mcp/events` (SSE); il client apre quel flusso all'avvio
+  (`startMcpStream` in `client/src/store.js`) e da lì aggiorna barra laterale e
+  impostazioni. Un collegamento aperto da MCP entra in `active` come se l'avesse
+  aperto l'utente: senza quel passaggio la finestra mostrerebbe «non connesso» un
+  database che invece è aperto e in lettura.
 - **`run_query` ha due modalità di esecuzione.** Con `ctx.pooled` gira su una
   connessione del pool, altrimenti sulla sessione dedicata del foglio SQL. L'MCP
   usa la prima: unificarle rimetterebbe Copilot dentro la transazione aperta
@@ -105,9 +123,10 @@ di sessione e in `initialize` si risponde con la revisione chiesta dal client se
 è fra quelle conosciute. Porta e token per il ponte stanno in
 `DATA_DIR/mcp-endpoint.json`, che esiste **solo** a integrazione accesa.
 
-Test: `server/test/mcp.test.js` (protocollo, sola lettura, risoluzione della
-connessione, endpoint HTTP) e `server/test/mcpBridge.test.js`, che avvia il ponte
-come processo vero e gli parla su stdio.
+Test: `server/test/mcp.test.js` (protocollo, sola lettura, interruttore e
+permessi per connessione, collegamento automatico, attività, endpoint HTTP) e
+`server/test/mcpBridge.test.js`, che avvia il ponte come processo vero e gli
+parla su stdio.
 
 L'app desktop controlla da sola gli aggiornamenti via `electron-updater`
 (vedi `electron/main.cjs`, funzione `setupAutoUpdater`): all'avvio e ogni

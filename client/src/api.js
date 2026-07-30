@@ -104,6 +104,11 @@ export const api = {
   // editor esterni (Copilot in VS Code) via MCP
   mcpStatus: () => j('GET', '/api/mcp/status'),
   setMcpEnabled: (enabled) => j('PUT', '/api/mcp/status', { enabled }),
+  // Esposizione e permessi di una singola connessione: stanno sulla
+  // connessione, non nelle impostazioni generali.
+  setConnectionMcp: (id, mcp) => j('PUT', `/api/connections/${id}`, { mcp }),
+  // Cosa sta facendo Copilot, in tempo reale (SSE).
+  mcpEventsUrl: () => '/api/mcp/events',
   aiModels: (provider, refresh) =>
     j('GET', `/api/ai/models?${q({ provider, refresh: refresh ? '1' : '' })}`),
   aiSessions: () => j('GET', '/api/ai/sessions'),

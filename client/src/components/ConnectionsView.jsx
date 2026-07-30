@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronRight, Pencil, Plus, Search, Trash2, Unplug, Upload } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, Pencil, Plug, Plus, Search, Trash2, Unplug, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import { api } from '../api.js';
 import ObjectTree from './ObjectTree.jsx';
@@ -16,9 +16,60 @@ function statusInfo(active) {
   return { cls: 'idle', label: 'Non connesso — doppio click per connettersi' };
 }
 
+// «poco fa», per l'ultima cosa letta da Copilot: la riga della barra laterale
+// deve dire da quanto, non a che ora.
+function since(at) {
+  const s = Math.max(0, Math.round((Date.now() - at) / 1000));
+  if (s < 5) return 'adesso';
+  if (s < 60) return `${s} s fa`;
+  if (s < 3600) return `${Math.round(s / 60)} min fa`;
+  return `${Math.round(s / 3600)} h fa`;
+}
+
+// Attività MCP di una connessione: mentre Copilot legge, e per qualche minuto
+// dopo. Passato quel tempo la riga sparisce da sola — è un indicatore di
+// «adesso», non una cronologia (quella è nelle impostazioni).
+const RECENT_MS = 5 * 60 * 1000;
+
+// Nella barra laterale c'è spazio per poche parole: il nome dello strumento
+// dice già tutto, gli altri fatti hanno bisogno di essere tradotti.
+const KIND_LABEL = { open: 'collegamento aperto', denied: 'richiesta rifiutata', error: 'errore' };
+const whatHappened = (entry) => entry.tool || KIND_LABEL[entry.kind] || entry.kind;
+
+function McpRowActivity({ connId }) {
+  const busy = useStore((s) => s.mcpBusy[connId] || 0);
+  const last = useStore((s) => s.mcpLast[connId]);
+  // Senza un tick, «12 s fa» resterebbe «12 s fa» finché non cambia altro.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!last) return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 5000);
+    return () => clearInterval(t);
+  }, [last]);
+
+  if (!last) return null;
+  if (!busy && Date.now() - last.at > RECENT_MS) return null;
+
+  const failed = !busy && (last.ok === false || last.kind === 'denied' || last.kind === 'error');
+  return (
+    <div
+      className={`mcp-activity ${busy ? 'busy' : ''} ${failed ? 'failed' : ''}`}
+      title={
+        failed ? last.error : `${whatHappened(last)} — ${new Date(last.at).toLocaleTimeString()}`
+      }
+    >
+      <span className="mcp-activity-dot" />
+      {busy
+        ? `Copilot sta leggendo${last.tool ? ` — ${last.tool}` : ''}`
+        : `Copilot: ${whatHappened(last)}${failed && last.ok === false ? ' non riuscito' : ''} · ${since(last.at)}`}
+    </div>
+  );
+}
+
 function ConnectionRow({ conn, groups }) {
   const active = useStore((s) => s.active[conn.id]);
   const selected = useStore((s) => s.selectedConnId === conn.id);
+  const mcpBusy = useStore((s) => !!s.mcpBusy[conn.id]);
   const { connect, disconnect, openWorksheet, refreshConnections, toast } = useStore.getState();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -27,6 +78,7 @@ function ConnectionRow({ conn, groups }) {
   const connecting = active?.status === 'connecting';
   const status = statusInfo(active);
   const current = conn.group?.trim() || '';
+  const mcpOn = !!conn.mcp?.enabled;
 
   const remove = async () => {
     if (!window.confirm(`Eliminare la connessione "${conn.name}"?`)) return;
@@ -57,6 +109,18 @@ function ConnectionRow({ conn, groups }) {
     st.openSidebarView(view);
   };
 
+  // Esporre (o togliere) una connessione da Copilot senza passare dalla
+  // finestra di modifica: è un interruttore, e si usa spesso da qui.
+  const toggleMcp = async () => {
+    try {
+      await api.setConnectionMcp(conn.id, { enabled: !mcpOn });
+      await refreshConnections();
+      toast(mcpOn ? `"${conn.name}" non è più esposta a Copilot` : `"${conn.name}" esposta a Copilot`, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
   const menuItems = [
     ...(connected
       ? [
@@ -76,6 +140,7 @@ function ConnectionRow({ conn, groups }) {
         { input: true, placeholder: 'Nuovo gruppo…', autoFocus: false, onSubmit: (g) => moveTo(g) },
       ],
     },
+    { label: 'Esponi a Copilot (MCP)', checked: mcpOn, onClick: toggleMcp },
     { label: 'Modifica…', onClick: () => setEditing(true) },
     { separator: true },
     { label: 'Elimina…', danger: true, onClick: remove },
@@ -99,7 +164,21 @@ function ConnectionRow({ conn, groups }) {
       >
         <span className={`conn-dot status-${status.cls}`} title={status.label} />
         <div className="conn-names">
-          <span className="conn-name">{conn.name}</span>
+          <span className="conn-name">
+            {conn.name}
+            {mcpOn && (
+              <span
+                className={`mcp-badge ${mcpBusy ? 'busy' : ''}`}
+                title={
+                  mcpBusy
+                    ? 'Copilot sta leggendo questo database'
+                    : 'Esposta agli editor esterni (MCP), in sola lettura'
+                }
+              >
+                <Plug size={10} />
+              </span>
+            )}
+          </span>
           <span className="conn-sub">
             {conn.user}@{conn.serviceType === 'custom' ? conn.service : `${conn.host}:${conn.port}/${conn.service}`}
           </span>
@@ -140,6 +219,7 @@ function ConnectionRow({ conn, groups }) {
           </button>
         </div>
       </div>
+      {mcpOn && <McpRowActivity connId={conn.id} />}
       {connected && active.txnOpen && (
         <div className="txn-badge" title="Transazione aperta (commit/rollback dal foglio SQL)">
           <span className="txn-dot" />

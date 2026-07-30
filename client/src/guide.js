@@ -680,10 +680,10 @@ cronologia, marcate con ✨.
   {
     id: 'copilot',
     title: 'Copilot in VS Code',
-    summary: 'Far leggere i database collegati a Copilot, in sola lettura.',
+    summary: 'Esporre un database a Copilot, in sola lettura, e vedere cosa legge.',
     md: `
 Orabridge può farsi interrogare da **GitHub Copilot** — o da qualunque editor che
-parli **MCP** — sui database che hai già collegato qui dentro. In chat, in
+parli **MCP** — sui database che gli **esponi tu, uno per uno**. In chat, in
 modalità agente, Copilot legge schema, DDL, sorgenti PL/SQL e il risultato delle
 SELECT: ha il contesto del database accanto al codice, senza che tu configuri una
 seconda connessione Oracle da nessuna parte.
@@ -698,17 +698,48 @@ corrente e la versione di Oracle, non l'utenza, non l'host, non la password.
 
 1. In Orabridge: **Impostazioni → Copilot e MCP** (\`Ctrl+,\`) e spunta
    *Consenti la lettura dagli editor esterni*. Parte spento di proposito.
-2. Nello stesso pannello compare la **configurazione già compilata**, coi
+2. Nella stessa scheda, sotto **Database esposti**, accendi l'interruttore delle
+   connessioni che vuoi far leggere. Sono tutte spente all'inizio: quello che non
+   accendi, Copilot non lo vede nemmeno in elenco. Lo stesso interruttore sta
+   nella finestra di modifica della connessione e nel menu con il tasto destro
+   sulla connessione.
+3. Nello stesso pannello compare la **configurazione già compilata**, coi
    percorsi della tua installazione: scegli **Windows** o **WSL** secondo dove
    apri i progetti e premi *Copia*.
-3. In VS Code, incolla in \`mcp.json\`:
+4. In VS Code, incolla in \`mcp.json\`:
    - **Windows** → tavolozza dei comandi, *MCP: Open User Configuration*;
    - **WSL** → \`.vscode/mcp.json\` nel progetto, oppure *MCP: Open Remote User
      Configuration*.
-4. Apri la chat di Copilot, passa alla modalità **Agente**: nell'elenco degli
+5. Apri la chat di Copilot, passa alla modalità **Agente**: nell'elenco degli
    strumenti compaiono quelli di Orabridge.
-5. Collega un database in Orabridge, se non l'hai già fatto: Copilot legge le
-   connessioni **attive**, non quelle salvate.
+
+Non serve collegare il database prima: una connessione esposta **si collega da
+sola** alla prima richiesta di Copilot, con la password già salvata in Orabridge.
+L'unico caso in cui non può è quello di una connessione senza password salvata —
+collegala una volta a mano e da lì in poi funziona da sé.
+
+## Permessi, per connessione
+
+Sotto ogni interruttore acceso ci sono tre permessi: **Lettura**, **Modifica**,
+**Eliminazione**. Solo il primo si imposta — ed è quello che decide se Copilot
+può interrogare quel database. Gli altri due si vedono ma non si toccano: non
+sono un'opzione che devi ancora attivare, sono strumenti che dall'integrazione
+non escono affatto. Compaiono perché la domanda «cosa può fare Copilot su questo
+database» abbia una risposta intera.
+
+## Cosa sta leggendo, adesso
+
+Copilot lavora in un'altra finestra, quindi Orabridge te lo racconta mentre
+succede:
+
+- accanto al nome della connessione compare una **spina**, che si accende mentre
+  Copilot legge quel database;
+- sotto la riga della connessione appare *«Copilot sta leggendo — nome dello
+  strumento»*, e poi per qualche minuto l'ultima cosa letta;
+- quando è l'integrazione ad aprire un collegamento, ricevi un avviso e la
+  connessione compare collegata nella barra laterale, come se l'avessi aperta tu;
+- in **Impostazioni → Copilot e MCP**, la sezione *Attività in tempo reale*
+  elenca le ultime richieste: ora, strumento, database, durata o errore.
 
 Orabridge deve restare aperto: il database lo raggiunge lui, Copilot passa da
 lui. Se lo chiudi, gli strumenti rispondono che l'applicazione non è in
@@ -721,8 +752,9 @@ scrivimi la query dei primi dieci clienti per fatturato»*, *«questo package co
 fa?»*, *«i nomi delle colonne di TS_TIMESHEET»*. Copilot chiama gli strumenti da
 solo e ti chiede conferma la prima volta.
 
-Con **più connessioni attive** ti chiede quale usare, elencando i nomi: puoi
-anche dirglielo tu (*«sul database di collaudo…»*). Con una sola, la usa e basta.
+Con **più database esposti** usa quello già collegato; se sono collegati in più
+d'uno ti chiede quale, elencando i nomi, e puoi anche dirglielo tu (*«sul
+database di collaudo…»*). Con uno solo esposto, usa quello e basta.
 
 Le query che lancia Copilot **non** passano dalla sessione dei tuoi fogli SQL:
 usano una connessione a parte, quindi non si mettono in coda dietro alle tue
@@ -742,7 +774,9 @@ comandi: tienilo presente su database con dati sensibili.
 | Sintomo | Cosa controllare |
 |---|---|
 | VS Code non mostra gli strumenti | L'interruttore in **Impostazioni → Copilot e MCP** è spento, oppure Orabridge non è aperto. Poi *MCP: Reset Cached Tools* / ricarica la finestra. |
-| «Nessuna connessione attiva» | Nessun database collegato in Orabridge: doppio clic sulla connessione. |
+| «Nessun database è esposto» | Nessuna connessione ha l'interruttore acceso: accendilo in **Impostazioni → Copilot e MCP → Database esposti**. |
+| «Non ha una password salvata» | Il collegamento automatico ha bisogno della password: collega quella connessione una volta dall'applicazione e verrà salvata. |
+| Copilot non vede un database che hai collegato | Collegato non vuol dire esposto: l'interruttore MCP di quella connessione è separato, e parte spento. |
 | Si apre la finestra di Orabridge invece degli strumenti | Configurazione WSL senza la riga \`WSLENV\`: senza quella, la variabile che fa partire il ponte non attraversa il confine fra Linux e Windows. Ricopia la configurazione dalle impostazioni. |
 | Funzionava, poi ha smesso | Orabridge è stato riavviato: porta e credenziali interne cambiano ogni volta, ma vengono ritrovate da sole. Se resta bloccato, ricarica la finestra di VS Code. |
 `,
@@ -840,9 +874,11 @@ connessione).
   esegue, vengono inviati alla piattaforma scelta — vale la privacy policy di
   quella piattaforma. Senza API key configurata nessun dato esce da Orabridge.
 - **Editor esterni (MCP)**: l'integrazione con Copilot è **spenta** finché non la
-  si accende dalle impostazioni, ed espone soltanto strumenti di lettura. Da
-  accesa, i dati che Copilot interroga finiscono al suo modello, quindi lasciano
-  il computer: vedi [Copilot in VS Code](#copilot).
+  si accende dalle impostazioni, espone soltanto strumenti di lettura e vede solo
+  i database che hai esposto uno per uno (anche quelli spenti di default). Da
+  accesa, un database esposto viene collegato automaticamente quando serve e i
+  dati che Copilot interroga finiscono al suo modello, quindi lasciano il
+  computer: vedi [Copilot in VS Code](#copilot).
 - **Nessun commit automatico**: fogli SQL, modifica dei dati nella griglia e
   assistente condividono la stessa sessione e la stessa transazione; commit e
   rollback restano gesti espliciti.

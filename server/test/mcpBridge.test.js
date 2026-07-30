@@ -93,7 +93,7 @@ test('il ponte porta stdio fino al server e ritorno', async () => {
     assert.equal(byId[1].result.serverInfo.name, 'orabridge');
     assert.equal(byId[2].result.tools.length, 7);
     assert.ok(!byId[2].result.tools.some((t) => t.name === 'execute_sql'));
-    assert.match(byId[3].result.content[0].text, /Nessuna connessione attiva/);
+    assert.match(byId[3].result.content[0].text, /Nessun database è esposto/);
     // La notifica non deve produrre una riga in più.
     assert.equal(answers.length, 3);
   } finally {

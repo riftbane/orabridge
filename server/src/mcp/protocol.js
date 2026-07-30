@@ -34,9 +34,11 @@ export const SERVER_INFO = {
 // Istruzioni consegnate al modello all'inizializzazione: dicono da dove
 // arrivano le connessioni e, soprattutto, che qui non si scrive.
 export const INSTRUCTIONS = [
-  "Questi strumenti leggono i database Oracle collegati nell'applicazione Orabridge, che è aperta",
-  "sullo stesso computer. Le connessioni le apre e le chiude l'utente da Orabridge: qui non si",
-  'possono creare, e le credenziali non sono leggibili.',
+  "Questi strumenti leggono i database Oracle configurati nell'applicazione Orabridge, che è aperta",
+  "sullo stesso computer. Sono visibili solo i database che l'utente ha esposto a questa",
+  'integrazione: usa list_connections per sapere quali sono. Un database esposto ma non ancora',
+  'collegato si collega da solo alla prima richiesta — non chiedere di collegarlo a mano. Le',
+  'credenziali restano in Orabridge e non sono leggibili da qui.',
   '',
   'Sono strumenti di SOLA LETTURA: struttura, DDL, sorgenti PL/SQL e SELECT. Non esiste alcun modo',
   "di modificare dati o oggetti da qui — se l'utente lo chiede, spiega che va fatto dal foglio SQL",

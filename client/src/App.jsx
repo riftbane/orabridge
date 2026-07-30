@@ -149,6 +149,9 @@ export default function App() {
 
   useEffect(() => {
     refreshConnections().catch((err) => toast(`Server non raggiungibile: ${err.message}`, 'error'));
+    // Cosa sta facendo Copilot sui database esposti: il flusso resta aperto per
+    // tutta la sessione, anche a impostazioni chiuse.
+    useStore.getState().startMcpStream();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

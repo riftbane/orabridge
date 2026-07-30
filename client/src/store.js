@@ -6,6 +6,23 @@ import { DEFAULT_SEARCH_TYPES } from './searchTypes.js';
 let wsCounter = 1;
 let toastId = 1;
 
+// Flusso degli eventi MCP: uno solo per finestra, aperto all'avvio e mai
+// chiuso. Vive fuori dallo stato — è un oggetto del browser, non un dato.
+let mcpStream = null;
+
+// Da chi sta leggendo adesso a chi ha letto per ultimo: due mappe per connessione
+// ricavate dal flusso, così la barra laterale non deve scorrerlo a ogni disegno.
+function mcpDerived(feed) {
+  const mcpBusy = {};
+  const mcpLast = {};
+  for (const e of feed) {
+    if (!e.connId) continue;
+    if (e.running) mcpBusy[e.connId] = (mcpBusy[e.connId] || 0) + 1;
+    if (!mcpLast[e.connId]) mcpLast[e.connId] = e;
+  }
+  return { mcpBusy, mcpLast };
+}
+
 // Caricamenti di metadati in corso, per non ripetere la stessa richiesta.
 const pendingMeta = new Map();
 
@@ -122,6 +139,68 @@ export const useStore = create(
           }
           return { conns: list, active };
         });
+      },
+
+      // ---- attività MCP (Copilot in VS Code) ----
+      // Copilot lavora in un'altra finestra e da poco si collega da solo ai
+      // database esposti: senza questo flusso l'utente scoprirebbe dopo, e per
+      // caso, che un database è stato aperto e letto. Il server manda una voce
+      // per chiamata (vedi server/src/mcp/activity.js), aggiornata sul posto
+      // dall'inizio alla fine.
+      mcpFeed: [], // voci dalla più recente
+      mcpBusy: {}, // connId -> chiamate in corso adesso
+      mcpLast: {}, // connId -> ultima voce, per i tooltip della barra laterale
+
+      startMcpStream() {
+        if (mcpStream) return;
+        mcpStream = new EventSource(api.mcpEventsUrl());
+        mcpStream.onmessage = (e) => {
+          let msg;
+          try {
+            msg = JSON.parse(e.data);
+          } catch {
+            return;
+          }
+          if (msg.type === 'snapshot') get().setMcpFeed(msg.entries || []);
+          else if (msg.type === 'entry') get().applyMcpEntry(msg.entry);
+        };
+        // EventSource riprova da sé quando il server si riavvia: niente da fare
+        // qui se non evitare che l'errore finisca in console come un guasto.
+        mcpStream.onerror = () => {};
+      },
+
+      setMcpFeed(entries) {
+        const feed = [...entries].sort((a, b) => b.at - a.at).slice(0, 60);
+        set({ mcpFeed: feed, ...mcpDerived(feed) });
+      },
+
+      applyMcpEntry(entry) {
+        if (!entry?.id) return;
+        // Sostituzione, non aggiunta: la stessa voce arriva due volte (inizio e
+        // fine) e deve restare al suo posto in ordine di tempo, non risalire in
+        // cima quando finisce.
+        const feed = [entry, ...get().mcpFeed.filter((e) => e.id !== entry.id)]
+          .sort((a, b) => b.at - a.at)
+          .slice(0, 60);
+        set({ mcpFeed: feed, ...mcpDerived(feed) });
+        // Collegamento aperto da Copilot: la barra laterale deve mostrarlo
+        // connesso come se l'avesse aperto l'utente, subito.
+        if (entry.kind === 'open' && entry.connId) {
+          set((s) => ({
+            active: {
+              ...s.active,
+              [entry.connId]: {
+                status: 'connected',
+                user: entry.user,
+                currentSchema: entry.schema,
+                version: entry.version,
+              },
+            },
+            conns: s.conns.map((c) => (c.id === entry.connId ? { ...c, connected: true } : c)),
+          }));
+          get().toast(`Copilot ha collegato ${entry.connName}`, 'info');
+          get().loadAutocomplete(entry.connId);
+        }
       },
 
       // Connessione in attesa di password: { connId, error }. Vale sia quando

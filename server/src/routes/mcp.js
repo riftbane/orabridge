@@ -12,9 +12,10 @@ import path from 'path';
 import { Router } from 'express';
 import { settings } from '../settings.js';
 import { pools } from '../pools.js';
+import { activity } from '../mcp/activity.js';
 import { ENDPOINT_FILE, isPublished, sync } from '../mcp/endpoint.js';
 import { ERR, handleBatch, handleMessage, rpcError } from '../mcp/protocol.js';
-import { listTools, mcpApi } from '../mcp/tools.js';
+import { exposedConnections, listTools, mcpApi } from '../mcp/tools.js';
 
 const router = Router();
 const a = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -39,6 +40,10 @@ router.get('/status', (req, res) => {
     endpointFile: ENDPOINT_FILE,
     tools: listTools().map((t) => t.name),
     activeConnections: pools.ids().length,
+    // Quante connessioni l'utente ha esposto: l'elenco vero la finestra ce l'ha
+    // già (`/api/connections` porta la configurazione MCP di ognuna), qui serve
+    // solo per dire in una riga se c'è qualcosa da leggere.
+    exposed: exposedConnections().length,
     desktop: desktopPaths(),
   });
 });
@@ -49,6 +54,27 @@ router.put('/status', (req, res) => {
   // spegnerla cancella il file: nessun riavvio dell'app.
   sync();
   res.json({ ...out, published: isPublished(), endpointFile: ENDPOINT_FILE });
+});
+
+// Cosa sta facendo Copilot, mentre lo fa: collegamenti aperti dall'integrazione
+// e chiamate agli strumenti, in tempo reale. Serve alla finestra di Orabridge —
+// non è il trasporto MCP, che è la POST qui sotto.
+router.get('/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  // Chi si collega a stream già avviato non deve trovare la lavagna pulita.
+  send({ type: 'snapshot', entries: activity.recent() });
+  const off = activity.subscribe((entry) => send({ type: 'entry', entry }));
+  const ping = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(ping);
+    off();
+  });
 });
 
 // La specifica prevede che un server senza stream server→client risponda 405

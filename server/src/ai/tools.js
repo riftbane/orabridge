@@ -631,7 +631,10 @@ export async function runTool(connId, name, input, ctx) {
         sql: String(sql),
         ok: false,
         errorMessage: err.message,
-        source: 'ai',
+        // Come per le query riuscite: nella cronologia deve risultare chi l'ha
+        // lanciata davvero, altrimenti una query fallita di Copilot passa per
+        // una dell'assistente.
+        source: ctx?.source || 'ai',
       });
     }
     throw new ToolError(err.message);

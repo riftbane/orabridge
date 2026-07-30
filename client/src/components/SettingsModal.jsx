@@ -17,6 +17,7 @@ import { api } from '../api.js';
 import { useStore } from '../store.js';
 import AboutPanel from './AboutPanel.jsx';
 import GuideView from './GuideView.jsx';
+import McpPermissions from './McpPermissions.jsx';
 
 const PERMISSIONS = [
   {
@@ -485,13 +486,122 @@ function mcpSnippets(desktop, origin) {
   ];
 }
 
-// Integrazione con gli editor esterni: Copilot legge i database già collegati
-// in Orabridge, in sola lettura. L'interruttore è spento finché non lo si
-// accende: apre una seconda porta verso i database, e la decisione è dell'utente.
+// Quali database vede Copilot: uno per uno, spenti di default. L'elenco è
+// quello vero delle connessioni (dallo store), così l'interruttore acceso qui e
+// quello acceso nella finestra della connessione sono lo stesso interruttore.
+function McpConnections({ toast }) {
+  const conns = useStore((s) => s.conns);
+  const refreshConnections = useStore((s) => s.refreshConnections);
+  const busy = useStore((s) => s.mcpBusy);
+  const [saving, setSaving] = useState(null);
+
+  const update = async (conn, mcp) => {
+    setSaving(conn.id);
+    try {
+      await api.setConnectionMcp(conn.id, mcp);
+      await refreshConnections();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!conns.length) {
+    return <p className="settings-hint">Nessuna connessione salvata: prima creane una.</p>;
+  }
+
+  const stateOf = (c) => {
+    if (!c.mcp?.enabled) return 'Non esposta: dagli editor esterni questo database non si vede.';
+    if (busy[c.id]) return 'Copilot sta leggendo adesso.';
+    if (c.connected) return 'Collegata: Copilot può leggerla subito.';
+    if (!c.hasPassword) {
+      return 'Nessuna password salvata: il collegamento automatico non parte. Collegala una volta dall\'applicazione.';
+    }
+    return 'Si collega da sola alla prima richiesta di Copilot.';
+  };
+
+  return (
+    <div className="mcp-conns">
+      {conns.map((c) => (
+        <div key={c.id} className={`mcp-conn ${c.mcp?.enabled ? 'on' : ''} ${busy[c.id] ? 'busy' : ''}`}>
+          <label className="mcp-switch">
+            <input
+              type="checkbox"
+              checked={!!c.mcp?.enabled}
+              disabled={saving === c.id}
+              onChange={(e) => update(c, { enabled: e.target.checked })}
+            />
+            <span>
+              <strong>
+                {c.name}
+                {c.group?.trim() && <span className="mcp-conn-group">{c.group}</span>}
+              </strong>
+              <em className={c.mcp?.enabled && !c.connected && !c.hasPassword ? 'warn' : ''}>
+                {stateOf(c)}
+              </em>
+            </span>
+          </label>
+          {c.mcp?.enabled && (
+            <McpPermissions
+              permissions={c.mcp.permissions}
+              disabled={saving === c.id}
+              onChange={(permissions) => update(c, { permissions })}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const FEED_LABEL = {
+  open: 'Collegamento aperto',
+  denied: 'Richiesta rifiutata',
+  error: 'Errore',
+};
+
+// Cosa sta facendo Copilot, mentre lo fa. Le voci arrivano dal flusso aperto
+// all'avvio (store.startMcpStream): questo pannello le mostra e basta.
+function McpActivity() {
+  const feed = useStore((s) => s.mcpFeed);
+  if (!feed.length) {
+    return (
+      <p className="settings-hint">
+        Ancora niente. Ogni richiesta di Copilot compare qui nell'istante in cui arriva, con il
+        database a cui è andata a finire.
+      </p>
+    );
+  }
+  return (
+    <ul className="mcp-feed">
+      {feed.map((e) => {
+        const failed = e.ok === false || e.kind === 'denied' || e.kind === 'error';
+        return (
+          <li key={e.id} className={`mcp-feed-row ${e.running ? 'running' : ''} ${failed ? 'failed' : ''}`}>
+            <span className="mcp-feed-time">{new Date(e.at).toLocaleTimeString()}</span>
+            <span className="mcp-feed-what">{FEED_LABEL[e.kind] || e.tool}</span>
+            <span className="mcp-feed-conn">{e.connName || '—'}</span>
+            <span className="mcp-feed-state" title={e.error || ''}>
+              {e.running ? 'in corso…' : failed ? e.error || 'non riuscita' : e.ms != null ? `${e.ms} ms` : ''}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// Integrazione con gli editor esterni: Copilot legge i database esposti, in
+// sola lettura. L'interruttore generale è spento finché non lo si accende: apre
+// una seconda porta verso i database, e la decisione è dell'utente.
 function McpSettings({ toast }) {
   const [status, setStatus] = useState(null);
   const [variant, setVariant] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Quanti database sono esposti si legge dalle connessioni, non dallo stato
+  // chiesto una volta all'apertura: qui dentro si accendono e si spengono.
+  const exposed = useStore((s) => s.conns.filter((c) => c.mcp?.enabled).length);
 
   useEffect(() => {
     api
@@ -535,10 +645,10 @@ function McpSettings({ toast }) {
         </h4>
         <p className="settings-hint">
           Orabridge può farsi interrogare da Copilot (e da qualunque altro editor che parli MCP) sui
-          database <strong>già collegati qui dentro</strong>: Copilot vede struttura, DDL, sorgenti
-          PL/SQL e il risultato delle SELECT, così ha il contesto del database accanto al codice.
-          Le connessioni si aprono e si chiudono solo da Orabridge, e le credenziali non escono
-          dall'applicazione in nessuna forma.
+          database che <strong>esponi qui sotto, uno per uno</strong>: Copilot vede struttura, DDL,
+          sorgenti PL/SQL e il risultato delle SELECT, così ha il contesto del database accanto al
+          codice. Un database esposto viene <strong>collegato da solo</strong> alla prima richiesta,
+          con la password già salvata in Orabridge — che non esce dall'applicazione in nessuna forma.
         </p>
         <label className="perm-row">
           <input
@@ -561,6 +671,22 @@ function McpSettings({ toast }) {
             interrogati lasciano questo computer. Tienilo presente sui database di produzione.
           </p>
         )}
+      </section>
+
+      <section className="settings-section">
+        <h4>Database esposti</h4>
+        <p className="settings-hint">
+          L'interruttore è per connessione ed è spento di default: Copilot vede solo quelle accese, e
+          le altre non compaiono nemmeno nel suo elenco. La lettura si può togliere senza spegnere
+          l'esposizione; modifica ed eliminazione non sono impostabili perché gli strumenti che
+          servirebbero non escono da questa integrazione.
+        </p>
+        <McpConnections toast={toast} />
+      </section>
+
+      <section className="settings-section">
+        <h4>Attività in tempo reale</h4>
+        <McpActivity />
       </section>
 
       {status.enabled && (
@@ -601,11 +727,10 @@ function McpSettings({ toast }) {
           non è nell'elenco.
         </p>
         <p className="settings-hint">
-          {status.activeConnections === 0
-            ? 'Nessuna connessione attiva: collega un database perché Copilot abbia qualcosa da leggere.'
-            : `${status.activeConnections} ${
-                status.activeConnections === 1 ? 'connessione attiva' : 'connessioni attive'
-              }. Con più di una, Copilot chiede quale usare.`}
+          {exposed === 0
+            ? 'Nessun database esposto: finché non ne accendi almeno uno, Copilot non ha niente da leggere.'
+            : `${exposed} ${exposed === 1 ? 'database esposto' : 'database esposti'}. Con più di uno, ` +
+              'Copilot usa quello già collegato o chiede quale.'}
         </p>
       </section>
     </div>
