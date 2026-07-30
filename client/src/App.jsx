@@ -3,6 +3,7 @@ import { BookOpen, GitCompare, History, Network, X } from 'lucide-react';
 import { useStore } from './store.js';
 import { CUSTOM_TITLE_BAR } from './appInfo.js';
 import Sidebar from './components/Sidebar.jsx';
+import ActivityBar from './components/ActivityBar.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import LayoutActions from './components/LayoutActions.jsx';
 import ConnectionModal from './components/ConnectionModal.jsx';
@@ -161,6 +162,22 @@ export default function App() {
       }
       if (!e.ctrlKey && !e.metaKey) return;
       const { toggleUi } = useStore.getState();
+      // Viste della barra laterale, come in VS Code. Ctrl+Maiusc+F dentro
+      // l'editor resta «formatta SQL»: lì la ricerca è quella del documento.
+      if (e.shiftKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const views = { d: 'connections', e: 'connection' };
+        if (k === 'f' && !e.target?.closest?.('.cm-editor')) {
+          e.preventDefault();
+          useStore.getState().focusCodeSearch();
+          return;
+        }
+        if (views[k]) {
+          e.preventDefault();
+          useStore.getState().openSidebarView(views[k]);
+          return;
+        }
+      }
       if (e.key === 'b' && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         toggleUi('sidebar');
@@ -195,6 +212,9 @@ export default function App() {
         />
       )}
       <div className="app">
+        {/* La barra delle attività resta anche a pannello chiuso: è da lì che
+            lo si riapre sulla vista che serve. */}
+        <ActivityBar />
         {ui.sidebar && (
           <>
             <Sidebar onNewConnection={openConnModal} onImportConnections={openImportModal} />

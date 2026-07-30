@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { EditorView } from '@codemirror/view';
 import { Hammer, Pencil, RefreshCw } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
@@ -9,7 +10,15 @@ import ObjectCreateDialog from './ObjectDialogs.jsx';
 import TableEditDialog from './TableDialogs.jsx';
 import { buildCellUpdateSql } from '../ddl.js';
 
-const SOURCE_TYPES = new Set(['PROCEDURE', 'FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'TRIGGER', 'TYPE']);
+const SOURCE_TYPES = new Set([
+  'PROCEDURE',
+  'FUNCTION',
+  'PACKAGE',
+  'PACKAGE BODY',
+  'TRIGGER',
+  'TYPE',
+  'TYPE BODY',
+]);
 
 function subtabsFor(type) {
   if (type === 'TABLE' || type === 'MATERIALIZED VIEW')
@@ -255,6 +264,30 @@ function CodeTab({ loader }) {
   );
 }
 
+// Porta il cursore su una riga del sorgente e ci evidenzia il testo trovato.
+// I numeri di riga della ricerca sono quelli di ALL_SOURCE e coincidono con
+// quelli mostrati: `CREATE OR REPLACE ` si aggiunge in testa alla prima riga,
+// senza spostarne nessuna.
+function focusLine(view, focus) {
+  const doc = view.state.doc;
+  const line = doc.line(Math.max(1, Math.min(focus.line || 1, doc.lines)));
+  let from = line.from;
+  let to = line.from;
+  if (focus.text) {
+    let i = line.text.indexOf(focus.text);
+    if (i === -1) i = line.text.toUpperCase().indexOf(focus.text.toUpperCase());
+    if (i !== -1) {
+      from = line.from + i;
+      to = from + focus.text.length;
+    }
+  }
+  view.dispatch({
+    selection: { anchor: from, head: to },
+    effects: EditorView.scrollIntoView(from, { y: 'center' }),
+  });
+  view.focus();
+}
+
 // Editable PL/SQL source with compile (CREATE OR REPLACE) + errors from ALL_ERRORS.
 function SourceTab({ tab }) {
   const { connId, owner, name, type } = tab;
@@ -286,6 +319,16 @@ function SourceTab({ tab }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Salto alla riga chiesto dalla ricerca globale: al primo caricamento e a
+  // ogni nuovo risultato aperto sulla stessa scheda (cambia `seq`).
+  const focusSeq = tab.focus?.seq;
+  useEffect(() => {
+    if (text == null || !tab.focus?.line) return;
+    const view = viewRef.current;
+    if (view) focusLine(view, tab.focus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, focusSeq]);
 
   const compile = async () => {
     const sqlText = draft.current.trim();
@@ -390,6 +433,13 @@ export default function ObjectDetail({ tab }) {
   const connected = active?.status === 'connected';
 
   const { connId, owner, name, type } = tab;
+
+  // Arrivando da un risultato della ricerca la scheda può essere già aperta su
+  // un'altra linguetta: il sorgente è quello che si vuole vedere.
+  const focusSeq = tab.focus?.seq;
+  useEffect(() => {
+    if (focusSeq && SOURCE_TYPES.has(type)) setSub('Sorgente');
+  }, [focusSeq, type]);
 
   const loaders = {
     Colonne: useCallback(() => api.tableColumns(connId, owner, name), [connId, owner, name]),

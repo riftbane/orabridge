@@ -17,8 +17,25 @@ con database Oracle: pensata per developer che non vogliono la pesantezza di SQL
   - espansione di `*` e `alias.*` nell'elenco delle colonne
   - funzioni built-in di Oracle (con firma) e parole chiave del dialetto PL/SQL
   - i nomi seguono lo stile di chi scrive: se digiti in minuscolo li inserisce in minuscolo
+- **Barra laterale a viste** con barra delle attività in stile VS Code, sempre visibile
+  anche a pannello chiuso:
+  - **Connessioni** (`Ctrl+Maiusc+D`): l'elenco salvato, con gruppi colorati e ricerca
+  - **Connessione** (`Ctrl+Maiusc+E`): una connessione sola a tutta altezza — stato,
+    versione di Oracle, comandi rapidi, **selettore di schema** e albero degli oggetti
+  - **Ricerca nel codice** (`Ctrl+Maiusc+F`, vedi sotto)
 - **Browser oggetti** stile SQL Developer: tabelle, viste, viste materializzate, indici,
   sequenze, procedure, funzioni, package, trigger, tipi, sinonimi + altri schemi
+- **Ricerca globale nel PL/SQL** (`Ctrl+Maiusc+F`): cerca un testo dentro il sorgente di
+  procedure, funzioni, trigger e package body (e, a richiesta, specifiche dei package e
+  tipi) di tutto il database
+  - interruttori maiuscole/minuscole, parola intera ed **espressione regolare**
+    (sintassi Oracle, `REGEXP_LIKE`)
+  - ambito: schema di lavoro, un solo schema, tutti gli schemi applicativi oppure
+    tutti compresi quelli di Oracle (`SYS`, `XDB`, `APEX_*`… normalmente esclusi)
+  - risultati raggruppati per oggetto: **un clic apre l'oggetto sulla scheda Sorgente,
+    salta alla riga e seleziona il testo trovato**
+  - il filtro viaggia in SQL su `ALL_SOURCE` (niente sorgenti scaricati in blocco), con
+    tetto a 1000 righe e timeout di due minuti sulle ricerche su tutto il database
 - **Creazione guidata** (pulsante «＋» sulle cartelle dell'albero): designer tabella con
   griglia colonne/PK/commenti, sequenze, viste, indici, sinonimi, scheletri di
   procedure/funzioni/package/trigger/tipi — sempre con anteprima dello SQL generato
@@ -282,11 +299,13 @@ CI). Dettagli e convenzione dei messaggi di commit in `CLAUDE.md`.
 | `Invio` / `Maiusc+Invio` / `F3` | Risultato successivo / precedente |
 | `Alt+C` / `Alt+W` / `Alt+R` | Maiuscole/minuscole, parola intera, espressione regolare |
 | `Alt+L` | Limita la ricerca alle righe selezionate |
-| `Ctrl+Maiusc+F` | Formatta la selezione |
+| `Ctrl+Maiusc+F` | Formatta la selezione (col fuoco nell'editor) |
 | `Ctrl+Alt+F` | Formatta tutto il foglio |
 | doppio clic su cella | Visualizza valore completo (CLOB, testi lunghi) |
 | clic su intestazione colonna | Ordina risultati |
 | `Ctrl+B` | Mostra/nascondi la barra laterale |
+| `Ctrl+Maiusc+D` / `Ctrl+Maiusc+E` | Vista Connessioni / Connessione |
+| `Ctrl+Maiusc+F` (fuori dall'editor) | Vista Ricerca nel codice |
 | `Ctrl+J` | Mostra/nascondi i risultati del foglio SQL |
 | `Ctrl+Alt+I` | Mostra/nascondi l'assistente AI |
 | `Ctrl+,` | Impostazioni |
@@ -396,6 +415,7 @@ server/                  Express + node-oracledb (thin)
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
   src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/graph, /api/ai
+  src/routes/search.js   ricerca nel PL/SQL: predicato in SQL su ALL_SOURCE, timeout
   src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
   src/graph/             editor a nodi: modello del diagramma, rinomine, piano DDL

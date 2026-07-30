@@ -1,4 +1,4 @@
-import { GitCompare, History, Network, Plus, Upload } from 'lucide-react';
+import { GitCompare, History, Network, Plus, Search, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import LayoutActions from './LayoutActions.jsx';
 
@@ -31,6 +31,13 @@ export default function TitleBar({ onOpenSettings, onNewConnection, onImportConn
         </button>
         <button className="icon-btn" title="Importa connessioni" onClick={onImportConnections}>
           <Upload size={14} />
+        </button>
+        <button
+          className="icon-btn"
+          title="Cerca nel codice PL/SQL (Ctrl+Maiusc+F)"
+          onClick={() => useStore.getState().focusCodeSearch()}
+        >
+          <Search size={14} />
         </button>
         <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
           <History size={14} />

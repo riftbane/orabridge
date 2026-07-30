@@ -24,10 +24,24 @@ come PWA installabile dal browser: le funzioni sono le stesse ovunque.
 
 | Zona | A cosa serve |
 |---|---|
-| **Barra laterale** (sinistra) | Connessioni salvate e albero degli oggetti del database |
+| **Barra delle attività** (estrema sinistra) | Le tre viste della barra laterale |
+| **Barra laterale** | Connessioni, contenuto del database, ricerca nel codice |
 | **Schede** (in alto) | Fogli SQL, oggetti aperti, Cronologia, DB Diff, questa guida |
 | **Pannello dei risultati** (in basso) | Risultati, messaggi, log dello script, DBMS Output |
 | **Assistente AI** (destra) | Chat che interroga e modifica il database su richiesta |
+
+La striscia di icone all'estrema sinistra funziona come la barra delle attività
+di VS Code: sceglie **cosa** mostra la barra laterale, e resta visibile anche
+quando la barra è chiusa (l'icona la riapre sulla vista che serve).
+
+| Vista | Cosa contiene |
+|---|---|
+| **Connessioni** (\`Ctrl+Maiusc+D\`) | L'elenco delle connessioni salvate, coi gruppi |
+| **Connessione** (\`Ctrl+Maiusc+E\`) | Tutto di una sola connessione: stato, azioni, schema e albero degli oggetti |
+| **Ricerca nel codice** (\`Ctrl+Maiusc+F\`) | Cerca dentro il PL/SQL di tutto il database (vedi [Ricerca nel codice](#ricerca)) |
+
+Cliccando l'icona della vista già aperta la barra laterale si chiude — come
+\`Ctrl+B\`.
 
 I comandi generali (nuova connessione, importazione, cronologia, DB Diff,
 interruttori dei pannelli, guida, impostazioni) stanno **nella striscia in
@@ -103,8 +117,13 @@ modifiche non ancora confermate, si chiude con commit o rollback dal foglio SQL
   connessioni attive contengono.
 - **Cerca connessioni…**, sotto l'intestazione: filtra per nome, gruppo, utente
   o servizio, e mostra anche i gruppi chiusi che contengono un risultato.
-- Dal menu contestuale: *Nuovo foglio SQL*, *Connetti* / *Disconnetti*,
-  *Modifica…*, *Elimina…*.
+- Dal menu contestuale: *Nuovo foglio SQL*, *Esplora nella vista Connessione*,
+  *Cerca nel codice…*, *Connetti* / *Disconnetti*, *Modifica…*, *Elimina…*.
+
+Un clic su una connessione la rende quella **selezionata** (barretta arancione a
+sinistra): è quella su cui lavorano la vista *Connessione* e la *Ricerca nel
+codice*. Il **doppio clic** su una connessione già attiva porta direttamente
+alla vista *Connessione*.
 
 ## Importare da SQL Developer
 
@@ -131,9 +150,23 @@ riconfigurati a mano.
     title: 'Esplorare il database',
     summary: 'Albero degli oggetti, filtri, altri schemi e schede di dettaglio.',
     md: `
-Sotto ogni connessione attiva compare l'albero degli oggetti dello schema di
-lavoro: **Tabelle, Viste, Viste materializzate, Indici, Sequenze, Procedure,
-Funzioni, Package, Trigger, Tipi, Sinonimi** e la cartella **Altri utenti**.
+L'albero degli oggetti si trova in due posti: sotto ogni connessione attiva
+nella vista **Connessioni**, e a tutta altezza nella vista **Connessione**
+(\`Ctrl+Maiusc+E\`), che mostra una connessione sola per volta. Le cartelle sono
+le stesse: **Tabelle, Viste, Viste materializzate, Indici, Sequenze, Procedure,
+Funzioni, Package, Package Body, Trigger, Tipi, Sinonimi** e — nell'albero sotto
+la connessione — **Altri utenti**.
+
+## La vista «Connessione»
+
+Raccoglie tutto quello che riguarda il database selezionato:
+
+- il **selettore in cima** per passare a un'altra connessione;
+- utente, servizio, versione di Oracle e schema di lavoro;
+- i comandi rapidi: *Cerca nel codice*, *Diagramma*, *Cronologia*, *Confronta*,
+  *Disconnetti*, e **＋** per un nuovo foglio SQL;
+- un **selettore di schema**: l'albero mostra lo schema scelto, senza passare
+  dalla cartella *Altri utenti*.
 
 - **Doppio clic** su un oggetto lo apre in una scheda.
 - Il campo **Filtra oggetti…** in cima all'albero filtra tutte le cartelle
@@ -170,6 +203,64 @@ Quello che si vede dipende dal tipo di oggetto:
   \`ALL_ERRORS\` e sono cliccabili: portano alla riga giusta. **Ricarica**
   rilegge dal database e scarta le modifiche non compilate.
 - **DDL** è il sorgente completo generato da \`DBMS_METADATA\`.
+`,
+  },
+  {
+    id: 'ricerca',
+    title: 'Ricerca nel codice',
+    summary: 'Cercare un testo dentro il PL/SQL di tutto il database.',
+    md: `
+La terza vista della barra laterale (\`Ctrl+Maiusc+F\`, o l'icona della lente)
+cerca **dentro il sorgente PL/SQL** del database: procedure, funzioni, trigger e
+package body, e su richiesta anche le specifiche dei package e i tipi. È la
+risposta a «dove viene usata questa tabella?», «chi chiama questa procedura?»,
+«dov'è quel messaggio di errore?».
+
+## Come si cerca
+
+Nel campo di ricerca, con i tre interruttori a destra — gli stessi della ricerca
+nell'editor:
+
+- **Aa** — distingue maiuscole e minuscole (di default no);
+- **parola intera** — ignora \`v_saldo\` se stai cercando \`saldo\`;
+- **.\\*** — espressione regolare.
+
+\`Invio\` (o **Cerca**) lancia la ricerca.
+
+> Le espressioni regolari sono quelle di **Oracle** (\`REGEXP_LIKE\`), non quelle
+> di JavaScript: valgono le classi POSIX come \`[[:alpha:]]\`. Se la sintassi non
+> è valida risponde il database, con il suo \`ORA-\`.
+
+## Dove si cerca
+
+L'icona dei cursori in alto a destra mostra e nasconde **ambito e tipi**:
+
+| Ambito | Cosa scandisce |
+|---|---|
+| **Schema di lavoro** | Solo lo schema della sessione (predefinito, il più veloce) |
+| **Tutti gli schemi applicativi** | Tutto il database tranne gli schemi di Oracle (\`SYS\`, \`SYSTEM\`, \`XDB\`, \`APEX_*\`…) |
+| **Tutti, compresi quelli di Oracle** | Proprio tutto: lento, serve solo per indagare sui componenti del database |
+| **Un solo schema** | Lo schema scelto dall'elenco |
+
+Le **etichette dei tipi** (Procedure, Funzioni, Trigger, Package body, Package
+(spec), Tipi, Type body) si accendono e si spengono con un clic: meno tipi,
+meno righe da scandire.
+
+## I risultati
+
+Sono raggruppati per oggetto, con il numero di righe trovate; il nome dello
+schema è a fianco. **Un clic su una riga apre l'oggetto nella scheda Sorgente,
+salta a quella riga e seleziona il testo trovato** — da lì lo si può modificare
+e ricompilare come sempre.
+
+- La ricerca si ferma a **1000 righe**: se compare *«limite raggiunto»*
+  restringi l'ambito o i tipi.
+- Una ricerca su tutto il database che superi i **due minuti** viene interrotta:
+  Oracle deve leggere il sorgente riga per riga, non esiste un indice.
+- Si vede solo il codice che l'utenza può leggere (\`ALL_SOURCE\`), e gli oggetti
+  **wrapped** contengono solo testo cifrato: cercarci dentro non ha senso.
+- Cambiando connessione l'elenco si svuota: i risultati appartengono al database
+  su cui sono stati cercati.
 `,
   },
   {
@@ -623,7 +714,7 @@ connessione).
 | \`Invio\` / \`Maiusc+Invio\` / \`F3\` | Risultato successivo / precedente |
 | \`Alt+C\` / \`Alt+W\` / \`Alt+R\` | Maiuscole/minuscole, parola intera, regex |
 | \`Alt+L\` | Limita la ricerca alle righe selezionate |
-| \`Ctrl+Maiusc+F\` | Formatta la selezione |
+| \`Ctrl+Maiusc+F\` | Formatta la selezione (fuori dall'editor: ricerca nel codice) |
 | \`Ctrl+Alt+F\` | Formatta tutto il foglio |
 
 ## Griglia
@@ -640,6 +731,9 @@ connessione).
 | Tasti | Azione |
 |---|---|
 | \`Ctrl+B\` | Mostra/nascondi la barra laterale |
+| \`Ctrl+Maiusc+D\` | Vista Connessioni |
+| \`Ctrl+Maiusc+E\` | Vista Connessione (albero degli oggetti) |
+| \`Ctrl+Maiusc+F\` | Vista Ricerca nel codice (col fuoco nell'editor: formatta) |
 | \`Ctrl+J\` | Mostra/nascondi i risultati del foglio SQL |
 | \`Ctrl+Alt+I\` | Mostra/nascondi l'assistente AI |
 | \`Ctrl+,\` | Impostazioni |

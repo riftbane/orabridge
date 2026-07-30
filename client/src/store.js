@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api } from './api.js';
+import { DEFAULT_SEARCH_TYPES } from './searchTypes.js';
 
 let wsCounter = 1;
 let toastId = 1;
@@ -16,6 +17,14 @@ export const setCloseGuard = (tabId, guard) => {
   if (guard) closeGuards.set(tabId, guard);
   else closeGuards.delete(tabId);
 };
+
+// Ogni richiesta di salto a una riga porta un numero progressivo: riaprendo lo
+// stesso risultato la scheda è già aperta, e senza qualcosa che cambia la
+// scheda non si accorgerebbe che deve saltare di nuovo.
+let focusSeq = 1;
+// Ricerche nel codice: solo l'ultima lanciata ha diritto di scrivere il
+// risultato (le precedenti possono tornare dopo, su database lenti).
+let searchSeq = 0;
 
 export const useStore = create(
   persist(
@@ -37,6 +46,9 @@ export const useStore = create(
       ui: {
         sidebar: true,
         sidebarWidth: 280,
+        // Vista aperta nella barra laterale, scelta dalla barra delle attività
+        // (ActivityBar.jsx): 'connections' | 'connection' | 'search'.
+        sidebarView: 'connections',
         ai: false,
         aiWidth: 400,
         aiFull: false,
@@ -52,6 +64,32 @@ export const useStore = create(
       },
       toggleUi(key) {
         set((s) => ({ ui: { ...s.ui, [key]: !s.ui[key] } }));
+      },
+
+      // ---- barra laterale a viste ----
+      // Come la barra delle attività di VS Code: l'icona porta alla sua vista,
+      // e ricliccare quella già aperta chiude (o riapre) il pannello.
+      showSidebarView(view) {
+        set((s) => ({
+          ui: {
+            ...s.ui,
+            sidebarView: view,
+            sidebar: s.ui.sidebarView === view ? !s.ui.sidebar : true,
+          },
+        }));
+      },
+      // Apre la vista senza mai chiudere il pannello: è quello che serve a chi
+      // arriva da una scorciatoia o da un pulsante fuori dalla barra.
+      openSidebarView(view) {
+        set((s) => ({ ui: { ...s.ui, sidebarView: view, sidebar: true } }));
+      },
+
+      // Connessione su cui lavorano la vista «Connessione» e la ricerca
+      // globale: una sola, scelta esplicitamente o ereditata dall'ultima
+      // connessione riuscita.
+      selectedConnId: null,
+      selectConnection(id) {
+        set({ selectedConnId: id });
       },
 
       // Sessione dell'assistente aperta nel pannello.
@@ -104,6 +142,9 @@ export const useStore = create(
             active: { ...s.active, [id]: { status: 'connected', ...info } },
             conns: s.conns.map((c) => (c.id === id ? { ...c, connected: true } : c)),
             passwordPrompt: null,
+            // Appena connessi è questa la connessione a cui si sta pensando:
+            // la vista «Connessione» e la ricerca globale la seguono.
+            selectedConnId: id,
           }));
           const name = get().conns.find((c) => c.id === id)?.name;
           toast(`Connesso a ${name}${info.passwordSaved ? ' — password salvata' : ''}`, 'ok');
@@ -172,6 +213,27 @@ export const useStore = create(
         }
       },
 
+      // Elenco degli schemi del database, in cache: lo usano il selettore
+      // della vista «Connessione» e l'ambito della ricerca globale.
+      loadSchemas(connId) {
+        const cached = get().sqlMeta[connId]?.schemas;
+        if (cached) return Promise.resolve(cached);
+        const key = `${connId}:__schemas__`;
+        if (pendingMeta.has(key)) return pendingMeta.get(key);
+        const p = api
+          .schemas(connId)
+          .then(({ schemas }) => {
+            set((s) => ({
+              sqlMeta: { ...s.sqlMeta, [connId]: { ...(s.sqlMeta[connId] || {}), schemas } },
+            }));
+            return schemas;
+          })
+          .catch(() => [])
+          .finally(() => pendingMeta.delete(key));
+        pendingMeta.set(key, p);
+        return p;
+      },
+
       // Metadati di un altro schema, caricati la prima volta che servono
       // (quando si scrive "ALTRO_SCHEMA." nell'editor).
       loadSchemaMeta(id, owner) {
@@ -197,6 +259,84 @@ export const useStore = create(
           .finally(() => pendingMeta.delete(key));
         pendingMeta.set(key, p);
         return p;
+      },
+
+      // ---- ricerca globale nel codice PL/SQL ----
+      // Lo stato vive qui e non nel componente: la barra laterale si chiude e
+      // si riapre (Ctrl+B, cambio vista) e i risultati devono restare.
+      codeSearch: {
+        query: '',
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+        types: DEFAULT_SEARCH_TYPES,
+        scope: 'current', // 'current' | 'one' | 'user' | 'all'
+        owner: '',
+        focusToken: 0, // cambia quando la scorciatoia chiede il fuoco sul campo
+        running: false,
+        error: null,
+        result: null, // { connId, spec, objects, total, objectCount, truncated, elapsedMs }
+      },
+      setCodeSearch(patch) {
+        set((s) => ({ codeSearch: { ...s.codeSearch, ...patch } }));
+      },
+      // Apre la vista e rimette il fuoco nel campo (scorciatoia da tastiera):
+      // il numero che cambia è il segnale, la vista può essere già aperta.
+      focusCodeSearch() {
+        set((s) => ({
+          ui: { ...s.ui, sidebarView: 'search', sidebar: true },
+          codeSearch: { ...s.codeSearch, focusToken: (s.codeSearch.focusToken || 0) + 1 },
+        }));
+      },
+      clearCodeSearch() {
+        searchSeq++; // una risposta in volo non deve ricomparire dopo il reset
+        set((s) => ({ codeSearch: { ...s.codeSearch, result: null, error: null, running: false } }));
+      },
+
+      async runCodeSearch() {
+        const connId = get().selectedConnId;
+        const cs = get().codeSearch;
+        if (!cs.query) return;
+        if (!connId || get().active[connId]?.status !== 'connected') {
+          set((s) => ({
+            codeSearch: { ...s.codeSearch, error: 'Nessuna connessione attiva', result: null },
+          }));
+          return;
+        }
+        const seq = ++searchSeq;
+        const spec = {
+          q: cs.query,
+          caseSensitive: cs.caseSensitive,
+          wholeWord: cs.wholeWord,
+          regex: cs.regex,
+        };
+        set((s) => ({ codeSearch: { ...s.codeSearch, running: true, error: null } }));
+        try {
+          const r = await api.searchCode(connId, {
+            q: cs.query,
+            types: cs.types.join(','),
+            scope: cs.scope,
+            owner: cs.scope === 'one' ? cs.owner : '',
+            caseSensitive: cs.caseSensitive ? '1' : '',
+            wholeWord: cs.wholeWord ? '1' : '',
+            regex: cs.regex ? '1' : '',
+          });
+          if (seq !== searchSeq) return; // risposta di una ricerca superata
+          set((s) => ({
+            codeSearch: {
+              ...s.codeSearch,
+              running: false,
+              error: r.error || null,
+              result: r.error ? null : { ...r, connId, spec },
+            },
+          }));
+        } catch (err) {
+          if (seq !== searchSeq) return;
+          set((s) => ({
+            codeSearch: { ...s.codeSearch, running: false, error: err.message, result: null },
+          }));
+          if (err.status === 409) get().markDisconnected(connId);
+        }
       },
 
       // Incremented after DDL so open tree folders reload their contents.
@@ -291,14 +431,21 @@ export const useStore = create(
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)) }));
       },
 
-      openObject(connId, owner, name, type) {
+      // `focus` (facoltativo) è il punto del sorgente da mostrare, come lo
+      // manda la ricerca globale: { line, text, from, to }. La scheda si apre
+      // sul Sorgente e ci salta sopra (vedi ObjectDetail.jsx).
+      openObject(connId, owner, name, type, focus) {
         const id = `obj-${connId}-${owner}.${name}-${type}`;
+        const f = focus ? { ...focus, seq: focusSeq++ } : null;
         const exists = get().tabs.find((t) => t.id === id);
         if (exists) {
-          set({ activeTabId: id });
+          set((s) => ({
+            activeTabId: id,
+            tabs: f ? s.tabs.map((t) => (t.id === id ? { ...t, focus: f } : t)) : s.tabs,
+          }));
           return;
         }
-        const tab = { id, kind: 'object', connId, owner, name, type, title: name };
+        const tab = { id, kind: 'object', connId, owner, name, type, title: name, focus: f };
         set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
       },
 
@@ -335,11 +482,14 @@ export const useStore = create(
     {
       name: 'orabridge',
       partialize: (s) => ({
-        tabs: s.tabs,
+        // `focus` è il salto a una riga chiesto dalla ricerca: vale per il
+        // clic che l'ha generato, non al riavvio dell'app.
+        tabs: s.tabs.map(({ focus, ...t }) => t),
         activeTabId: s.activeTabId,
         drafts: s.drafts,
         maxRows: s.maxRows,
         ui: s.ui,
+        selectedConnId: s.selectedConnId,
         aiSessionId: s.aiSessionId,
         guideSection: s.guideSection,
       }),

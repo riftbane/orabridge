@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import connectionsRouter from './routes/connections.js';
 import metadataRouter from './routes/metadata.js';
 import sqlRouter from './routes/sql.js';
+import searchRouter from './routes/search.js';
 import historyRouter from './routes/history.js';
 import diffRouter from './routes/diff.js';
 import graphRouter from './routes/graph.js';
@@ -140,6 +141,7 @@ function createApp({ token = TOKEN, host = HOST } = {}) {
   };
   app.use('/api/conn/:id', requireConn, metadataRouter);
   app.use('/api/conn/:id', requireConn, sqlRouter);
+  app.use('/api/conn/:id', requireConn, searchRouter);
 
   // Static frontend (client build).
   const pub = path.join(__dirname, '..', 'public');

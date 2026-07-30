@@ -73,6 +73,9 @@ export const api = {
     j('GET', `/api/conn/${id}/synonym?${q({ owner, name })}`),
   indexDetails: (id, owner, name) => j('GET', `/api/conn/${id}/index?${q({ owner, name })}`),
 
+  // ricerca globale dentro il codice PL/SQL (ALL_SOURCE)
+  searchCode: (id, params) => j('GET', `/api/conn/${id}/search/code?${q(params)}`),
+
   // sql
   execute: (id, body) => j('POST', `/api/conn/${id}/execute`, body),
   explain: (id, body) => j('POST', `/api/conn/${id}/explain`, body),

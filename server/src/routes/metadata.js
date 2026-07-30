@@ -18,6 +18,7 @@ const OBJECT_TYPES = new Set([
   'PACKAGE BODY',
   'TRIGGER',
   'TYPE',
+  'TYPE BODY',
   'SYNONYM',
 ]);
 
@@ -467,6 +468,7 @@ const DDL_TYPE = {
   'PACKAGE BODY': 'PACKAGE_BODY',
   TRIGGER: 'TRIGGER',
   TYPE: 'TYPE',
+  'TYPE BODY': 'TYPE_BODY',
   SYNONYM: 'SYNONYM',
 };
 

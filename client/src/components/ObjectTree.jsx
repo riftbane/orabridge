@@ -32,6 +32,7 @@ const TYPE_ICON = {
   'PACKAGE BODY': ['B', '#e5c07b'],
   TRIGGER: ['G', '#e06c75'],
   TYPE: ['Y', '#56b6c2'],
+  'TYPE BODY': ['Y', '#3f9aa3'],
   SYNONYM: ['N', '#98c379'],
 };
 
@@ -290,9 +291,18 @@ function Folder({ connId, owner, label, type, filter }) {
   );
 }
 
+// La chiave porta dentro lo schema: cambiando schema le cartelle ripartono
+// vuote invece di restare con gli oggetti di quello precedente.
 function SchemaFolders({ connId, owner, filter }) {
   return TYPE_FOLDERS.map(([label, type]) => (
-    <Folder key={type} connId={connId} owner={owner} label={label} type={type} filter={filter} />
+    <Folder
+      key={`${owner}:${type}`}
+      connId={connId}
+      owner={owner}
+      label={label}
+      type={type}
+      filter={filter}
+    />
   ));
 }
 
@@ -347,21 +357,24 @@ function OtherUsers({ connId, filter }) {
   );
 }
 
-export default function ObjectTree({ connId }) {
+// `owner`: schema da mostrare (senza, quello di lavoro della connessione).
+// `showOthers`: la cartella «Altri utenti»; la vista «Connessione» non ne ha
+// bisogno, ha già un selettore di schema.
+export default function ObjectTree({ connId, owner, showOthers = true, className = '' }) {
   const active = useStore((s) => s.active[connId]);
   const [filter, setFilter] = useState('');
   if (!active || active.status !== 'connected') return null;
 
   return (
-    <div className="object-tree">
+    <div className={`object-tree ${className}`}>
       <input
         className="tree-filter"
         placeholder="Filtra oggetti…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />
-      <SchemaFolders connId={connId} owner={active.currentSchema} filter={filter} />
-      <OtherUsers connId={connId} filter={filter} />
+      <SchemaFolders connId={connId} owner={owner || active.currentSchema} filter={filter} />
+      {showOthers && <OtherUsers connId={connId} filter={filter} />}
     </div>
   );
 }
