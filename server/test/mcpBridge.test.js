@@ -48,6 +48,7 @@ function startBridge() {
   return {
     answers,
     send: (msg) => proc.stdin.write(JSON.stringify(msg) + '\n'),
+    closeStdin: () => proc.stdin.end(),
     async waitFor(n, ms = 8000) {
       const t0 = Date.now();
       while (answers.length < n && Date.now() - t0 < ms) {
@@ -95,6 +96,25 @@ test('il ponte porta stdio fino al server e ritorno', async () => {
     assert.match(byId[3].result.content[0].text, /Nessuna connessione attiva/);
     // La notifica non deve produrre una riga in più.
     assert.equal(answers.length, 3);
+  } finally {
+    await bridge.stop();
+    await backend.close();
+  }
+});
+
+test('stdin chiuso subito: la risposta arriva comunque, non muore col messaggio in volo', async () => {
+  // Chi pilota il ponte da uno script manda i messaggi e chiude il tubo: se
+  // l'uscita non aspetta le richieste in corso, la risposta non viene mai
+  // scritta e il ponte sembra muto. Nell'uso da editor stdin resta aperto,
+  // quindi questo caso si vede solo così.
+  settings.updateMcp({ enabled: true });
+  const backend = await startServer({ port: 0, host: '127.0.0.1', token: 'tok-drain' });
+  const bridge = startBridge();
+  try {
+    bridge.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+    bridge.closeStdin();
+    const answers = await bridge.waitFor(1);
+    assert.equal(answers[0].result.tools.length, 7);
   } finally {
     await bridge.stop();
     await backend.close();

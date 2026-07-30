@@ -165,6 +165,20 @@ async function handle(line) {
 }
 
 // Framing del trasporto stdio: un messaggio JSON per riga.
+//
+// Le richieste non si aspettano una per una (le risposte si appaiano per id,
+// non per ordine di arrivo), ma vanno tenute d'occhio: chiudere il processo
+// mentre una è in volo butterebbe via la risposta a un messaggio già accettato.
+const pending = new Set();
+
+function accept(line) {
+  const work = handle(line).catch((err) =>
+    process.stderr.write(`orabridge-mcp: ${err.message}\n`)
+  );
+  pending.add(work);
+  work.finally(() => pending.delete(work));
+}
+
 let buffer = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
@@ -173,9 +187,24 @@ process.stdin.on('data', (chunk) => {
   while ((nl = buffer.indexOf('\n')) !== -1) {
     const line = buffer.slice(0, nl).trim();
     buffer = buffer.slice(nl + 1);
-    // Senza await: le risposte sono appaiate per id, non per ordine di arrivo.
-    if (line) handle(line).catch((err) => process.stderr.write(`orabridge-mcp: ${err.message}\n`));
+    if (line) accept(line);
   }
 });
-process.stdin.on('end', () => process.exit(0));
-process.stdin.on('error', () => process.exit(0));
+
+// Stdin chiuso: il client ha finito di parlare. Prima di uscire si aspetta che
+// le richieste già in corso scrivano la loro risposta — con un tetto, perché un
+// processo che non muore è peggio di una risposta persa. Nell'uso da editor la
+// coda è vuota e l'uscita è immediata; conta quando qualcuno pilota il ponte da
+// uno script, mandando i messaggi e chiudendo subito il tubo.
+const DRAIN_MS = 15000;
+async function drainAndExit() {
+  if (pending.size) {
+    await Promise.race([
+      Promise.allSettled([...pending]),
+      new Promise((r) => setTimeout(r, DRAIN_MS)),
+    ]);
+  }
+  process.exit(0);
+}
+process.stdin.on('end', drainAndExit);
+process.stdin.on('error', drainAndExit);
