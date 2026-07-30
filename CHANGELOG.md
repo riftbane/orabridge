@@ -2,6 +2,28 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.25.0 — 2026-07-30
+
+- **Nuovo:** ricerca globale nel codice PL/SQL e barra laterale a viste
+
+  Nuova vista «Ricerca nel codice»: cerca un testo dentro il sorgente PL/SQL di
+  tutto il database — procedure, funzioni, trigger e package body, a richiesta
+  anche specifiche dei package e tipi. Interruttori maiuscole/minuscole, parola
+  intera ed espressioni regolari (sintassi Oracle); l'ambito va dallo schema di
+  lavoro a tutti gli schemi applicativi, fino a tutti compresi quelli di Oracle.
+  Il filtro viene eseguito in SQL su ALL_SOURCE invece di scaricare i sorgenti,
+  con tetto a 1000 righe e timeout di due minuti sulle ricerche più larghe. I
+  risultati sono raggruppati per oggetto: un clic apre l'oggetto sulla scheda
+  Sorgente, salta alla riga e seleziona il testo trovato.
+
+  La barra laterale diventa a viste, con la barra delle attività in stile VS Code
+  sempre visibile anche a pannello chiuso: Connessioni (Ctrl+Maiusc+D),
+  Connessione (Ctrl+Maiusc+E) — una sola connessione a tutta altezza, con stato,
+  comandi rapidi, selettore di schema e albero degli oggetti — e Ricerca nel
+  codice (Ctrl+Maiusc+F, che con il fuoco nell'editor resta «formatta»).
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.24.1 — 2026-07-29
 
 - **Fix:** il bottone del diagramma a nodi non compariva nella barra del titolo dell'app desktop
