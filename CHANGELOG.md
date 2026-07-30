@@ -33,6 +33,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.27.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.27.0/Orabridge-Setup-1.27.0.exe) (2026-07-30).
+
 ## v1.26.1 — 2026-07-30
 
 - **Fix:** il ponte MCP perdeva la risposta se stdin veniva chiuso subito
