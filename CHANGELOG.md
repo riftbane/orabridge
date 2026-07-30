@@ -31,6 +31,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
+- Build: [`Orabridge-Setup-1.26.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.26.0/Orabridge-Setup-1.26.0.exe) (2026-07-30).
+
 ## v1.25.0 — 2026-07-30
 
 - **Nuovo:** ricerca globale nel codice PL/SQL e barra laterale a viste
