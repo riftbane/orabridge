@@ -2,6 +2,37 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.28.0 — 2026-07-31
+
+- **Nuovo:** l'autocompletamento propone strutture, non solo nomi
+
+  L'elenco dei suggerimenti nasceva sempre dalla stessa lista, ordinata per
+  clausola: dopo CREATE, che clausola non è, cadeva nel caso generico e
+  proponeva funzioni e schemi (create sy → sys_context, create tab →
+  json_table), con le parole chiave relegate in fondo. In più teneva valida la
+  lista fra un tasto e l'altro, e CodeMirror la rifiltrava con il proprio
+  criterio "sparso": digitando tab ricomparivano nomi come STD_ATTRIBUTI.
+
+  Ora `analyze` dice in che «posto» sta il cursore (inizio istruzione, tipo di
+  oggetto DDL, nome esistente, azione di un ALTER, tipo di dato, tabella,
+  colonna) e un LAYOUT decide quali sezioni costruire: quelle che non c'entrano
+  non vengono nemmeno riempite.
+
+  - modelli d'istruzione con i campi ordinati per numero, così SELECT chiede
+    prima la tabella: senza tabella non ci sono colonne da proporre
+  - scheletri costruiti sui metadati: l'elenco colonne di un INSERT con il suo
+    VALUES, il SET … WHERE sulla chiave primaria di un UPDATE, il filtro sulla
+    chiave di un DELETE; nel SET le colonne arrivano con l'uguale
+  - «Da quale tabella?»: in un SELECT senza FROM la scelta della tabella
+    aggiunge il FROM in fondo e lascia il cursore fra le colonne
+  - parole chiave curate e in cima dopo un valore concluso (IS → NULL/NOT NULL,
+    LEFT → JOIN, dopo una tabella le clausole non ancora scritte), azioni di
+    ALTER TABLE e tipi di dato Oracle dove servono
+  - ricalcolo a ogni carattere e criterio più stretto su parole chiave e
+    funzioni: WHERE en passa da una sessantina di proposte a cinque
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 ## v1.27.0 — 2026-07-30
 
 - **Nuovo:** Copilot si collega da solo, e ogni connessione decide se farsi vedere
