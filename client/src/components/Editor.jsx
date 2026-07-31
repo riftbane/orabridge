@@ -2,7 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, Compartment, Prec } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { autocompletion, acceptCompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import {
+  autocompletion,
+  acceptCompletion,
+  clearSnippet,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+  nextSnippetField,
+  prevSnippetField,
+  snippetKeymap,
+} from '@codemirror/autocomplete';
 import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, LanguageSupport } from '@codemirror/language';
 import { highlightSelectionMatches } from '@codemirror/search';
 import { PLSQL } from '@codemirror/lang-sql';
@@ -264,6 +274,17 @@ export default function Editor({
         bracketMatching(),
         closeBrackets(),
         autocompletion({ icons: true, maxRenderedOptions: 60 }),
+        // Dentro un modello (SELECT … FROM …) il Tab salta di campo in campo,
+        // ma se c'è un suggerimento aperto lo accetta: altrimenti scegliere la
+        // tabella da completare porterebbe via al campo successivo.
+        snippetKeymap.of([
+          {
+            key: 'Tab',
+            run: (view) => acceptCompletion(view) || nextSnippetField(view),
+            shift: prevSnippetField,
+          },
+          { key: 'Escape', run: clearSnippet },
+        ]),
         highlightActiveLine(),
         selMatchComp.current.of(highlightSelectionMatches()),
         keymap.of([

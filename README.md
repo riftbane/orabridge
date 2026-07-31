@@ -47,14 +47,32 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
 - **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM);
   se la password manca o non è più valida viene chiesta al momento della connessione
   e salvata sulla connessione appena il login riesce
-- **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto — i suggerimenti
-  sono raggruppati in sezioni e ordinati in base alla clausola in cui si trova il cursore:
+- **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto: non propone
+  «tutto quello che c'è», ma solo quello che può stare nel punto in cui sei. Dopo
+  `CREATE` arrivano i tipi di oggetto, dentro un `FROM` le tabelle, dopo `WHERE` le
+  colonne; le sezioni che non c'entrano non compaiono proprio.
+  - **modelli d'istruzione**: scrivi `sel` e ottieni `SELECT … FROM …` già impostato,
+    con il primo salto del `Tab` **sulla tabella** — l'editor chiede prima da dove
+    leggere, perché è l'unico modo per poterti poi proporre le colonne. Ci sono modelli
+    per `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `WITH`, `CREATE TABLE/VIEW/INDEX/…`,
+    blocchi PL/SQL, `FOR … LOOP`, `IF`, `CASE`, `EXCEPTION`
+  - **scheletri costruiti sui metadati**: dopo `INSERT INTO clienti` propone l'elenco
+    completo delle colonne con il `VALUES` corrispondente, dopo `UPDATE clienti` il
+    `SET … WHERE` sulla chiave primaria, dopo `DELETE FROM clienti` il filtro sulla
+    chiave. Nel `SET` le colonne arrivano già con l'uguale
   - colonne delle tabelle citate nell'istruzione con il loro tipo, alias inclusi
     (`c.` suggerisce le colonne di `clienti c`), più CTE (`WITH`) e subquery
+  - **«Da quale tabella?»**: in un `SELECT` senza `FROM` la scelta di una tabella
+    aggiunge il `FROM` in fondo e lascia il cursore fra le colonne, che a quel punto
+    sono note
   - tabelle, viste, sinonimi, sequenze (`.NEXTVAL`), package e procedure dello schema;
     gli **altri schemi** vengono caricati al volo scrivendo `ALTRO_SCHEMA.`
   - **condizioni di join dalle foreign key**: dopo `JOIN` propone la tabella collegata
     già completa di alias e `ON`, dentro `ON` la sola condizione
+  - **la clausola che manca**: dopo una tabella arrivano `WHERE`, `JOIN`, `GROUP BY`,
+    `ORDER BY` (solo quelle non ancora scritte), dopo `IS` solo `NULL` e `NOT NULL`,
+    dopo `LEFT` solo `JOIN`; in un `ALTER TABLE` le azioni possibili e in una
+    definizione di colonna i tipi di dato Oracle
   - espansione di `*` e `alias.*` nell'elenco delle colonne
   - funzioni built-in di Oracle (con firma) e parole chiave del dialetto PL/SQL
   - i nomi seguono lo stile di chi scrive: se digiti in minuscolo li inserisce in minuscolo
@@ -378,6 +396,8 @@ Cosa è in scopo e cosa no, e come segnalare un problema di sicurezza: vedi
 | `Ctrl+Invio` / `F9` | Esegui istruzione al cursore (o selezione) |
 | `F5` | Esegui tutto lo script |
 | `Ctrl+Spazio` | Autocomplete |
+| `Tab` | Accetta il suggerimento; dentro un modello salta al campo successivo |
+| `Maiusc+Tab` / `Esc` | Campo precedente del modello / esci dal modello |
 | `Ctrl+F` / `Ctrl+H` | Cerca / cerca e sostituisci nell'editor |
 | `Invio` / `Maiusc+Invio` / `F3` | Risultato successivo / precedente |
 | `Alt+C` / `Alt+W` / `Alt+R` | Maiuscole/minuscole, parola intera, espressione regolare |

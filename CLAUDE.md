@@ -74,6 +74,50 @@ Due cose da sapere prima di toccarla:
 I file `.gguf` si scaricano a runtime da HuggingFace nella cartella dati
 (`DATA_DIR/models`), con ripresa: non vanno mai committati né impacchettati.
 
+## Autocomplete dell'editor
+
+Tre file, con ruoli separati da non mescolare:
+
+- `client/src/sqlContext.js` — logica pura (nessun CodeMirror): tokenizza
+  l'istruzione, ricava tabelle/alias/CTE e dice **in che «posto» sta il
+  cursore** (`slot`): `start`, `ddlType`, `ddlName`, `ddlAction`, `dataType`,
+  `table`, `column`, … Il posto, non la sola clausola, è quello che decide i
+  suggerimenti.
+- `client/src/sqlTemplates.js` — modelli d'istruzione (snippet) ed elenchi
+  **curati** di parole chiave per ogni posto.
+- `client/src/completion.js` — assembla le proposte in sezioni.
+
+Invarianti:
+
+- **Le sezioni che non c'entrano non si costruiscono.** `LAYOUT` in
+  `completion.js` associa a ogni `slot` l'elenco ordinato delle sezioni: se
+  `fn` non c'è, le funzioni non vengono nemmeno generate. È così che dopo
+  `CREATE` non compaiono più `sys_context` e `json_table` (il difetto da cui è
+  nato tutto questo).
+- **`validFor` deve restare `false`.** Tenendo valida la lista, CodeMirror la
+  rifiltra con il proprio criterio "sparso", che è più largo del nostro
+  (`matches`): digitando `tab` ricomparivano nomi come `STD_ATTRIBUTI`.
+  Ricalcolare a ogni carattere costa ~7 ms su uno schema da 5000 tabelle,
+  purché le proposte si costruiscano **dopo** il filtro (vedi `makeBag`) e
+  l'anteprima delle colonne resti pigra (`tableInfo`).
+- **L'ordine dei campi di uno snippet è quello dei numeri**, non quello del
+  testo: `SELECT ${2:*} FROM ${1:tabella}` chiede prima la tabella. Senza
+  tabella non esistono colonne da proporre, quindi ogni modello che ne cita
+  una la mette come campo 1.
+- **Senza niente di digitato si propone solo ciò che è mirato** (condizioni di
+  join, scheletri sui metadati, colonne dove può iniziare un'espressione, la
+  clausola obbligatoria che manca). Il popup si apre anche battendo uno spazio
+  e `Invio` accetta la voce selezionata: aprirlo sempre farebbe scrivere
+  parole a chi voleva andare a capo.
+- **Il `Tab` accetta il suggerimento prima di saltare al campo** dello snippet
+  (`snippetKeymap` in `Editor.jsx`): l'ordine opposto è quello predefinito e
+  renderebbe impossibile completare una tabella dentro un modello.
+
+Test: `client/test/sqlContext.test.js` (analisi e posti) e
+`client/test/completion.test.js` (sezioni, modelli, scheletri sui metadati:
+gli `apply` vengono applicati a un editor finto e se ne verifica il testo
+prodotto).
+
 ## Integrazione MCP con gli editor esterni (Copilot)
 
 `server/src/mcp/` + `electron/mcp-bridge.cjs` espongono a VS Code i database che
