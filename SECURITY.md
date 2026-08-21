@@ -39,15 +39,12 @@ connessioni salvate e quelle già aperte. Per questo l'accesso è chiuso a monte
   DNS rebinding);
 - le scritture accettano solo `application/json` e solo dall'origine della app;
 - nell'app desktop il backend risponde solo alla finestra dell'app, grazie a un
-  token casuale generato a ogni avvio;
-- l'integrazione MCP è spenta di default, è di sola lettura per costruzione e
-  vede solo le connessioni esposte una per una.
+  token casuale generato a ogni avvio.
 
 **Sono in scopo**, per esempio: aggirare uno di quei controlli; leggere le
 password delle connessioni o le API key cifrate senza avere accesso alla
-cartella dati; far eseguire a un editor esterno via MCP qualcosa che non sia
-lettura; far eseguire all'assistente AI istruzioni oltre i permessi concessi
-alla sessione; SQL injection nelle query che Orabridge costruisce sul
+cartella dati; far eseguire all'assistente AI istruzioni oltre i permessi
+concessi alla sessione; SQL injection nelle query che Orabridge costruisce sul
 dizionario; esecuzione di codice arbitrario nel processo Electron a partire da
 contenuto del database (per esempio dati mostrati nella griglia).
 

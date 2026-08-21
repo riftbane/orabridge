@@ -2,12 +2,10 @@ import React, { useEffect, useState } from 'react';
 import {
   BookOpen,
   Check,
-  Copy,
   Download,
   HardDrive,
   Info,
   KeyRound,
-  Plug,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -17,7 +15,6 @@ import { api } from '../api.js';
 import { useStore } from '../store.js';
 import AboutPanel from './AboutPanel.jsx';
 import GuideView from './GuideView.jsx';
-import McpPermissions from './McpPermissions.jsx';
 
 const PERMISSIONS = [
   {
@@ -436,307 +433,6 @@ function AiSettings({ toast }) {
   );
 }
 
-// "C:\Program Files\Orabridge\Orabridge.exe" → "/mnt/c/Program Files/…":
-// da un workspace WSL il ponte si lancia per percorso Linux, ma resta un
-// processo Windows (è l'interop che lo permette, ed è quello che ci serve —
-// solo dal lato Windows si raggiunge il loopback dell'app).
-const toWslPath = (p) =>
-  p.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replace(/\\/g, '/');
-
-const asJson = (server) => JSON.stringify({ servers: { orabridge: server } }, null, 2);
-
-function mcpSnippets(desktop, origin) {
-  if (!desktop) {
-    // Server avviato a mano o in Docker: la porta è fissa e non c'è token, si
-    // può puntare VS Code direttamente all'endpoint.
-    return [
-      {
-        id: 'http',
-        label: 'HTTP',
-        json: asJson({ type: 'http', url: `${origin}/api/mcp` }),
-        note: 'Il server risponde su una porta fissa: VS Code può parlarci senza intermediari.',
-      },
-    ];
-  }
-  const stdio = {
-    type: 'stdio',
-    command: desktop.execPath,
-    args: [desktop.bridgePath],
-    env: { ELECTRON_RUN_AS_NODE: '1' },
-  };
-  return [
-    {
-      id: 'win',
-      label: 'Windows',
-      json: asJson(stdio),
-      note: 'Da mettere nella configurazione utente di VS Code (comando «MCP: Open User Configuration»).',
-    },
-    {
-      id: 'wsl',
-      label: 'WSL',
-      json: asJson({
-        ...stdio,
-        command: toWslPath(desktop.execPath),
-        // Senza WSLENV la variabile non attraversa il confine e l'eseguibile
-        // aprirebbe Orabridge invece di comportarsi da Node.
-        env: { ELECTRON_RUN_AS_NODE: '1', WSLENV: 'ELECTRON_RUN_AS_NODE' },
-      }),
-      note: 'Per un workspace aperto in WSL: va in .vscode/mcp.json, oppure nella configurazione utente remota.',
-    },
-  ];
-}
-
-// Quali database vede Copilot: uno per uno, spenti di default. L'elenco è
-// quello vero delle connessioni (dallo store), così l'interruttore acceso qui e
-// quello acceso nella finestra della connessione sono lo stesso interruttore.
-function McpConnections({ toast }) {
-  const conns = useStore((s) => s.conns);
-  const refreshConnections = useStore((s) => s.refreshConnections);
-  const busy = useStore((s) => s.mcpBusy);
-  const [saving, setSaving] = useState(null);
-
-  const update = async (conn, mcp) => {
-    setSaving(conn.id);
-    try {
-      await api.setConnectionMcp(conn.id, mcp);
-      await refreshConnections();
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  if (!conns.length) {
-    return <p className="settings-hint">Nessuna connessione salvata: prima creane una.</p>;
-  }
-
-  const stateOf = (c) => {
-    if (!c.mcp?.enabled) return 'Non esposta: dagli editor esterni questo database non si vede.';
-    if (busy[c.id]) return 'Copilot sta leggendo adesso.';
-    if (c.connected) return 'Collegata: Copilot può leggerla subito.';
-    if (!c.hasPassword) {
-      return 'Nessuna password salvata: il collegamento automatico non parte. Collegala una volta dall\'applicazione.';
-    }
-    return 'Si collega da sola alla prima richiesta di Copilot.';
-  };
-
-  return (
-    <div className="mcp-conns">
-      {conns.map((c) => (
-        <div key={c.id} className={`mcp-conn ${c.mcp?.enabled ? 'on' : ''} ${busy[c.id] ? 'busy' : ''}`}>
-          <label className="mcp-switch">
-            <input
-              type="checkbox"
-              checked={!!c.mcp?.enabled}
-              disabled={saving === c.id}
-              onChange={(e) => update(c, { enabled: e.target.checked })}
-            />
-            <span>
-              <strong>
-                {c.name}
-                {c.group?.trim() && <span className="mcp-conn-group">{c.group}</span>}
-              </strong>
-              <em className={c.mcp?.enabled && !c.connected && !c.hasPassword ? 'warn' : ''}>
-                {stateOf(c)}
-              </em>
-            </span>
-          </label>
-          {c.mcp?.enabled && (
-            <McpPermissions
-              permissions={c.mcp.permissions}
-              disabled={saving === c.id}
-              onChange={(permissions) => update(c, { permissions })}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const FEED_LABEL = {
-  open: 'Collegamento aperto',
-  denied: 'Richiesta rifiutata',
-  error: 'Errore',
-};
-
-// Cosa sta facendo Copilot, mentre lo fa. Le voci arrivano dal flusso aperto
-// all'avvio (store.startMcpStream): questo pannello le mostra e basta.
-function McpActivity() {
-  const feed = useStore((s) => s.mcpFeed);
-  if (!feed.length) {
-    return (
-      <p className="settings-hint">
-        Ancora niente. Ogni richiesta di Copilot compare qui nell'istante in cui arriva, con il
-        database a cui è andata a finire.
-      </p>
-    );
-  }
-  return (
-    <ul className="mcp-feed">
-      {feed.map((e) => {
-        const failed = e.ok === false || e.kind === 'denied' || e.kind === 'error';
-        return (
-          <li key={e.id} className={`mcp-feed-row ${e.running ? 'running' : ''} ${failed ? 'failed' : ''}`}>
-            <span className="mcp-feed-time">{new Date(e.at).toLocaleTimeString()}</span>
-            <span className="mcp-feed-what">{FEED_LABEL[e.kind] || e.tool}</span>
-            <span className="mcp-feed-conn">{e.connName || '—'}</span>
-            <span className="mcp-feed-state" title={e.error || ''}>
-              {e.running ? 'in corso…' : failed ? e.error || 'non riuscita' : e.ms != null ? `${e.ms} ms` : ''}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-// Integrazione con gli editor esterni: Copilot legge i database esposti, in
-// sola lettura. L'interruttore generale è spento finché non lo si accende: apre
-// una seconda porta verso i database, e la decisione è dell'utente.
-function McpSettings({ toast }) {
-  const [status, setStatus] = useState(null);
-  const [variant, setVariant] = useState(null);
-  const [saving, setSaving] = useState(false);
-  // Quanti database sono esposti si legge dalle connessioni, non dallo stato
-  // chiesto una volta all'apertura: qui dentro si accendono e si spengono.
-  const exposed = useStore((s) => s.conns.filter((c) => c.mcp?.enabled).length);
-
-  useEffect(() => {
-    api
-      .mcpStatus()
-      .then(setStatus)
-      .catch((err) => toast(err.message, 'error'));
-  }, [toast]);
-
-  if (!status) return <div className="settings-loading">Caricamento…</div>;
-
-  const snippets = mcpSnippets(status.desktop, window.location.origin);
-  const shown = snippets.find((s) => s.id === variant) || snippets[0];
-
-  const toggle = async (enabled) => {
-    setSaving(true);
-    try {
-      const next = await api.setMcpEnabled(enabled);
-      setStatus((s) => ({ ...s, ...next }));
-      toast(enabled ? 'Integrazione attiva' : 'Integrazione disattivata', 'ok');
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(shown.json);
-      toast('Configurazione copiata', 'ok');
-    } catch {
-      toast('Copia non riuscita', 'error');
-    }
-  };
-
-  return (
-    <div className="settings-body">
-      <section className="settings-section">
-        <h4>
-          <Plug size={13} /> GitHub Copilot in VS Code
-        </h4>
-        <p className="settings-hint">
-          Orabridge può farsi interrogare da Copilot (e da qualunque altro editor che parli MCP) sui
-          database che <strong>esponi qui sotto, uno per uno</strong>: Copilot vede struttura, DDL,
-          sorgenti PL/SQL e il risultato delle SELECT, così ha il contesto del database accanto al
-          codice. Un database esposto viene <strong>collegato da solo</strong> alla prima richiesta,
-          con la password già salvata in Orabridge — che non esce dall'applicazione in nessuna forma.
-        </p>
-        <label className="perm-row">
-          <input
-            type="checkbox"
-            checked={!!status.enabled}
-            disabled={saving}
-            onChange={(e) => toggle(e.target.checked)}
-          />
-          <span>
-            <strong>Consenti la lettura dagli editor esterni</strong>
-            <em>
-              Sola lettura: nessuno strumento per modificare dati o oggetti viene esposto. Le
-              modifiche restano una cosa da fare dal foglio SQL.
-            </em>
-          </span>
-        </label>
-        {status.enabled && (
-          <p className="settings-warn">
-            Attenzione: quello che Copilot legge finisce nel contesto del suo modello, quindi i dati
-            interrogati lasciano questo computer. Tienilo presente sui database di produzione.
-          </p>
-        )}
-      </section>
-
-      <section className="settings-section">
-        <h4>Database esposti</h4>
-        <p className="settings-hint">
-          L'interruttore è per connessione ed è spento di default: Copilot vede solo quelle accese, e
-          le altre non compaiono nemmeno nel suo elenco. La lettura si può togliere senza spegnere
-          l'esposizione; modifica ed eliminazione non sono impostabili perché gli strumenti che
-          servirebbero non escono da questa integrazione.
-        </p>
-        <McpConnections toast={toast} />
-      </section>
-
-      <section className="settings-section">
-        <h4>Attività in tempo reale</h4>
-        <McpActivity />
-      </section>
-
-      {status.enabled && (
-        <section className="settings-section">
-          <h4>Configurazione di VS Code</h4>
-          <p className="settings-hint">
-            Incolla questo in <code>mcp.json</code>, poi apri la chat di Copilot in modalità agente:
-            gli strumenti di Orabridge compaiono nell'elenco.
-          </p>
-          {snippets.length > 1 && (
-            <div className="mcp-variants">
-              {snippets.map((s) => (
-                <button
-                  key={s.id}
-                  className={`mcp-variant ${s.id === shown.id ? 'on' : ''}`}
-                  onClick={() => setVariant(s.id)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="mcp-snippet">
-            <button className="icon-btn mcp-copy" onClick={copy} title="Copia">
-              <Copy size={13} />
-            </button>
-            <pre>{shown.json}</pre>
-          </div>
-          <p className="settings-hint">{shown.note}</p>
-        </section>
-      )}
-
-      <section className="settings-section">
-        <h4>Strumenti esposti</h4>
-        <p className="settings-hint">
-          {status.tools.join(', ')}.
-          {' '}Nessuno di questi scrive: <code>execute_sql</code>, che nel pannello AI esiste, qui
-          non è nell'elenco.
-        </p>
-        <p className="settings-hint">
-          {exposed === 0
-            ? 'Nessun database esposto: finché non ne accendi almeno uno, Copilot non ha niente da leggere.'
-            : `${exposed} ${exposed === 1 ? 'database esposto' : 'database esposti'}. Con più di uno, ` +
-              'Copilot usa quello già collegato o chiede quale.'}
-        </p>
-      </section>
-    </div>
-  );
-}
-
 export default function SettingsModal({ onClose, initialTab = 'ai' }) {
   const [tab, setTab] = useState(initialTab);
   const toast = useStore((s) => s.toast);
@@ -763,9 +459,6 @@ export default function SettingsModal({ onClose, initialTab = 'ai' }) {
             <button className={tab === 'ai' ? 'on' : ''} onClick={() => setTab('ai')}>
               <Sparkles size={13} /> Assistente AI
             </button>
-            <button className={tab === 'mcp' ? 'on' : ''} onClick={() => setTab('mcp')}>
-              <Plug size={13} /> Copilot e MCP
-            </button>
             <button className={tab === 'guide' ? 'on' : ''} onClick={() => setTab('guide')}>
               <BookOpen size={13} /> Guida
             </button>
@@ -776,8 +469,6 @@ export default function SettingsModal({ onClose, initialTab = 'ai' }) {
           <div className={`settings-content ${tab === 'guide' ? 'flush' : ''}`}>
             {tab === 'ai' ? (
               <AiSettings toast={toast} />
-            ) : tab === 'mcp' ? (
-              <McpSettings toast={toast} />
             ) : tab === 'guide' ? (
               <GuideView compact onOpenFull={openGuideTab} />
             ) : (

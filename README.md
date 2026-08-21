@@ -32,7 +32,6 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
 - [Chi può parlare col server](#chi-può-parlare-col-server)
 - [Scorciatoie](#scorciatoie)
 - [Assistente AI](#assistente-ai)
-- [GitHub Copilot in VS Code (MCP)](#github-copilot-in-vs-code-mcp)
 - [Architettura](#architettura)
 - [Risoluzione problemi](#risoluzione-problemi)
 - [Contribuire](#contribuire)
@@ -356,14 +355,6 @@ e quelle già aperte. Per questo l'accesso è chiuso su più fronti.
   mandare header propri. Chi apre quell'indirizzo da fuori trova solo una pagina
   che gli dice di usare l'app. Nel deployment web/Docker il token non c'è e il
   controllo resta spento: lì il server *è* il servizio.
-- **L'unica altra porta è spenta di default.** L'integrazione MCP con gli editor
-  esterni (§ [Copilot in VS Code](#github-copilot-in-vs-code-mcp)) sta sotto
-  `/api`, quindi eredita tutti i controlli qui sopra, token compreso; in più
-  risponde solo se la si accende dalle impostazioni, espone soltanto strumenti
-  di lettura e vede solo le connessioni esposte una per una (spente di default).
-  Il file con porta e token che serve al ponte esiste solo a integrazione accesa
-  — chi può leggerlo può interrogare i database esposti, ed è il motivo per cui
-  non nasce da solo.
 
 Cosa è in scopo e cosa no, e come segnalare un problema di sicurezza: vedi
 [SECURITY.md](SECURITY.md).
@@ -494,127 +485,6 @@ Resta comunque un assistente, non una garanzia: i permessi limitano cosa può
 eseguire, non rendono giusto quello che scrive. Su un database di produzione,
 leggere lo script prima di eseguirlo è ancora compito di chi lo esegue.
 
-## GitHub Copilot in VS Code (MCP)
-
-Orabridge può farsi interrogare da Copilot — o da qualunque editor che parli
-**MCP** (Model Context Protocol) — sui database che l'utente gli **espone, uno
-per uno**. In chat, in modalità agente, Copilot legge schema, DDL, sorgenti
-PL/SQL e il risultato delle SELECT: ha il contesto del database accanto al
-codice, senza che nessuno gli configuri una seconda connessione al database.
-
-**È di sola lettura, per costruzione.** L'elenco degli strumenti si costruisce
-filtrando quelli dell'assistente sul permesso `read`, quindi `execute_sql` — che
-nel pannello AI c'è — da questa parte non esiste: non è nascosto dietro un
-interruttore, non è nell'elenco. Chi chiama passa da `runTool(..., readOnly)`,
-che rifiuta gli strumenti di scrittura anche se lo si invocasse direttamente.
-Niente INSERT, niente DROP, niente DELETE: le modifiche restano una cosa da fare
-dal foglio SQL. E le credenziali non escono dall'app in nessuna forma —
-`list_connections` restituisce nome, schema corrente e versione di Oracle, non
-utente, host, servizio né password.
-
-**Due interruttori, non uno.** Quello generale sta in **Impostazioni → Copilot e
-MCP** e apre la porta (parte spento: la decisione è dell'utente). Poi ogni
-connessione ha il suo, anch'esso spento di default: Copilot vede **solo** i
-database esposti, gli altri non compaiono nemmeno in `list_connections` e non
-sono nominabili nel parametro `connection`. Sotto l'interruttore della singola
-connessione ci sono i permessi — **Lettura** si imposta, *Modifica* ed
-*Eliminazione* si vedono e basta, perché gli strumenti che servirebbero da qui
-non escono affatto. L'interruttore per connessione sta anche nella finestra di
-modifica della connessione e nel menu contestuale della barra laterale.
-
-**Un database esposto si collega da solo.** Alla prima richiesta di Copilot,
-l'integrazione apre il pool con la password già salvata in Orabridge (`ensureOpen`
-in `server/src/mcp/tools.js`, con guardia sulle chiamate in parallelo: un
-collegamento solo). Senza password salvata non si tenta niente e lo strumento
-spiega che va collegata una volta a mano. Quello che succede si vede **in tempo
-reale** nella finestra di Orabridge: la connessione compare collegata nella barra
-laterale, con una spina che si accende mentre Copilot legge, e le impostazioni
-hanno una sezione *Attività in tempo reale* con le ultime richieste (strumento,
-database, durata o errore). Il flusso è un SSE su `/api/mcp/events`, alimentato
-da `server/src/mcp/activity.js`.
-
-Nelle impostazioni c'è anche la configurazione già compilata da incollare in
-`mcp.json`, coi percorsi dell'installazione — quello che segue è la stessa cosa
-spiegata.
-
-**Windows** — configurazione utente di VS Code, comando *MCP: Open User
-Configuration*:
-
-```json
-{
-  "servers": {
-    "orabridge": {
-      "type": "stdio",
-      "command": "C:\\Program Files\\Orabridge\\Orabridge.exe",
-      "args": ["C:\\Program Files\\Orabridge\\resources\\mcp-bridge.cjs"],
-      "env": { "ELECTRON_RUN_AS_NODE": "1" }
-    }
-  }
-}
-```
-
-**WSL** — per un workspace aperto in WSL, in `.vscode/mcp.json` (o nella
-configurazione utente remota):
-
-```json
-{
-  "servers": {
-    "orabridge": {
-      "type": "stdio",
-      "command": "/mnt/c/Program Files/Orabridge/Orabridge.exe",
-      "args": ["C:\\Program Files\\Orabridge\\resources\\mcp-bridge.cjs"],
-      "env": { "ELECTRON_RUN_AS_NODE": "1", "WSLENV": "ELECTRON_RUN_AS_NODE" }
-    }
-  }
-}
-```
-
-**Server avviato a mano o in Docker**: non serve nessun ponte, si punta
-direttamente all'endpoint —
-`{ "servers": { "orabridge": { "type": "http", "url": "http://127.0.0.1:3000/api/mcp" } } }`.
-
-### Perché un ponte, e perché funziona anche da WSL
-
-L'app desktop ascolta su una **porta effimera** e genera un **token nuovo a ogni
-avvio**: in un `mcp.json` statico non c'è niente di stabile da scrivere. Il ponte
-(`electron/mcp-bridge.cjs`, un file senza dipendenze) li rilegge a ogni messaggio
-da un file di scoperta nella cartella dati, e li tiene fuori dalla
-configurazione dell'editor. Se l'app si riavvia, il ponte raccoglie porta e token
-nuovi da solo; se l'app è chiusa, risponde comunque all'handshake — altrimenti VS
-Code segnerebbe il server come guasto e non riproverebbe più — e a spiegare il
-problema è il primo strumento che si usa.
-
-Il ponte gira come Node dell'eseguibile di Orabridge (`ELECTRON_RUN_AS_NODE=1`),
-quindi non c'è un runtime in più da installare. Da WSL il trucco è tutto lì:
-lanciato per percorso `/mnt/c/...`, resta un **processo Windows**, e solo dal lato
-Windows si raggiunge il `127.0.0.1` su cui l'app ascolta (in WSL con networking
-NAT, il loopback di Windows non è raggiungibile). Niente porte esposte sulla
-rete, nessuna regola di firewall, nessun requisito sulla versione di Windows.
-
-Attenzione a `WSLENV`: senza quella riga la variabile `ELECTRON_RUN_AS_NODE` non
-attraversa il confine fra Linux e Windows, e l'eseguibile aprirebbe la finestra
-di Orabridge invece di comportarsi da Node.
-
-### Come Copilot sceglie il database
-
-`list_connections` elenca i database esposti (segnalando quali sono già
-collegati); ogni altro strumento accetta un parametro `connection` facoltativo.
-Con **uno solo** esposto si può omettere; se sono più d'uno ma ne è collegato uno
-solo si usa quello — è il database su cui l'utente sta lavorando. Altrimenti
-l'errore elenca i nomi disponibili invece di scegliere a caso.
-
-Le query di Copilot girano su una connessione **del pool**, non sulla sessione
-dedicata del foglio SQL: non si accodano dietro alle query dell'utente, non
-vedono le sue modifiche non confermate e non gli lasciano lock in giro. Nella
-cronologia compaiono con l'icona della spina, per distinguerle da quelle del
-foglio e da quelle dell'assistente.
-
-Una cosa da sapere prima di accendere l'integrazione su un database di
-produzione: quello che Copilot legge finisce nel contesto del suo modello, cioè i
-dati interrogati **lasciano il computer**. E i commenti, i nomi degli oggetti e i
-dati stessi diventano input di un agente che nella stessa sessione può modificare
-file ed eseguire comandi: vale la pena saperlo.
-
 ## Architettura
 
 ```
@@ -628,7 +498,7 @@ server/                  Express + node-oracledb (thin)
   src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
-  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai, /api/mcp
+  src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
   src/routes/search.js   ricerca nel PL/SQL: predicato in SQL su ALL_SOURCE, timeout
   src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
@@ -639,10 +509,6 @@ server/                  Express + node-oracledb (thin)
   src/ai/tools.js        strumenti sul database esposti al modello
   src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
   src/ai/sessions.js     ciclo dell'agente, approvazioni, stream SSE verso il client
-  src/mcp/protocol.js    MCP: JSON-RPC 2.0, initialize/tools, senza dipendenze
-  src/mcp/tools.js       superficie di sola lettura per gli editor esterni
-  src/mcp/endpoint.js    porta e token su disco per il ponte stdio
-electron/mcp-bridge.cjs  ponte stdio ⇄ HTTP che VS Code lancia (anche da WSL)
 client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
 ```
 
@@ -739,9 +605,9 @@ contribuire, non come vanto né come scusa:
 
 - il codice è pubblico e **si può leggere prima di fidarsi** — le parti
   delicate (confronto degli schemi, generazione degli script, classificazione
-  dei permessi SQL, protocollo MCP) sono funzioni pure coperte da test;
-- Orabridge **non esegue mai da sé** uno script di modifica: DB Diff ed editor a
-  nodi aprono sempre lo SQL in un foglio, dove lo si legge e lo si lancia a mano;
+  dei permessi SQL) sono funzioni pure coperte da test;
+- Orabridge **non esegue mai da sé** uno script di modifica: il DB Diff apre
+  sempre lo SQL in un foglio, dove lo si legge e lo si lancia a mano;
 - valgono le limitazioni di responsabilità della [licenza](LICENSE): il software
   è fornito «così com'è», senza garanzie. Su un database di produzione, il
   backup e la lettura dello script prima di eseguirlo restano compito di chi li
@@ -763,8 +629,8 @@ licenza Apache di Orabridge non concede alcun diritto su di essi.
 **Marchi.** Orabridge è un progetto indipendente, **non affiliato a Oracle
 Corporation, né sponsorizzato o approvato da essa**. Oracle, Oracle Database,
 Oracle Instant Client e SQL\*Plus sono marchi o marchi registrati di Oracle e/o
-delle sue affiliate. Microsoft, Windows, Visual Studio Code e GitHub Copilot
-sono marchi del gruppo Microsoft; Docker è un marchio di Docker, Inc.; altri
+delle sue affiliate. Microsoft e Windows sono marchi del gruppo Microsoft;
+Docker è un marchio di Docker, Inc.; altri
 nomi possono essere marchi dei rispettivi proprietari.
 
 Questi nomi compaiono qui solo per **descrivere i sistemi con cui Orabridge

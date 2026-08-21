@@ -12,26 +12,14 @@ function save(list) {
   writeJson(FILE, list);
 }
 
-// Configurazione MCP di una connessione: se è esposta agli editor esterni e con
-// quali permessi. `write` e `delete` esistono per essere mostrati come non
-// disponibili — dall'integrazione MCP escono solo strumenti di lettura (l'elenco
-// è filtrato sul permesso `read` in mcp/tools.js), quindi qui restano false
-// qualunque cosa arrivi dal client: la sola lettura non dipende da un'opzione.
-export function normalizeMcp(raw) {
-  return {
-    enabled: !!raw?.enabled,
-    // Acceso l'interruttore, la lettura è il minimo perché l'integrazione serva
-    // a qualcosa: si parte da concessa e la si può togliere.
-    permissions: { read: raw?.permissions?.read !== false, write: false, delete: false },
-  };
-}
-
+// `mcp` era la configurazione dell'integrazione con gli editor esterni: si
+// scarta qui, così sparisce dalle risposte e — alla prima riscrittura — anche
+// da connections.json di chi l'aveva usata.
 function sanitize(c) {
-  const { password, ...rest } = c;
-  // `hasPassword` invece della password: il collegamento automatico da MCP
-  // funziona solo se una password è salvata, e la UI deve poterlo dire prima
-  // che Copilot ci sbatta contro.
-  return { ...rest, hasPassword: !!c.password, mcp: normalizeMcp(c.mcp) };
+  const { password, mcp, ...rest } = c;
+  // `hasPassword` invece della password: la finestra deve poter dire che una
+  // connessione ha la password salvata senza che la password esca dal server.
+  return { ...rest, hasPassword: !!c.password };
 }
 
 export const store = {
@@ -42,7 +30,8 @@ export const store = {
   get(id) {
     const c = load().find((x) => x.id === id);
     if (!c) return null;
-    return { ...c, mcp: normalizeMcp(c.mcp), password: c.password ? decrypt(c.password) : '' };
+    const { mcp, ...rest } = c;
+    return { ...rest, password: c.password ? decrypt(c.password) : '' };
   },
 
   create(input) {
@@ -57,9 +46,6 @@ export const store = {
       user: input.user || '',
       group: input.group || '',
       password: encrypt(input.password || ''),
-      // Spenta di default: esporre un database a un editor esterno è una scelta
-      // da fare una connessione alla volta, non un'eredità della creazione.
-      mcp: normalizeMcp(input.mcp),
       createdAt: new Date().toISOString(),
     };
     list.push(conn);
@@ -71,7 +57,7 @@ export const store = {
     const list = load();
     const idx = list.findIndex((x) => x.id === id);
     if (idx === -1) return null;
-    const cur = list[idx];
+    const { mcp, ...cur } = list[idx];
     const next = {
       ...cur,
       name: patch.name ?? cur.name,
@@ -82,17 +68,6 @@ export const store = {
       user: patch.user ?? cur.user,
       group: patch.group ?? cur.group,
       password: patch.password ? encrypt(patch.password) : cur.password,
-      // Patch parziale: `{ mcp: { enabled: true } }` non deve azzerare i
-      // permessi già scelti.
-      mcp: normalizeMcp(
-        patch.mcp
-          ? {
-              ...cur.mcp,
-              ...patch.mcp,
-              permissions: { ...cur.mcp?.permissions, ...patch.mcp.permissions },
-            }
-          : cur.mcp
-      ),
     };
     list[idx] = next;
     save(list);

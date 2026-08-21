@@ -80,8 +80,7 @@ dell'utente, e l'uso è soggetto alle condizioni di Google.
 Orabridge non incorpora SDK di questi servizi (parla HTTP con `fetch`), ma se
 l'utente configura una piattaforma AI le richieste — e quindi i dati inclusi nel
 contesto — vanno ai loro server, alle loro condizioni: OpenRouter, Anthropic,
-Google Gemini, OpenAI. Vale anche per l'integrazione MCP: quello che un editor
-esterno legge dal database finisce nel contesto del suo modello.
+Google Gemini, OpenAI.
 
 ## Come viaggiano le attribuzioni
 

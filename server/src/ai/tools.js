@@ -188,17 +188,6 @@ async function query(entry, sql, binds, maxRows = 500) {
   });
 }
 
-// Lettura su una connessione del pool invece che sulla sessione del foglio SQL.
-// Serve a chi interroga da fuori dall'app (l'integrazione MCP): la sessione del
-// foglio è serializzata e ha una transazione aperta dell'utente, quindi
-// usarla da lì vorrebbe dire accodarsi alle sue query, vedere le sue modifiche
-// non confermate e lasciargli lock in giro.
-async function pooledRead(entry, sql, maxRows) {
-  const t0 = performance.now();
-  const r = await query(entry, sql, {}, maxRows);
-  return { ...r, elapsedMs: Math.round(performance.now() - t0) };
-}
-
 // ---- inventario dello schema ----
 
 // I modelli piccoli si perdono al primo passo: elencano le tabelle e poi
@@ -531,37 +520,32 @@ const handlers = {
     const { level } = classifySql(input.sql || '');
     if (level !== 'read') {
       throw new ToolError(
-        ctx.readOnly
-          ? 'run_query esegue solo istruzioni di lettura, e questa integrazione non può modificare ' +
-            'il database: le scritture si fanno dal foglio SQL di Orabridge.'
-          : 'run_query esegue solo istruzioni di lettura: per modificare i dati usa execute_sql'
+        'run_query esegue solo istruzioni di lettura: per modificare i dati usa execute_sql'
       );
     }
     const maxRows = Math.min(1000, Math.max(1, Number(input.maxRows) || ctx.maxRows));
     const sql = String(input.sql).trim().replace(/;\s*$/, '');
-    const r = ctx.pooled
-      ? await pooledRead(entry, sql, maxRows)
-      : await runExclusive(entry, async () => {
-          const t0 = performance.now();
-          entry.executing = true;
-          try {
-            const res = await entry.session.execute(sql, {}, {
-              outFormat: oracledb.OUT_FORMAT_ARRAY,
-              maxRows: maxRows + 1,
-              autoCommit: false,
-            });
-            return { ...gridResult(res, maxRows), elapsedMs: Math.round(performance.now() - t0) };
-          } finally {
-            entry.executing = false;
-          }
+    const r = await runExclusive(entry, async () => {
+      const t0 = performance.now();
+      entry.executing = true;
+      try {
+        const res = await entry.session.execute(sql, {}, {
+          outFormat: oracledb.OUT_FORMAT_ARRAY,
+          maxRows: maxRows + 1,
+          autoCommit: false,
         });
+        return { ...gridResult(res, maxRows), elapsedMs: Math.round(performance.now() - t0) };
+      } finally {
+        entry.executing = false;
+      }
+    });
     history.add({
       connId: entry.id,
       sql,
       ok: true,
       rows: r.rows.length,
       elapsedMs: r.elapsedMs,
-      source: ctx.source || 'ai',
+      source: 'ai',
     });
     return (
       `${r.rows.length} righe${r.truncated ? ` (limite ${maxRows} raggiunto)` : ''} in ${r.elapsedMs} ms\n` +
@@ -609,14 +593,6 @@ const handlers = {
 export async function runTool(connId, name, input, ctx) {
   const fn = handlers[name];
   if (!fn) throw new ToolError(`Strumento sconosciuto: ${name}`);
-  // Chi chiama in sola lettura (l'integrazione MCP) non deve poter arrivare a
-  // uno strumento di scrittura nemmeno passando qui direttamente: l'elenco
-  // filtrato in mcp/tools.js è la prima serratura, questa è la seconda. Prima
-  // del controllo sulla connessione, perché «questo strumento non esiste per
-  // te» viene logicamente prima di «non sei connesso».
-  if (ctx?.readOnly && TOOL_BY_NAME[name]?.permission !== 'read') {
-    throw new ToolError(`${name} non è disponibile in sola lettura`);
-  }
   const entry = pools.get(connId);
   if (!entry) throw new ToolError('Connessione non attiva: chiedi all\'utente di connettersi.');
   try {
@@ -631,10 +607,7 @@ export async function runTool(connId, name, input, ctx) {
         sql: String(sql),
         ok: false,
         errorMessage: err.message,
-        // Come per le query riuscite: nella cronologia deve risultare chi l'ha
-        // lanciata davvero, altrimenti una query fallita di Copilot passa per
-        // una dell'assistente.
-        source: ctx?.source || 'ai',
+        source: 'ai',
       });
     }
     throw new ToolError(err.message);

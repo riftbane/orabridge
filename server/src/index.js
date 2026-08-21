@@ -9,10 +9,8 @@ import searchRouter from './routes/search.js';
 import historyRouter from './routes/history.js';
 import diffRouter from './routes/diff.js';
 import aiRouter from './routes/ai.js';
-import mcpRouter from './routes/mcp.js';
 import releasesRouter from './routes/releases.js';
 import { pools } from './pools.js';
-import * as mcpEndpoint from './mcp/endpoint.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // `PORT=0` vuol dire «porta effimera, la sceglie il sistema»: è quello che
@@ -127,9 +125,6 @@ function createApp({ token = TOKEN, host = HOST } = {}) {
   app.use('/api/diff', diffRouter);
   // Assistente AI: impostazioni, elenco modelli e sessioni di chat.
   app.use('/api/ai', aiRouter);
-  // Editor esterni (Copilot in VS Code) via MCP: sola lettura sulle connessioni
-  // già attive.
-  app.use('/api/mcp', mcpRouter);
   // Novità delle versioni, lette da GitHub Releases e messe in cache.
   app.use('/api/releases', releasesRouter);
 
@@ -172,11 +167,7 @@ export async function startServer({ port = PORT, host = HOST, token = TOKEN } = 
     s.once('listening', () => resolve(s));
     s.once('error', reject);
   });
-  // Porta e token su disco per il ponte stdio degli editor esterni: il file
-  // nasce solo se l'integrazione è accesa (vedi mcp/endpoint.js).
-  mcpEndpoint.configure({ port: server.address().port, token });
   const close = async () => {
-    mcpEndpoint.remove();
     await new Promise((resolve) => server.close(resolve));
     await pools.closeAll().catch(() => {});
   };
