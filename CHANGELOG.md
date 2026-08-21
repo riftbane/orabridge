@@ -2,6 +2,33 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.30.0 — 2026-08-21
+
+- **Nuovo:** l'integrazione MCP con gli editor esterni viene rimossa
+
+  Orabridge non si fa più interrogare da Copilot (né da altri editor che parlano
+  MCP): sparisce l'endpoint /api/mcp, il protocollo scritto a mano, il ponte
+  stdio lanciato da VS Code e il file di scoperta DATA_DIR/mcp-endpoint.json.
+
+  Nella finestra spariscono la scheda «Copilot e MCP» delle impostazioni, con
+  l'attività in tempo reale e gli snippet di configurazione, l'interruttore
+  «Esponi a Copilot» sulla connessione (finestra di modifica e menu contestuale),
+  la spina accanto ai nomi e il flusso SSE che li animava.
+
+  Cadono con essa anche i due appigli che esistevano solo per l'integrazione:
+  la modalità di sola lettura di runTool e l'esecuzione di run_query su una
+  connessione del pool invece che sulla sessione del foglio SQL.
+
+  La configurazione `mcp` rimasta nelle connessioni salvate viene scartata in
+  lettura e sparisce da connections.json alla prima riscrittura: nessuna
+  migrazione da lanciare, e niente campi orfani in giro.
+
+  Chi aveva configurato il ponte in VS Code può togliere la voce "orabridge" dal
+  proprio mcp.json: da questa versione non risponde più nessuno.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_01WUd4z1tTVD6sWTuydaABAW
+
 ## v1.29.0 — 2026-08-21
 
 - **Nuovo:** il diagramma a nodi non fa più parte di Orabridge
