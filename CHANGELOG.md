@@ -2,6 +2,27 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.29.0 — 2026-08-21
+
+- **Nuovo:** il diagramma a nodi non fa più parte di Orabridge
+
+  L'editor a nodi (la scheda «Diagramma», in beta dalla 1.24.0) viene tolto: era
+  la parte più giovane dell'app e teneva in piedi da solo un modello del disegno,
+  un motore di rinomine e un generatore di DDL da mantenere allineati al resto.
+
+  Sparisce tutto quello che lo riguardava: l'icona a rete nella barra del titolo
+  e nella barra laterale, il pulsante nella vista Connessione, la voce «Apri nel
+  diagramma» nel menu contestuale dell'albero, la sezione della guida, gli
+  endpoint /api/graph e il layout salvato in DATA_DIR/diagrams.
+
+  Le schede «Diagramma» rimaste aperte da una versione precedente vengono
+  scartate al riavvio: la persistenza ora tiene solo i tipi di scheda che l'app
+  sa ancora disegnare, invece di lasciarne una che nessuno saprebbe più
+  mostrare.
+
+  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_01WUd4z1tTVD6sWTuydaABAW
+
 ## v1.28.0 — 2026-07-31
 
 - **Nuovo:** l'autocompletamento propone strutture, non solo nomi
