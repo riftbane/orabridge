@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitCompare, History, Network, Sparkles } from 'lucide-react';
+import { GitCompare, History, Sparkles } from 'lucide-react';
 import { useStore } from '../store.js';
 import { CUSTOM_TITLE_BAR } from '../appInfo.js';
 import ConnectionsView from './ConnectionsView.jsx';
@@ -35,13 +35,6 @@ export default function Sidebar({ onNewConnection, onImportConnections }) {
           </button>
           <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
             <GitCompare size={14} />
-          </button>
-          <button
-            className="icon-btn"
-            title="Diagramma — editor a nodi (beta)"
-            onClick={() => useStore.getState().openGraph()}
-          >
-            <Network size={14} />
           </button>
           <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
             <History size={14} />

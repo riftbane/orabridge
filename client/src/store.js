@@ -26,14 +26,9 @@ function mcpDerived(feed) {
 // Caricamenti di metadati in corso, per non ripetere la stessa richiesta.
 const pendingMeta = new Map();
 
-// Schede che possono opporsi alla propria chiusura (il diagramma, quando ha
-// modifiche non applicate). Vivono fuori dallo stato: sono funzioni, e non
-// hanno niente da fare in qualcosa che viene persistito.
-const closeGuards = new Map();
-export const setCloseGuard = (tabId, guard) => {
-  if (guard) closeGuards.set(tabId, guard);
-  else closeGuards.delete(tabId);
-};
+// I tipi di scheda che l'app sa disegnare (vedi App.jsx): quello che è stato
+// salvato e non è più fra questi viene scartato al riavvio.
+const KNOWN_TAB_KINDS = new Set(['worksheet', 'object', 'history', 'diff', 'guide']);
 
 // Ogni richiesta di salto a una riga porta un numero progressivo: riaprendo lo
 // stesso risultato la scheda è già aperta, e senza qualcosa che cambia la
@@ -496,16 +491,6 @@ export const useStore = create(
         set((s) => ({ tabs: [...s.tabs, { id, kind: 'diff', title: 'DB Diff' }], activeTabId: id }));
       },
 
-      // Editor a nodi (beta). Come il confronto, più schede insieme sono
-      // legittime: sono diagrammi diversi.
-      openGraph(connId, owner) {
-        const id = `graph-${Date.now()}-${wsCounter++}`;
-        set((s) => ({
-          tabs: [...s.tabs, { id, kind: 'graph', connId, owner, title: 'Diagramma' }],
-          activeTabId: id,
-        }));
-      },
-
       setTabTitle(id, title) {
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)) }));
       },
@@ -529,10 +514,6 @@ export const useStore = create(
       },
 
       closeTab(id) {
-        // Una scheda con lavoro non applicato chiede conferma prima di
-        // sparire: il diagramma non persiste le modifiche in sospeso.
-        if (closeGuards.get(id)?.() === false) return;
-        closeGuards.delete(id);
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           const tabs = s.tabs.filter((t) => t.id !== id);
@@ -574,11 +555,20 @@ export const useStore = create(
       }),
       // Una versione salvata prima dell'introduzione dei pannelli non ha `ui`:
       // si completa con i valori di default invece di partire con campi vuoti.
-      merge: (persisted, current) => ({
-        ...current,
-        ...persisted,
-        ui: { ...current.ui, ...(persisted?.ui || {}) },
-      }),
+      // Le schede di tipo sconosciuto (il diagramma, tolto dopo esserci stato)
+      // vengono scartate: nessuno saprebbe più disegnarle.
+      merge: (persisted, current) => {
+        const tabs = (persisted?.tabs || []).filter((t) => KNOWN_TAB_KINDS.has(t.kind));
+        return {
+          ...current,
+          ...persisted,
+          tabs,
+          activeTabId: tabs.some((t) => t.id === persisted?.activeTabId)
+            ? persisted.activeTabId
+            : (tabs.at(-1)?.id ?? null),
+          ui: { ...current.ui, ...(persisted?.ui || {}) },
+        };
+      },
     }
   )
 );

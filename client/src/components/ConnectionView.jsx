@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GitCompare, History, Network, Plug, Plus, RefreshCw, Search, Unplug } from 'lucide-react';
+import { GitCompare, History, Plug, Plus, RefreshCw, Search, Unplug } from 'lucide-react';
 import { useStore } from '../store.js';
 import ObjectTree from './ObjectTree.jsx';
 
@@ -131,13 +131,6 @@ export default function ConnectionView() {
                 title="Cerca nel codice PL/SQL di questo database"
               >
                 <Search size={12} /> Cerca nel codice
-              </button>
-              <button
-                className="mini-btn"
-                onClick={() => useStore.getState().openGraph(connId, schema)}
-                title="Diagramma — editor a nodi (beta)"
-              >
-                <Network size={12} /> Diagramma
               </button>
               <button
                 className="mini-btn"

@@ -42,15 +42,15 @@ script, classificazione SQL) è coperta da test e si verifica senza database.
 ## Test
 
 ```bash
-cd server && npm test    # 167 test
-cd client && npm test    # 132 test
+cd server && npm test    # 119 test
+cd client && npm test    # 113 test
 ```
 
 Girano con il test runner di Node, senza framework esterni. Sono la rete di
 sicurezza delle parti che devono restare deterministiche: confronto degli
-schemi e script di sincronizzazione, piano DDL dell'editor a nodi,
-classificazione delle istruzioni che regola i permessi dell'assistente,
-normalizzazione dei conteggi di token, protocollo MCP e sola lettura.
+schemi e script di sincronizzazione, classificazione delle istruzioni che
+regola i permessi dell'assistente, normalizzazione dei conteggi di token,
+protocollo MCP e sola lettura.
 
 Se tocchi una di quelle, aggiungi il test insieme alla modifica. Le PR che
 rompono i test esistenti non vengono unite.
