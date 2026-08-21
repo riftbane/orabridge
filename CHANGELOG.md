@@ -29,6 +29,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01WUd4z1tTVD6sWTuydaABAW
 
+- Build: [`Orabridge-Setup-1.30.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.30.0/Orabridge-Setup-1.30.0.exe) (2026-08-21).
+
 ## v1.29.0 — 2026-08-21
 
 - **Nuovo:** il diagramma a nodi non fa più parte di Orabridge
