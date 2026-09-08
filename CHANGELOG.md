@@ -45,6 +45,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01EvABbq3dWJtLwDwETQRXrT
 
+- Build: [`Orabridge-Setup-1.31.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.31.0/Orabridge-Setup-1.31.0.exe) (2026-09-08).
+
 ## v1.30.0 — 2026-08-21
 
 - **Nuovo:** l'integrazione MCP con gli editor esterni viene rimossa
