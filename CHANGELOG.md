@@ -2,6 +2,49 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.31.0 — 2026-09-08
+
+- **Nuovo:** bind, righe nella griglia, esportazioni, file .sql, piano ad albero e monitor DBA
+
+  Il lotto di funzioni che mancavano rispetto a SQL Developer nel lavoro
+  quotidiano sui dati.
+
+  - **Variabili di bind e di sostituzione**: `WHERE id = :id` chiede il valore
+    (con tipo e direzione IN/OUT per il PL/SQL) invece di fallire con ORA-01008,
+    e `&nome` / `&&nome` si comportano come in SQL*Plus.
+  - **Righe modificabili nella griglia**: oltre alla modifica di cella si
+    aggiungono, duplicano ed eliminano righe, con filtro per colonna, vista a
+    record singolo e colonne bloccate a sinistra.
+  - **Esportazione** in CSV, TSV, Excel (.xlsx), JSON, istruzioni INSERT e HTML,
+    sulle righe caricate o su tutte quelle della query rilette dal server; e
+    **importazione da CSV o Excel** in una tabella, a lotti e dentro la
+    transazione del foglio. Nessuna libreria esterna: lo scrittore XLSX e il
+    lettore ZIP sono dentro Orabridge.
+  - **File .sql** da aprire e salvare (Ctrl+O, Ctrl+S, Ctrl+Maiusc+S), con le
+    finestre del sistema nel desktop e il salvataggio del browser altrove.
+  - **Tipi di connessione**: alias di tnsnames.ora, ruolo SYSDBA/SYSOPER, utente
+    proxy, wallet Oracle e connessione **in sola lettura**, applicata dal server
+    (vale anche per l'assistente AI).
+  - **Schede di dettaglio** nuove: Statistiche con l'ultima analisi, Partizioni,
+    Dipendenze nelle due direzioni e Permessi.
+  - **Piano di esecuzione ad albero** con costi e cardinalità, e **autotrace**:
+    esegue l'istruzione e mostra righe reali, avvii, buffer e le statistiche di
+    sessione, evidenziando gli scostamenti dalla stima oltre le dieci volte.
+  - **Albero**: DB link, job dello scheduler, code AQ e cestino (con flashback e
+    purge) sotto ogni schema; directory, utenti, ruoli, tablespace, sinonimi
+    pubblici ed edition nel nuovo gruppo Database.
+  - **Monitor DBA**: sessioni con l'SQL in corso e la terminazione, lock,
+    occupazione dei tablespace, informazioni sull'istanza, Top SQL e attese, con
+    aggiornamento automatico. Ogni sezione dice quali privilegi le mancano invece
+    di fallire.
+  - **Editor**: piegatura del codice, Ctrl+clic per aprire l'oggetto, Maiusc+F4
+    per il describe rapido, Ctrl+/ per commentare e cambio delle maiuscole.
+
+  Restano fuori il debugger PL/SQL e ORDS. README e guida in-app aggiornati.
+
+  Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_01EvABbq3dWJtLwDwETQRXrT
+
 ## v1.30.0 — 2026-08-21
 
 - **Nuovo:** l'integrazione MCP con gli editor esterni viene rimossa
