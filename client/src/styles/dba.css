@@ -1,0 +1,404 @@
+/* Monitor DBA (DbaView): testata con l'aggiornamento automatico, linguette
+   delle sezioni, barre di riempimento dei tablespace, riquadri chiave/valore
+   dell'istanza e pannello del testo SQL. La testata (.obj-head), le linguette
+   (.pane-tabs, .pane-body) e le finestre modali restano quelle comuni di
+   styles.css: qui c'è solo quello che il monitor ha di suo. */
+
+/* ---------- barra delle sezioni ---------- */
+
+/* Una linguetta spenta è una vista che questa utenza non può leggere, non un
+   pulsante rotto: resta al suo posto, spenta, e il `title` dice quale
+   privilegio manca. Senza questa regola manterrebbe l'aspetto attivo al
+   passaggio del mouse e sembrerebbe cliccabile. */
+.dba-tabs > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dba-tabs > button:disabled:hover {
+  color: var(--fg-dim);
+}
+
+/* ---------- barra dei filtri di sezione ---------- */
+
+.dba-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.dba-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.dba-field select {
+  padding: 2px 6px;
+  font-size: 11.5px;
+}
+
+.dba-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dba-check input[type='checkbox'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Campo di ricerca: il bordo sta sul contenitore, così l'icona e la crocetta
+   ci stanno dentro invece di galleggiarci accanto. */
+.dba-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-dim);
+}
+.dba-search input {
+  border: none;
+  background: none;
+  padding: 3px 0;
+  width: 190px;
+  font-size: 11.5px;
+}
+/* Il bordo acceso è quello del contenitore, non quello del campo che dentro
+   non ne ha: senza questa regola la messa a fuoco non si vedrebbe. */
+.dba-search:focus-within {
+  border-color: var(--accent);
+}
+
+.dba-ro {
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 0 7px;
+}
+
+/* Interruttore a due stati (attese cumulate / attese in corso): è una scelta
+   sola, non due pulsanti indipendenti, e i due pezzi attaccati lo dicono. */
+.dba-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dba-switch > button {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.dba-switch > button:last-child {
+  border-right: none;
+}
+.dba-switch > button:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.dba-switch > button.on {
+  color: var(--fg);
+  background: var(--bg-active);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.dba-section-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* L'icona che gira mentre la lettura è in corso: con l'aggiornamento
+   automatico acceso è l'unico segno che qualcosa sta succedendo. */
+.dba-spin {
+  animation: dba-spin 1s linear infinite;
+}
+@keyframes dba-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- corpo ---------- */
+
+.dba-grid,
+.dba-instance,
+.dba-tablespaces,
+.dba-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Mancanza di privilegi e note di troncamento: stesso tono degli avvisi delle
+   schede di dettaglio — è un'informazione, non un guasto. */
+.dba-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dba-msg svg {
+  flex-shrink: 0;
+  color: var(--warn);
+  margin-top: 1px;
+}
+.dba-msg-text {
+  flex: 1;
+  color: var(--fg-dim);
+}
+.dba-msg .btn {
+  flex-shrink: 0;
+}
+
+.dba-note {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  padding: 4px 10px;
+}
+
+/* ---------- tablespace ---------- */
+
+/* Le barre stanno sopra la griglia e non sotto: la percentuale usata è la
+   domanda con cui si apre questa sezione, le colonne sono il dettaglio.
+   L'altezza è limitata perché su un database con quaranta tablespace la
+   griglia non deve finire fuori dallo schermo. */
+.dba-ts-bars {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.dba-ts-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.dba-ts-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dba-ts-pct {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+.dba-ts-pct.ok {
+  color: var(--ok);
+}
+.dba-ts-pct.warn {
+  color: var(--warn);
+}
+.dba-ts-pct.err {
+  color: var(--err);
+}
+
+.dba-ts-track {
+  height: 7px;
+  margin: 4px 0 3px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+.dba-ts-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--fg-dim);
+  transition: width 0.2s ease;
+}
+.dba-ts-fill.ok {
+  background: var(--ok);
+}
+.dba-ts-fill.warn {
+  background: var(--warn);
+}
+.dba-ts-fill.err {
+  background: var(--err);
+}
+
+.dba-ts-sub {
+  display: flex;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+.dba-ts-type {
+  opacity: 0.7;
+}
+
+/* ---------- istanza ---------- */
+
+.dba-kv-boxes {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+}
+
+.dba-kv {
+  flex: 1 1 320px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  padding: 8px 10px;
+}
+.dba-kv-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.dba-kv-row {
+  display: flex;
+  gap: 10px;
+  padding: 2px 0;
+  font-size: 11.5px;
+}
+/* Il nome a larghezza fissa tiene i valori incolonnati: si leggono a
+   scorrimento verticale, che è come si guarda una scheda di stato. */
+.dba-kv-name {
+  width: 150px;
+  flex-shrink: 0;
+  color: var(--fg-dim);
+}
+.dba-kv-value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dba-params {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- testo SQL ---------- */
+
+.dba-sqlpane {
+  flex: 0 0 auto;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.dba-sqlpane-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dba-sql-text {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg-editor);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dba-modal-wide {
+  width: 820px;
+  max-width: 92vw;
+}
+.dba-modal-wide .dba-sql-text {
+  max-height: 50vh;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.dba-mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+/* ---------- conferma della terminazione ---------- */
+
+.dba-danger-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--err);
+}
+
+/* La sessione che si sta per uccidere si legge come una scheda, non come una
+   frase: SID e utente devono saltare all'occhio prima del pulsante rosso. */
+.dba-kill-target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--err);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.dba-kill-target > div {
+  display: flex;
+  gap: 10px;
+  font-size: 11.5px;
+}
+.dba-kill-target .dba-kv-name {
+  width: 90px;
+}

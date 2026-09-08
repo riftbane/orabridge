@@ -1,0 +1,134 @@
+/* Editor SQL — parti aggiunte accanto a CodeMirror.
+   Quello che sta *dentro* l'editor (gutter della ripiegatura, segnaposto del
+   testo piegato, evidenziazioni) vive nel tema di CodeMirror, in Editor.jsx:
+   qui c'è solo ciò che gli sta intorno. */
+
+/* Ctrl (o Cmd) tenuto premuto sopra un nome che sappiamo risolvere: il testo
+   si comporta da collegamento, così si capisce che il clic porta da qualche
+   parte prima di provarci. */
+.editor-host .ob-ctrl-link .cm-content {
+  cursor: pointer;
+}
+
+/* ---------- describe rapido (Maiusc+F4) ---------- */
+
+/* Sta a sinistra perché la barra di ricerca occupa l'angolo destro: aperti
+   insieme non si coprono. */
+.describe-panel {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  max-width: calc(100% - 36px);
+  max-height: min(60%, 420px);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 3px 12px #0007;
+  font-size: 12px;
+}
+
+.describe-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.describe-title {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.describe-type {
+  flex: 1;
+  color: var(--fg-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.describe-body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.describe-note {
+  padding: 10px;
+  color: var(--fg-dim);
+  max-width: 44ch;
+}
+
+.describe-note.err {
+  color: var(--err);
+}
+
+.describe-cols {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.describe-cols th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-weight: 500;
+  text-align: left;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.describe-cols td {
+  padding: 2px 10px;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.describe-cols tr:hover td {
+  background: var(--bg-hover);
+}
+
+.describe-cols .c-name {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+
+.describe-cols .c-type {
+  font-family: var(--mono);
+  color: var(--fg-dim);
+}
+
+.describe-cols .c-null {
+  color: var(--warn);
+  font-size: 11px;
+}
+
+.describe-cols .c-key {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.describe-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.describe-hint {
+  color: var(--fg-dim);
+  font-size: 11px;
+}

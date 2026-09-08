@@ -1,0 +1,308 @@
+/* Finestre dei dati: esportazione della griglia (ExportDialog) e caricamento
+   di un file in tabella (ImportDataDialog). Le due condividono il vestito
+   delle modali di styles.css (.modal, .modal-head, .modal-body, .modal-foot):
+   qui c'è solo quello che è loro. */
+
+/* Un avviso non è un errore: il rosso di .test-result.err direbbe che
+   qualcosa è fallito, mentre queste sono cose andate a buon fine con una
+   riserva (esportazione troncata, righe rifiutate, colonne obbligatorie
+   scoperte). */
+.test-result.warn {
+  background: #5a4a2d33;
+  color: var(--warn);
+}
+
+/* ---------- esportazione ---------- */
+
+.export-modal {
+  width: 560px;
+  max-width: 92vw;
+}
+
+/* Gruppo di campi che non è un <label>: dentro ci sono altri controlli
+   etichettati (i pulsanti dei formati, i radio dell'ambito) e annidare due
+   <label> renderebbe imprevedibile il clic sul testo. */
+.exp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.exp-formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.exp-format {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.exp-format:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.exp-format.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-active);
+}
+
+.exp-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+/* Le note esplicative accanto ai campi: stessa voce sommessa delle etichette,
+   ma su più righe. */
+.exp-hint,
+.imp-hint {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--fg-dim);
+}
+.exp-hint {
+  flex: 1;
+  align-self: flex-end;
+  padding-bottom: 4px;
+}
+
+/* Una spunta dentro una .form-row deve allinearsi al campo che le sta
+   accanto, non al bordo alto della riga. */
+.exp-check {
+  align-self: flex-end;
+  padding-bottom: 6px;
+  color: var(--fg) !important;
+}
+
+.exp-filename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.exp-filename input {
+  flex: 1;
+  min-width: 0;
+}
+.exp-ext {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+/* Attesa indeterminata: il server non manda avanzamenti durante la lettura,
+   quindi la barra dice «sto lavorando», non «a che punto sono». */
+.exp-progress {
+  position: relative;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+.exp-progress-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  background: var(--accent);
+  opacity: 0.35;
+  animation: exp-slide 1.2s ease-in-out infinite;
+}
+.exp-progress span {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 18px;
+  color: var(--fg);
+}
+@keyframes exp-slide {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+/* ---------- importazione ---------- */
+
+.import-data-modal {
+  width: 700px;
+  max-width: 94vw;
+}
+
+.imp-steps {
+  display: flex;
+  gap: 18px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+.imp-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.imp-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+.imp-step.on {
+  color: var(--fg);
+}
+.imp-step.on .imp-step-n {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.imp-step.done .imp-step-n {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* Abbinamento colonna del file → colonna della tabella. */
+.imp-map {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.imp-map-head,
+.imp-map-row {
+  display: grid;
+  grid-template-columns: 1fr 18px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.imp-map-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-weight: 600;
+}
+.imp-map-row + .imp-map-row {
+  border-top: 1px solid var(--border);
+}
+/* Il nome sopra, il primo valore del file sotto: senza un esempio, abbinare
+   due colonne che si chiamano quasi uguale è indovinare. */
+.imp-map-src {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-map-src em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.imp-map-off {
+  color: var(--fg-dim);
+  opacity: 0.4;
+}
+.imp-map-row select {
+  min-width: 0;
+}
+
+.imp-preview {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.imp-preview-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  background: var(--bg-editor);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.imp-preview-scroll {
+  max-height: 260px;
+  overflow: auto;
+}
+.imp-preview table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.imp-preview th,
+.imp-preview td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 2px 8px;
+  text-align: left;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.imp-preview th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-active);
+  color: var(--fg-dim);
+  font-weight: 600;
+}
+.imp-preview td.null {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
+/* Avanzamento reale: le righe si mandano a lotti, quindi la percentuale c'è. */
+.imp-progress {
+  position: relative;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+.imp-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  opacity: 0.35;
+  transition: width 0.2s linear;
+}
+.imp-progress span {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 18px;
+  color: var(--fg);
+}
+
+.imp-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

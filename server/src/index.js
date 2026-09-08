@@ -5,6 +5,9 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import connectionsRouter from './routes/connections.js';
 import metadataRouter from './routes/metadata.js';
 import sqlRouter from './routes/sql.js';
+import dataRouter from './routes/data.js';
+import objectsRouter from './routes/objects.js';
+import dbaRouter from './routes/dba.js';
 import searchRouter from './routes/search.js';
 import historyRouter from './routes/history.js';
 import diffRouter from './routes/diff.js';
@@ -138,6 +141,15 @@ function createApp({ token = TOKEN, host = HOST } = {}) {
   app.use('/api/conn/:id', requireConn, metadataRouter);
   app.use('/api/conn/:id', requireConn, sqlRouter);
   app.use('/api/conn/:id', requireConn, searchRouter);
+  // Esportazione/importazione dei dati, oggetti «di sistema» dell'albero
+  // (DB link, job, cestino, utenti, tablespace…) e ambito DBA: router separati
+  // per non gonfiare ulteriormente metadata.js e sql.js.
+  app.use('/api/conn/:id', requireConn, dataRouter);
+  app.use('/api/conn/:id', requireConn, objectsRouter);
+  // L'ambito DBA sta tutto sotto /dba: le sue rotte si chiamano come concetti
+  // generici (sessions, locks, instance) e senza il prefisso rischierebbero di
+  // scontrarsi con i metadati.
+  app.use('/api/conn/:id/dba', requireConn, dbaRouter);
 
   // Static frontend (client build).
   const pub = path.join(__dirname, '..', 'public');

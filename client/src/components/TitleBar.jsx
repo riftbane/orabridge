@@ -1,4 +1,4 @@
-import { GitCompare, History, Plus, Search, Upload } from 'lucide-react';
+import { Activity, GitCompare, History, Plus, Search, Upload } from 'lucide-react';
 import { useStore } from '../store.js';
 import LayoutActions from './LayoutActions.jsx';
 
@@ -11,6 +11,11 @@ import LayoutActions from './LayoutActions.jsx';
 export default function TitleBar({ onOpenSettings, onNewConnection, onImportConnections }) {
   const openHistory = useStore((s) => s.openHistory);
   const openDiff = useStore((s) => s.openDiff);
+  // Il monitor DBA guarda una singola istanza: senza una connessione scelta
+  // non saprebbe quale, quindi il pulsante resta spento.
+  const dbaConnId = useStore((s) =>
+    s.active[s.selectedConnId]?.status === 'connected' ? s.selectedConnId : null
+  );
 
   return (
     <header className="titlebar">
@@ -44,6 +49,18 @@ export default function TitleBar({ onOpenSettings, onNewConnection, onImportConn
         </button>
         <button className="icon-btn" title="DB Diff — confronta due database" onClick={openDiff}>
           <GitCompare size={14} />
+        </button>
+        <button
+          className="icon-btn"
+          title={
+            dbaConnId
+              ? 'Monitor DBA — sessioni, lock, tablespace'
+              : 'Monitor DBA — richiede una connessione attiva'
+          }
+          disabled={!dbaConnId}
+          onClick={() => useStore.getState().openDba(dbaConnId)}
+        >
+          <Activity size={14} />
         </button>
       </div>
       {/* Zona di trascinamento: è quello che resta della barra del titolo. */}

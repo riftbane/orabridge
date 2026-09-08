@@ -99,9 +99,12 @@ export const EDITABLE_CELL_TYPES = new Set([
 
 const NUMERIC_TYPES = new Set(['NUMBER', 'FLOAT', 'BINARY_FLOAT', 'BINARY_DOUBLE']);
 
-// Builds the SET expression for one cell, matching the display format used
-// when the value was read (see server/src/oracle.js: fmtDate / plain numbers).
-function cellExprSql(colType, rawValue) {
+// Builds the SQL expression for one cell value, matching the display format
+// used when the value was read (see server/src/oracle.js: fmtDate / plain
+// numbers). Esportata perché l'UPDATE di cella, l'INSERT di riga e qualunque
+// altro costruttore devono produrre gli stessi letterali: se divergessero, la
+// data riletta dopo un inserimento non coinciderebbe con quella scritta.
+export function cellExprSql(colType, rawValue) {
   if (rawValue === null) return 'NULL';
   if (NUMERIC_TYPES.has(colType)) {
     const n = Number(rawValue);
@@ -125,4 +128,33 @@ function cellExprSql(colType, rawValue) {
 export function buildCellUpdateSql(owner, table, column, colType, rowid, rawValue) {
   const expr = cellExprSql(colType, rawValue);
   return `UPDATE ${qual(owner, table)} SET ${ident(column)} = ${expr} WHERE ROWID = ${lit(rowid)}`;
+}
+
+// INSERT di una riga intera. `cols` sono le colonne della griglia
+// ([{ name, type }]) e `values` è l'array parallelo dei valori: `undefined`
+// significa "colonna omessa" (prende il DEFAULT della tabella), `null`
+// significa NULL esplicito. Elencare sempre i nomi delle colonne — anche
+// quando ci sono tutte — mette al riparo dalle colonne invisibili alla
+// griglia (virtuali, aggiunte dopo la SELECT) e dai riordini.
+// Se non resta nessuna colonna restituisce `null`: un `VALUES (DEFAULT)` è
+// legale solo in casi rarissimi e non è quello che l'utente intendeva, quindi
+// la decisione (avvisare, annullare) spetta al chiamante.
+export function buildRowInsertSql(owner, table, cols, values) {
+  const names = [];
+  const exprs = [];
+  (cols || []).forEach((col, i) => {
+    const v = values?.[i];
+    if (v === undefined) return;
+    names.push(ident(col.name));
+    exprs.push(cellExprSql(col.type, v));
+  });
+  if (!names.length) return null;
+  return `INSERT INTO ${qual(owner, table)} (${names.join(', ')}) VALUES (${exprs.join(', ')})`;
+}
+
+// DELETE di una riga identificata dal suo ROWID: come per l'UPDATE di cella è
+// l'unico riferimento stabile anche senza chiave primaria e non risente del
+// WHERE con cui la griglia è stata riempita.
+export function buildRowDeleteSql(owner, table, rowid) {
+  return `DELETE FROM ${qual(owner, table)} WHERE ROWID = ${lit(rowid)}`;
 }

@@ -46,6 +46,14 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
 - **Connessioni multiple simultanee**, salvate su disco (password cifrate AES-256-GCM);
   se la password manca o non è più valida viene chiesta al momento della connessione
   e salvata sulla connessione appena il login riesce
+  - host/porta con **service name** o **SID**, **connect string** libera (Easy
+    Connect o descrittore TNS completo) e **alias di `tnsnames.ora`**, letti da
+    `TNS_ADMIN` o da una cartella indicata
+  - opzioni avanzate: ruolo **SYSDBA/SYSOPER**, **utente proxy** (`proxy[utente]`),
+    **wallet Oracle** (cartella e password, cifrata come le altre)
+  - **connessione in sola lettura**: il server rifiuta INSERT, UPDATE, DELETE,
+    MERGE, DDL e `SELECT … FOR UPDATE`, e l'interfaccia nasconde tutto ciò che
+    scrive — la spunta da mettere sulle connessioni di produzione
 - **Editor SQL** (CodeMirror 6) con autocomplete consapevole del contesto: non propone
   «tutto quello che c'è», ma solo quello che può stare nel punto in cui sei. Dopo
   `CREATE` arrivano i tipi di oggetto, dentro un `FROM` le tabelle, dopo `WHERE` le
@@ -75,6 +83,12 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
   - espansione di `*` e `alias.*` nell'elenco delle colonne
   - funzioni built-in di Oracle (con firma) e parole chiave del dialetto PL/SQL
   - i nomi seguono lo stile di chi scrive: se digiti in minuscolo li inserisce in minuscolo
+  - **piegatura del codice** sui blocchi `BEGIN`…`END`, sui `CREATE OR REPLACE`,
+    sui commenti lunghi e sulle istruzioni su più righe
+  - **Ctrl+clic** su un nome apre la scheda dell'oggetto, **Maiusc+F4** ne mostra
+    le colonne in un riquadro senza lasciare il foglio
+  - **Ctrl+/** commenta le righe, **Ctrl+Maiusc+U / L** e **Ctrl+Alt+U** cambiano
+    le maiuscole
 - **Barra laterale a viste** con barra delle attività in stile VS Code, sempre visibile
   anche a pannello chiuso:
   - **Connessioni** (`Ctrl+Maiusc+D`): l'elenco salvato, con gruppi colorati e ricerca
@@ -82,7 +96,14 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
     versione di Oracle, comandi rapidi, **selettore di schema** e albero degli oggetti
   - **Ricerca nel codice** (`Ctrl+Maiusc+F`, vedi sotto)
 - **Browser degli oggetti** ad albero: tabelle, viste, viste materializzate, indici,
-  sequenze, procedure, funzioni, package, trigger, tipi, sinonimi + altri schemi
+  sequenze, procedure, funzioni, package, trigger, tipi, sinonimi, **DB link**,
+  **job dello scheduler**, **code AQ** e **cestino**; nel gruppo *Database* le
+  **directory**, gli **utenti**, i **ruoli**, i **tablespace**, i **sinonimi
+  pubblici** e le **edition**; in fondo gli altri schemi
+  - dal cestino si **ripristina** una tabella eliminata (`FLASHBACK … TO BEFORE
+    DROP`, anche con un nome nuovo) o la si **elimina definitivamente**
+  - i sinonimi pubblici, che sono decine di migliaia, si filtrano sul server
+    invece di scaricarli tutti
 - **Ricerca globale nel PL/SQL** (`Ctrl+Maiusc+F`): cerca un testo dentro il sorgente di
   procedure, funzioni, trigger e package body (e, a richiesta, specifiche dei package e
   tipi) di tutto il database
@@ -159,11 +180,37 @@ l'aiuto di modelli linguistici: com'è stato fatto è raccontato in
 - **Pannelli ridimensionabili e richiudibili**: barra laterale, risultati del
   foglio SQL e pannello AI si trascinano dal bordo (doppio clic per tornare alla
   misura predefinita) e si nascondono dagli interruttori in alto a destra
-- Dettaglio tabella: colonne, dati (con filtro WHERE e paginazione), vincoli, indici, trigger, DDL
+- Dettaglio tabella: colonne, dati (con filtro WHERE e paginazione), vincoli, indici,
+  **statistiche** (numero righe, ultima analisi), **partizioni** e sottopartizioni,
+  trigger, **dipendenze** (in entrambe le direzioni), **permessi**, DDL
 - Sorgente e DDL di procedure/funzioni/package (via `DBMS_METADATA`)
 - Esecuzione istruzione al cursore (`Ctrl+Invio` / `F9`), script completo (`F5`),
-  explain plan, commit/rollback espliciti con indicatore di transazione aperta, annulla query
-- DBMS Output, export CSV, griglia risultati virtualizzata (regge decine di migliaia di righe)
+  commit/rollback espliciti con indicatore di transazione aperta, annulla query
+- **Variabili di bind e di sostituzione**: `WHERE id = :id` chiede il valore
+  (con tipo e direzione IN/OUT per il PL/SQL) invece di fallire con ORA-01008, e
+  `&nome` / `&&nome` si comportano come in SQL*Plus
+- **File `.sql`**: apri (`Ctrl+O`), salva (`Ctrl+S`) e salva con nome
+  (`Ctrl+Maiusc+S`), con le finestre del sistema nell'app desktop e il
+  salvataggio del browser altrove; un pallino segnala le modifiche non salvate
+- **Piano di esecuzione ad albero** con costi e cardinalità, predicati di accesso
+  e filtro, e **autotrace**: esegue davvero l'istruzione e mostra righe reali,
+  avvii, buffer e le statistiche di sessione, evidenziando gli scostamenti dalla
+  stima oltre le dieci volte
+- DBMS Output, griglia risultati virtualizzata (regge decine di migliaia di righe)
+- **Righe modificabili nella griglia**: oltre alla modifica di cella si
+  **aggiungono**, **duplicano** ed **eliminano** righe, con filtro per colonna,
+  **vista a record singolo** e **colonne bloccate** a sinistra
+- **Esportazione** in CSV, TSV, **Excel (.xlsx)**, JSON, istruzioni **INSERT** e
+  HTML — sulle righe caricate o su **tutte** quelle della query, rieseguita sul
+  server oltre il limite di «righe max»; nessuna libreria esterna, lo scrittore
+  XLSX è dentro Orabridge
+- **Importazione da CSV o Excel** in una tabella: anteprima, abbinamento delle
+  colonne, caricamento a lotti con l'elenco delle righe rifiutate, il tutto
+  dentro la transazione del foglio (niente è definitivo senza Commit)
+- **Monitor DBA** (icona dell'onda in alto): sessioni con l'SQL in corso e la
+  terminazione, lock, occupazione dei tablespace, informazioni sull'istanza,
+  Top SQL e attese, con aggiornamento automatico a intervallo scelto. Ogni
+  sezione dice quali privilegi le mancano invece di fallire
 - **Decodifica entità HTML** (pulsante `&→à` sopra la griglia): per i database
   popolati da applicativi web legacy, che salvano il testo già codificato
   (`Attivit&agrave; in corso`). È solo a video e spento di default — il dato che
@@ -374,8 +421,15 @@ Cosa è in scopo e cosa no, e come segnalare un problema di sicurezza: vedi
 | `Alt+L` | Limita la ricerca alle righe selezionate |
 | `Ctrl+Maiusc+F` | Formatta la selezione (col fuoco nell'editor) |
 | `Ctrl+Alt+F` | Formatta tutto il foglio |
+| `Ctrl+/` / `Ctrl+Maiusc+/` | Commenta le righe / commento a blocco |
+| `Ctrl+Maiusc+U` / `Ctrl+Maiusc+L` / `Ctrl+Alt+U` | MAIUSCOLO / minuscolo / Iniziali Maiuscole |
+| `Ctrl+clic` | Apri la scheda dell'oggetto sotto il cursore |
+| `Maiusc+F4` | Describe rapido dell'oggetto sotto il cursore |
+| `Ctrl+O` / `Ctrl+S` / `Ctrl+Maiusc+S` | Apri / salva / salva con nome un file `.sql` |
 | doppio clic su cella | Visualizza valore completo (CLOB, testi lunghi) |
 | clic su intestazione colonna | Ordina risultati |
+| clic destro su intestazione colonna | Blocca o sblocca le colonne fino a quella |
+| clic sul numero di riga | Seleziona la riga (`Ctrl` aggiunge, `Maiusc` estende) |
 | `Ctrl+B` | Mostra/nascondi la barra laterale |
 | `Ctrl+Maiusc+D` / `Ctrl+Maiusc+E` | Vista Connessioni / Connessione |
 | `Ctrl+Maiusc+F` (fuori dall'editor) | Vista Ricerca nel codice |
@@ -494,11 +548,19 @@ Dockerfile               build multi-stage (vite su node:22-alpine → runtime
 server/                  Express + node-oracledb (thin)
   src/index.js           avvio, guardie di accesso (Host, origine, token desktop)
   src/secret.js          cartella dati e cifratura AES-256-GCM condivise
-  src/store.js           connessioni salvate in /data (password cifrate)
+  src/store.js           connessioni salvate in /data (password e password del
+                         wallet cifrate)
+  src/tns.js             lettura e analisi di tnsnames.ora (alias e descrittori)
+  src/readonly.js        riconoscimento delle istruzioni che scrivono, per le
+                         connessioni aperte in sola lettura
   src/settings.js        impostazioni AI: piattaforma, chiavi cifrate, permessi
   src/pools.js           per ogni connessione: pool (metadata) + sessione dedicata
                          per il foglio SQL (transazioni coerenti)
   src/routes/            /api/connections, /api/conn/:id/…, /api/diff, /api/ai
+  src/routes/sql.js      esecuzione con bind, piano ad albero, autotrace
+  src/routes/data.js     esportazione oltre le righe caricate, importazione a lotti
+  src/routes/objects.js  DB link, job, code, cestino, utenti, ruoli, tablespace…
+  src/routes/dba.js      /api/conn/:id/dba: sessioni, lock, tablespace, Top SQL
   src/routes/search.js   ricerca nel PL/SQL: predicato in SQL su ALL_SOURCE, timeout
   src/routes/releases.js novità delle versioni da GitHub Releases, in cache
   src/diff/              snapshot dello schema, confronto, script di sincronizzazione
@@ -509,7 +571,14 @@ server/                  Express + node-oracledb (thin)
   src/ai/tools.js        strumenti sul database esposti al modello
   src/ai/sqlGuard.js     classificazione delle istruzioni nei livelli di permesso
   src/ai/sessions.js     ciclo dell'agente, approvazioni, stream SSE verso il client
-client/                  React 18 + Vite + CodeMirror 6 + zustand (~190 KB gzip)
+client/                  React 18 + Vite + CodeMirror 6 + zustand
+  src/binds.js           variabili di bind e di sostituzione (logica pura)
+  src/exporters.js       CSV, JSON, INSERT, HTML e uno scrittore XLSX minimo
+  src/csvParse.js        lettura CSV (RFC 4180) e riconoscimento del separatore
+  src/sqlFiles.js        apri/salva .sql: IPC nel desktop, File System Access o
+                         download nel browser
+  src/systemObjects.js   registro dei tipi «di sistema» dell'albero e delle loro
+                         schede: unica fonte condivisa fra albero, schede e server
 ```
 
 I quattro provider online non aggiungono dipendenze: parlano HTTP con `fetch`
@@ -532,6 +601,17 @@ Confronto e generazione dello script sono funzioni pure, coperte da test
 (`npm test` in `server/` e in `client/`). Anche la classificazione delle
 istruzioni che regola i permessi dell'assistente e la normalizzazione dei
 conteggi di token sono coperte da test.
+
+Lo **scrittore XLSX** è scritto a mano (una cinquantina di righe: CRC-32, voci
+ZIP non compresse, un foglio con celle inline) invece di aggiungere una
+dipendenza da qualche megabyte per un formato di cui serve una fetta minima.
+Stessa logica per la lettura degli `.xlsx` in importazione, che usa
+`DecompressionStream`, nativo nel browser.
+
+Le **connessioni in sola lettura** sono applicate dal server, non
+dall'interfaccia: `readonly.js` classifica ogni istruzione prima di eseguirla e
+nel dubbio la considera una scrittura. Nascondere i pulsanti serve a non
+proporre quello che verrebbe rifiutato, ma non è la difesa.
 
 ## Risoluzione problemi
 

@@ -1,0 +1,187 @@
+/* Schede di dettaglio degli oggetti (ObjectDetail) e degli oggetti di sistema
+   (SystemObjectDetail) — solo le parti nuove: l'etichetta della sola lettura,
+   i messaggi delle linguette che il dizionario non sa dare, l'interruttore
+   «Usa / Usato da» delle dipendenze, l'elenco delle partizioni e la maschera
+   di duplicazione di una riga. La testata (.obj-head, .obj-title, .obj-type),
+   le linguette (.pane-tabs, .pane-body) e la scheda Dati (.data-tab,
+   .data-toolbar) restano in styles.css. */
+
+/* Si legge accanto al nome dell'oggetto, prima di scoprire che i pulsanti che
+   scrivono sono spenti: il colore è quello degli avvisi, non degli errori —
+   la sola lettura è una scelta della connessione, non un guasto. */
+.obj-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+/* Metà delle viste del dizionario non sono leggibili da un'utenza normale:
+   quando una linguetta torna con `{ error }` il messaggio che dice quale
+   privilegio manca è l'unica cosa utile della scheda, e va letto — non
+   confuso con una griglia vuota. */
+.detail-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--fg-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.detail-msg svg {
+  flex-shrink: 0;
+  color: var(--warn);
+  margin-top: 1px;
+}
+
+/* Nota sotto la griglia (elenco troncato, ripiego su una vista più povera):
+   sta in coda perché è un contorno, non il risultato. */
+.detail-note {
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  padding: 4px 10px;
+}
+
+/* Linguetta con una barra propria sopra la griglia (dipendenze, partizioni). */
+.detail-sub {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Le due direzioni delle dipendenze sono una scelta sola, non due pulsanti
+   indipendenti: stanno attaccate in un unico blocco per farlo capire a
+   colpo d'occhio. */
+.sub-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sub-switch > button {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.sub-switch > button:last-child {
+  border-right: none;
+}
+.sub-switch > button:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.sub-switch > button.on {
+  color: var(--fg);
+  background: var(--bg-active);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Partizioni: l'elenco dei nomi resta sempre a sinistra anche quando si
+   guardano le sottopartizioni di una di loro, così si passa da una partizione
+   all'altra senza tornare indietro ogni volta. */
+.part-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.part-list {
+  width: 200px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+}
+.part-list > button {
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: left;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.part-list > button:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.part-list > button.on {
+  color: var(--fg);
+  background: var(--bg-active);
+  border-left-color: var(--accent);
+}
+
+.part-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.part-head {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Duplicazione di una riga: un campo per colonna, con il nome a larghezza
+   fissa a sinistra così i campi restano incolonnati anche con nomi lunghi. */
+.dup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.dup-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dup-name {
+  width: 160px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dup-field input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.dup-field input:disabled {
+  color: var(--fg-dim);
+  font-style: italic;
+}

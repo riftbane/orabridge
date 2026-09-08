@@ -1,0 +1,241 @@
+/* Griglia dati: barra interna, filtro per colonna, selezione di righe intere,
+   vista a record singolo e blocco delle colonne. Le regole storiche di
+   `.grid-*` restano in styles.css: qui si aggiungono classi nuove e, dove
+   serve ritoccarne una vecchia, lo si fa con un selettore più specifico. */
+
+/* ---------- impaginazione ---------- */
+
+/* Contiene lo scorrimento e, quando è aperto, il pannello a record singolo.
+   Senza pannello il risultato è identico a prima: un solo figlio che occupa
+   tutto lo spazio. */
+.grid-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.grid-body > .grid-scroll {
+  min-width: 0;
+}
+
+/* ---------- barra interna ---------- */
+
+.grid-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.grid-bar .mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+}
+.grid-bar .mini-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.grid-bar .mini-btn:disabled:hover {
+  color: var(--fg-dim);
+  background: none;
+}
+.grid-bar .mini-btn.danger:hover:not(:disabled) {
+  color: var(--err);
+  border-color: var(--err);
+}
+.grid-bar-count {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* ---------- riga dei filtri ---------- */
+
+/* Sta fra intestazione e dati: `top` lo passa il componente (è l'altezza
+   dell'intestazione), così qui non si duplica una costante del JS. */
+.grid-filter-row {
+  position: sticky;
+  z-index: 2;
+  display: flex;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.grid-cell.grid-filter-cell {
+  padding: 3px 4px;
+  overflow: visible;
+}
+.grid-filter-input {
+  width: 100%;
+  height: 100%;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg);
+}
+.grid-filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.grid-cell.grid-filter-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-dim);
+}
+
+/* ---------- selezione di righe intere ---------- */
+
+/* Il numero di riga diventa cliccabile solo quando la griglia ha le callback
+   di riga: altrove resta il puntatore normale. */
+.grid-bar ~ .grid-body .grid-rownum {
+  cursor: pointer;
+}
+.grid-row.row-picked {
+  background: #2d4f6740;
+}
+.grid-row.row-picked .grid-cell.grid-rownum {
+  background: #2d4f67;
+  color: var(--fg);
+}
+/* La riga aperta nel pannello a record singolo. */
+.grid-row.row-current .grid-cell.grid-rownum {
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- colonne bloccate ---------- */
+
+/* `left` lo calcola il componente sommando le larghezze: qui serve solo
+   staccare la cella dal flusso orizzontale e darle un fondo opaco, altrimenti
+   il contenuto che le scorre sotto si vedrebbe in trasparenza. */
+.grid-cell.grid-frozen {
+  position: sticky;
+  z-index: 1;
+  background: var(--bg);
+}
+.grid-row.odd .grid-cell.grid-frozen {
+  background: #1a1b20;
+}
+.grid-row:hover .grid-cell.grid-frozen {
+  background: #202128;
+}
+.grid-row.row-picked .grid-cell.grid-frozen {
+  background: #23313c;
+}
+.grid-row.row-dirty .grid-cell.grid-frozen {
+  background: #221f18;
+}
+.grid-cell.grid-frozen.dirty {
+  background: #3a3527;
+}
+.grid-cell.grid-frozen.sel {
+  background: #2d4f67;
+}
+.grid-head-cell.grid-frozen,
+.grid-filter-cell.grid-frozen {
+  z-index: 3;
+  background: var(--bg-panel);
+}
+/* Confine del blocco: senza un segno non si capisce perché quelle colonne
+   non si muovono. */
+.grid-cell.grid-frozen-edge {
+  border-right: 1px solid var(--accent);
+}
+
+/* ---------- vista a record singolo ---------- */
+
+.grid-record {
+  flex: 0 0 340px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+}
+.grid-record-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.grid-record-title {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+/* Cento colonne stanno solo in verticale, quindi l'elenco scorre. */
+.grid-record-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+}
+.grid-record-field {
+  margin-bottom: 7px;
+}
+.grid-record-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  margin-bottom: 2px;
+}
+.grid-record-type {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.grid-record-req {
+  color: var(--warn);
+}
+.grid-record-value {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: #ffffff05;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow: auto;
+}
+.grid-record-edit {
+  display: flex;
+  gap: 4px;
+}
+.grid-record-edit input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.grid-record-edit .mini-btn {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  padding: 1px 5px;
+}
+.grid-record-none {
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  padding: 12px 4px;
+}
+.grid-record-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-top: 1px solid var(--border);
+}

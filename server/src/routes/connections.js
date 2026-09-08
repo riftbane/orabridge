@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import { store } from '../store.js';
 import { pools, friendlyError, isAuthError } from '../pools.js';
+import { findTnsAdmin, readTnsAliases } from '../tns.js';
 import { parseExport, decryptWithKey } from '../importers/sqlDeveloper.js';
 
 const router = Router();
 const a = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+
+// Regole sulla forma della connessione, valide sia quando si salva sia quando
+// si prova: i dati anagrafici (nome, utente) si controllano a parte, perché
+// una prova si fa spesso prima di aver dato un nome alla connessione.
+function invalidTarget(cfg) {
+  if (cfg.serviceType === 'tns' && !cfg.tnsAlias?.trim()) {
+    return "Con il tipo «TNS» serve l'alias di tnsnames.ora";
+  }
+  if (cfg.walletPassword?.trim() && !cfg.walletPath?.trim()) {
+    return 'Password del wallet indicata senza la cartella del wallet';
+  }
+  return '';
+}
 
 router.get('/', (req, res) => {
   const list = store.list().map((c) => ({
@@ -14,6 +28,15 @@ router.get('/', (req, res) => {
   res.json(list);
 });
 
+// Alias leggibili dal tnsnames.ora: senza `dir` si usa la cartella di sistema
+// (TNS_ADMIN, poi ORACLE_HOME). Gli errori tornano dentro la risposta, non
+// come 4xx: la finestra li mostra sotto l'elenco vuoto mentre l'utente
+// corregge la cartella.
+router.get('/tns', (req, res) => {
+  const dir = typeof req.query.dir === 'string' ? req.query.dir.trim() : '';
+  res.json(readTnsAliases(dir || findTnsAdmin()));
+});
+
 router.post(
   '/',
   a(async (req, res) => {
@@ -21,6 +44,8 @@ router.post(
     if (!name?.trim() || !user?.trim()) {
       return res.status(400).json({ error: 'Nome e utente sono obbligatori' });
     }
+    const invalid = invalidTarget(req.body);
+    if (invalid) return res.status(400).json({ error: invalid });
     res.json(store.create(req.body));
   })
 );
@@ -30,14 +55,28 @@ router.post(
   a(async (req, res) => {
     let cfg = req.body;
     // Editing a saved connection with the password field left empty: use the stored one.
-    if (cfg.id && !cfg.password) {
+    // Vale anche per la password del wallet, che la finestra non rimanda mai indietro.
+    if (cfg.id) {
       const saved = store.get(cfg.id);
-      if (saved) cfg = { ...cfg, password: saved.password };
+      if (saved) {
+        cfg = {
+          ...cfg,
+          password: cfg.password || saved.password,
+          // La password del wallet si ripesca solo se il wallet c'è ancora:
+          // togliendo la cartella nella finestra e provando la connessione,
+          // altrimenti, si verrebbe respinti da «password senza cartella» per
+          // una password che l'utente ha appena smesso di usare.
+          walletPassword:
+            cfg.walletPassword || (String(cfg.walletPath || '').trim() ? saved.walletPassword : ''),
+        };
+      }
     }
+    const invalid = invalidTarget(cfg);
+    if (invalid) return res.json({ ok: false, error: invalid });
     try {
       res.json(await pools.test(cfg));
     } catch (err) {
-      res.json({ ok: false, error: friendlyError(err) });
+      res.json({ ok: false, error: friendlyError(err, cfg) });
     }
   })
 );
@@ -110,9 +149,21 @@ router.post(
 router.put(
   '/:id',
   a(async (req, res) => {
+    const cur = store.get(req.params.id);
+    if (!cur) return res.status(404).json({ error: 'Connessione non trovata' });
+    // La modifica è parziale: si controlla la connessione come sarà dopo, non
+    // il solo pezzo arrivato.
+    const invalid = invalidTarget({ ...cur, ...req.body });
+    if (invalid) return res.status(400).json({ error: invalid });
     const updated = store.update(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Connessione non trovata' });
-    res.json({ ...updated, connected: !!pools.get(updated.id) });
+    // La sola lettura è un booleano che `readonly.js` rilegge a ogni
+    // istruzione: su una connessione già aperta si applica subito, senza
+    // chiedere di riconnettersi. Tutto il resto (host, utente, wallet) invece
+    // vale davvero solo alla connessione successiva.
+    const live = pools.get(updated.id);
+    if (live) live.readOnly = !!updated.readOnly;
+    res.json({ ...updated, connected: !!live, readOnly: !!updated.readOnly });
   })
 );
 
@@ -135,7 +186,9 @@ router.post(
     // Password digitata al volo dal client: se la connessione riesce viene
     // salvata sulla connessione, così la volta dopo non viene più richiesta.
     const typed = typeof req.body?.password === 'string' ? req.body.password : '';
-    if (!typed && !cfg.password) {
+    // Con un wallet la password può stare nel wallet stesso: chiederla
+    // bloccherebbe una connessione che funzionerebbe benissimo senza.
+    if (!typed && !cfg.password && !cfg.walletPath?.trim()) {
       return res.status(400).json({
         error: 'Nessuna password salvata per questa connessione',
         needsPassword: true,
@@ -151,11 +204,14 @@ router.post(
         user: entry.user,
         currentSchema: entry.currentSchema,
         version: entry.version,
+        // Il client lo mostra nell'intestazione della connessione e disabilita
+        // i comandi che scrivono prima ancora di provarci.
+        readOnly: !!entry.readOnly,
         passwordSaved: !!typed && !already,
       });
     } catch (err) {
       res.status(400).json({
-        error: friendlyError(err),
+        error: friendlyError(err, cfg),
         needsPassword: isAuthError(err),
         reason: isAuthError(err) ? 'invalid' : undefined,
       });

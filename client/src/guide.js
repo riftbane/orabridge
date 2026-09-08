@@ -26,8 +26,8 @@ come PWA installabile dal browser: le funzioni sono le stesse ovunque.
 |---|---|
 | **Barra delle attività** (estrema sinistra) | Le tre viste della barra laterale |
 | **Barra laterale** | Connessioni, contenuto del database, ricerca nel codice |
-| **Schede** (in alto) | Fogli SQL, oggetti aperti, Cronologia, DB Diff, questa guida |
-| **Pannello dei risultati** (in basso) | Risultati, messaggi, log dello script, DBMS Output |
+| **Schede** (in alto) | Fogli SQL, oggetti aperti, Cronologia, DB Diff, Monitor DBA, questa guida |
+| **Pannello dei risultati** (in basso) | Risultati, messaggi, piano di esecuzione, log dello script, DBMS Output |
 | **Assistente AI** (destra) | Chat che interroga e modifica il database su richiesta |
 
 La striscia di icone all'estrema sinistra funziona come la barra delle attività
@@ -85,10 +85,32 @@ disponibili ai riavvii. Le password sono cifrate con AES-256-GCM.
 - **Gruppo** — cartella in cui raccoglierla (facoltativo, con suggerimento dei
   gruppi già esistenti).
 - **Host** e **Porta** — porta 1521 se non sai cosa mettere.
-- **Tipo**: *Service name*, *SID* oppure *Connect string* — quest'ultimo accetta
-  sia \`host:1521/servizio\` sia un descrittore TNS completo
-  (\`(DESCRIPTION=(ADDRESS=…))\`), utile per RAC e failover.
+- **Tipo**: *Service name*, *SID*, *TNS (tnsnames.ora)* oppure *Connect string*
+  — quest'ultimo accetta sia \`host:1521/servizio\` sia un descrittore TNS
+  completo (\`(DESCRIPTION=(ADDRESS=…))\`), utile per RAC e failover.
+  Scegliendo *TNS*, host e porta spariscono e compare l'elenco degli alias
+  letti da \`tnsnames.ora\`: la cartella è quella di \`TNS_ADMIN\`, e si può
+  indicarne un'altra. Sotto l'alias scelto viene mostrato dove punta.
 - **Utente** e **Password**.
+
+### Opzioni avanzate
+
+Sono chiuse di default — una connessione normale non ha bisogno di vederle.
+
+- **Ruolo**: *Normale*, **SYSDBA** o **SYSOPER**, per le connessioni
+  amministrative.
+- **Utente proxy**: ci si collega come \`proxy[utente]\`, cioè autenticandosi
+  con le credenziali del proxy per lavorare come un altro utente — è il modo
+  in cui molte organizzazioni evitano di distribuire le password applicative.
+- **Wallet**: cartella del wallet Oracle e, se serve, la sua password (salvata
+  cifrata come le altre e mai restituita al client).
+- **Connessione in sola lettura**: Orabridge **rifiuta lato server** tutto ciò
+  che non è un'interrogazione — INSERT, UPDATE, DELETE, MERGE, DDL, e anche
+  \`SELECT … FOR UPDATE\`, che blocca le righe. Nell'interfaccia spariscono i
+  pulsanti che scrivono (modifica delle celle, righe nuove, Commit, terminare
+  una sessione dal monitor DBA) e accanto al nome della connessione compare
+  l'etichetta *sola lettura*. È la spunta da mettere sulle connessioni di
+  produzione che si aprono «solo per guardare».
 
 **Testa** prova la connessione senza salvarla: risponde con la versione del
 server se il login riesce, con l'errore Oracle se fallisce.
@@ -140,9 +162,9 @@ non viene creato niente. Le connessioni senza password vengono importate così
 come sono, e la password viene chiesta al primo collegamento.
 
 Il triangolo di avviso accanto a una riga segnala quello che non si trasferisce
-in automatico: gli **alias TNS** funzionano solo se un \`tnsnames.ora\` con
-quella voce è raggiungibile da Orabridge, e i **ruoli** (SYSDBA e simili) vanno
-riconfigurati a mano.
+in automatico: gli **alias TNS** funzionano se un \`tnsnames.ora\` con quella
+voce è raggiungibile da Orabridge — si ritrovano nel tipo *TNS* — mentre i
+**ruoli** (SYSDBA e simili) vanno riscelti a mano fra le opzioni avanzate.
 `,
   },
   {
@@ -154,8 +176,10 @@ L'albero degli oggetti si trova in due posti: sotto ogni connessione attiva
 nella vista **Connessioni**, e a tutta altezza nella vista **Connessione**
 (\`Ctrl+Maiusc+E\`), che mostra una connessione sola per volta. Le cartelle sono
 le stesse: **Tabelle, Viste, Viste materializzate, Indici, Sequenze, Procedure,
-Funzioni, Package, Package Body, Trigger, Tipi, Sinonimi** e — nell'albero sotto
-la connessione — **Altri utenti**.
+Funzioni, Package, Package Body, Trigger, Tipi, Sinonimi**, poi **DB Link, Job
+dello scheduler, Code AQ** e il **Cestino**; sotto, il gruppo **Database** con
+quello che non appartiene a uno schema — **Directory, Utenti, Ruoli,
+Tablespace, Sinonimi pubblici, Edition** — e infine **Altri utenti**.
 
 ## La vista «Connessione»
 
@@ -183,21 +207,58 @@ Raccoglie tutto quello che riguarda il database selezionato:
   nuovo oggetto di quel tipo (vedi [Creare e modificare oggetti](#oggetti)).
 - **Tasto destro** su un oggetto: *Elimina…* apre il drop guidato.
 
+## Il cestino
+
+La cartella **Cestino** elenca le tabelle eliminate ma ancora recuperabili
+(quelle con il nome \`BIN$…\`), con il nome originale e la data. Dal menu
+contestuale:
+
+- **Ripristina** esegue \`FLASHBACK TABLE … TO BEFORE DROP\`, con la
+  possibilità di darle un nome nuovo se nel frattempo ne è nata un'altra con
+  quello vecchio;
+- **Elimina definitivamente** esegue il \`PURGE\`, e **Svuota il cestino** lo
+  fa per tutto lo schema. Sono irreversibili, quindi chiedono conferma.
+
+Dopo un ripristino l'albero e l'autocomplete si aggiornano da soli.
+
+## Sinonimi pubblici
+
+Su un database vero sono decine di migliaia: la cartella non li scarica tutti,
+ma passa al server quello che si scrive nel campo **Filtra oggetti…**. Se
+l'elenco resta troncato, la nota in fondo lo dice.
+
 ## Schede di dettaglio
 
 Quello che si vede dipende dal tipo di oggetto:
 
 | Tipo | Schede |
 |---|---|
-| Tabella, vista materializzata | Colonne, Dati, Vincoli, Indici, Trigger, DDL |
-| Vista | Colonne, Dati, DDL |
-| Procedura, funzione, package, trigger, tipo | Sorgente, DDL |
-| Sequenza, sinonimo, indice | Dettagli, DDL |
+| Tabella, vista materializzata | Colonne, Dati, Vincoli, Indici, Statistiche, Partizioni, Trigger, Dipendenze, Permessi, DDL |
+| Vista | Colonne, Dati, Dipendenze, Permessi, DDL |
+| Procedura, funzione, package, trigger, tipo | Sorgente, Dipendenze, Permessi, DDL |
+| Sequenza, sinonimo | Dettagli, Permessi, DDL |
+| Indice | Dettagli, Statistiche, DDL |
+| DB link, job, coda, directory, utente, ruolo, tablespace, edition | Dettagli e le schede proprie del tipo |
+
+- **Statistiche** riporta quello che l'ottimizzatore sa della tabella: numero
+  di righe, blocchi, lunghezza media, campionamento e soprattutto l'**ultima
+  analisi** — se è vecchia di mesi, i piani di esecuzione sbagliati hanno già
+  una spiegazione. L'interruttore *Colonne* passa alle statistiche di ogni
+  singola colonna (valori distinti, nulli, densità).
+- **Partizioni** elenca le partizioni con il valore alto, il tablespace e le
+  righe; cliccandone una si vedono le sottopartizioni. Su una tabella non
+  partizionata resta vuota.
+- **Dipendenze** ha due direzioni: *Usa* (da cosa dipende l'oggetto) e *Usato
+  da* (chi si romperebbe cambiandolo).
+- **Permessi** elenca chi ha ricevuto quali privilegi sull'oggetto, comprese le
+  concessioni su singole colonne.
 
 - **Dati** mostra il contenuto a pagine, con un campo **WHERE** per filtrare
   (\`Invio\` applica), **Conta** per il totale delle righe, **Carica altre** per
-  la pagina successiva ed **export CSV**. Sulle tabelle con chiave le celle sono
-  **modificabili** (vedi [Griglia dei risultati](#griglia)).
+  la pagina successiva, l'**esportazione** in tutti i formati e, sulle tabelle,
+  **Importa…** per caricare un CSV o un file Excel. Sulle tabelle le righe si
+  **modificano, aggiungono ed eliminano** (vedi
+  [Griglia dei risultati](#griglia)).
 - **Sorgente** è un editor vero: si modifica il PL/SQL e si ricompila con
   **Compila** (\`Ctrl+Invio\`). Gli errori di compilazione arrivano da
   \`ALL_ERRORS\` e sono cliccabili: portano alla riga giusta. **Ricarica**
@@ -277,7 +338,8 @@ transazione resta aperta fra un'esecuzione e l'altra, come in SQL*Plus.
   cursore, oppure il testo selezionato.
 - **Script** (\`F5\`) esegue tutto il foglio, istruzione per istruzione, e
   registra l'esito di ognuna nella scheda *Script*.
-- **Piano** mostra l'explain plan dell'istruzione corrente senza eseguirla.
+- **Piano** mostra il piano di esecuzione dell'istruzione corrente (vedi
+  [Piano e autotrace](#piano)).
 - **Annulla** interrompe una query in corso (compare solo durante l'esecuzione).
 - **Righe max** limita quante righe vengono riportate (da 100 a 10000): se il
   risultato è più lungo il conteggio è marcato con \`+\`.
@@ -305,14 +367,109 @@ modifiche non ancora confermate.
 
 | Scheda | Contenuto |
 |---|---|
-| **Risultati** | La griglia dell'ultima query, con tempo di esecuzione ed export CSV |
+| **Risultati** | La griglia dell'ultima query, con tempo di esecuzione, *CSV* ed *Esporta…* |
 | **Messaggi** | Esiti, avvisi ed errori, con l'orario |
+| **Piano** | Il piano di esecuzione ad albero (vedi [Piano e autotrace](#piano)) |
 | **Script** | Il log dell'ultima esecuzione con \`F5\` |
 | **DBMS Output** | Quello che il PL/SQL scrive con \`DBMS_OUTPUT\` |
+
+## Variabili di bind e di sostituzione
+
+Un'istruzione che contiene \`:nome\` o \`&nome\` non parte al buio: prima di
+eseguire, Orabridge apre una finestra e chiede i valori.
+
+- \`:nome\` è una **variabile di bind**: il valore viaggia a parte, non entra
+  nel testo dell'istruzione, e il database può riusare il piano già preparato.
+  Per ognuna si sceglie il tipo (*Testo*, *Numero*, *Data*) e si può spuntare
+  *NULL*; in un blocco PL/SQL si può anche indicare la direzione **IN**,
+  **OUT** o **IN OUT**, e i valori restituiti compaiono fra i *Messaggi*.
+- \`&nome\` è una **variabile di sostituzione**, come in SQL*Plus: il valore
+  viene incollato nel testo prima di partire, quindi può essere un pezzo di
+  SQL qualunque (un nome di tabella, un elenco di valori). \`&&nome\` la chiede
+  una volta sola e poi la ricorda.
+
+I valori restano in memoria per quel foglio: rieseguendo la stessa query non
+vanno ridigitati. Il pulsante con l'icona della variabile riapre la finestra
+senza eseguire nulla.
+
+## File .sql
+
+I fogli sopravvivono da soli fra un avvio e l'altro, ma possono anche essere
+legati a un file su disco.
+
+| Comando | Tasti | Cosa fa |
+|---|---|---|
+| **Apri…** | \`Ctrl+O\` | Apre un \`.sql\` in una **scheda nuova** |
+| **Salva** | \`Ctrl+S\` | Riscrive il file del foglio; se non ne ha uno, lo chiede |
+| **Salva con nome…** | \`Ctrl+Maiusc+S\` | Chiede sempre dove salvare |
+
+Un pallino accanto al nome del file segnala le modifiche non ancora salvate.
+Nell'app desktop si aprono le finestre del sistema; nel browser si usa la
+finestra dei file quando c'è, altrimenti il salvataggio **scarica** il file.
+
+## Esportare
+
+*CSV* accanto ai risultati resta la scorciatoia di sempre. **Esporta…** apre
+la finestra completa: CSV, Excel (.xlsx), JSON, istruzioni INSERT, HTML o TSV,
+e soprattutto la scelta fra le righe già caricate e **tutte** quelle della
+query — rieseguita sul server, oltre il limite di *Righe max*. Vedi
+[Griglia dei risultati](#griglia).
 
 **Cronologia** apre l'elenco delle istruzioni eseguite su questa connessione
 (vedi [Cronologia](#cronologia)). Il pannello si riduce e si riapre con
 \`Ctrl+J\`.
+`,
+  },
+  {
+    id: 'piano',
+    title: 'Piano di esecuzione e autotrace',
+    summary: "Leggere il piano ad albero, e la differenza fra stima e realtà.",
+    md: `
+Il pulsante **Piano** del foglio SQL riempie la scheda *Piano* del pannello dei
+risultati con l'albero delle operazioni che il database userà (o ha usato) per
+rispondere.
+
+## Piano stimato
+
+Con l'**Autotrace spento**, *Piano* fa un \`EXPLAIN PLAN\`: l'istruzione **non
+viene eseguita**, e i numeri sono le stime dell'ottimizzatore.
+
+| Colonna | Significato |
+|---|---|
+| **Righe** | Quante righe l'ottimizzatore si aspetta da quel passo |
+| **Byte** | Quanti dati stima di dover muovere |
+| **Costo** | L'unità di conto interna con cui confronta i piani |
+| **Tempo** | La durata stimata di quel passo |
+
+Cliccando un nodo si aprono le condizioni di **accesso** (quelle che scelgono
+le righe da leggere, tipicamente su un indice) e di **filtro** (quelle
+applicate dopo aver letto). Il testo integrale di \`DBMS_XPLAN\` resta
+disponibile in fondo, in un blocco richiudibile.
+
+## Autotrace
+
+Con l'**Autotrace acceso**, *Piano* **esegue davvero** l'istruzione (le righe
+vengono lette e scartate: servono i numeri, non i dati) e mostra il piano
+reale, con tre colonne in più:
+
+| Colonna | Significato |
+|---|---|
+| **Avvii** | Quante volte quel passo è stato eseguito |
+| **Righe reali** | Quante righe ha davvero prodotto |
+| **Buffer** | Quanti blocchi ha letto dalla memoria |
+
+Quando le **righe reali** si discostano dalla stima di oltre dieci volte, lo
+scostamento è evidenziato: è lì che l'ottimizzatore si è sbagliato, ed è quasi
+sempre da lì che parte un problema di prestazioni (statistiche vecchie, un
+predicato che il database non sa valutare, un indice che manca).
+
+Sotto il piano compaiono le **statistiche di sessione** dell'esecuzione:
+letture logiche, letture fisiche, ordinamenti, redo generato. Sono i numeri da
+confrontare fra due versioni della stessa query.
+
+L'autotrace ha bisogno di leggere le viste \`V$\` dell'istanza. Se l'utenza non
+ne ha il permesso, Orabridge lo dice con un avviso e ripiega sul piano
+stimato invece di fallire.
 `,
   },
   {
@@ -381,6 +538,40 @@ SELECT c.ragione_sociale,
 È **conservativo**: se il testo non viene riconosciuto token per token resta
 esattamente com'era e compare un avviso, invece di restituire codice
 riscritto male.
+
+## Piegare il codice
+
+Il margine a sinistra dei numeri di riga mostra una freccia dove c'è qualcosa
+da piegare: un blocco \`BEGIN\`…\`END\`, un \`CREATE OR REPLACE\`, un commento
+su più righe, un'istruzione lunga. Cliccarla richiude il blocco in una riga
+sola; funziona anche nei sorgenti aperti in sola lettura, dove serve di più.
+
+## Commentare e cambiare le maiuscole
+
+| Tasti | Azione |
+|---|---|
+| \`Ctrl+/\` | Commenta o decommenta le righe selezionate (\`--\`) |
+| \`Ctrl+Maiusc+/\` | Commento a blocco (\`/* … */\`) |
+| \`Ctrl+Maiusc+U\` | MAIUSCOLO |
+| \`Ctrl+Maiusc+L\` | minuscolo |
+| \`Ctrl+Alt+U\` | Iniziali Maiuscole |
+
+Senza selezione valgono sulla parola sotto il cursore.
+
+## Andare all'oggetto
+
+- **Ctrl+clic** su un nome di tabella, vista, procedura o package apre la sua
+  scheda. Tenendo premuto \`Ctrl\` il puntatore diventa una mano sui nomi che
+  Orabridge sa risolvere; se il nome non corrisponde a niente di conosciuto lo
+  dice invece di non fare nulla.
+- **\`Maiusc+F4\`** apre il *describe* rapido: un riquadro con le colonne della
+  tabella sotto il cursore — nome, tipo, obbligatorietà, chiave — senza
+  lasciare il foglio. \`Esc\` lo chiude, *Apri scheda* fa il salto vero.
+
+I nomi si risolvono sui metadati già caricati per l'autocomplete, quindi
+valgono le stesse regole: lo schema di lavoro è sempre disponibile, gli altri
+si caricano la prima volta che li si nomina.
+
 `,
   },
   {
@@ -399,7 +590,29 @@ La griglia è virtualizzata: regge decine di migliaia di righe senza rallentare.
   Excel così com'è).
 - **Doppio clic su una cella** apre il valore intero in una finestra, con il
   tasto *Copia*: serve per CLOB e testi lunghi.
-- **CSV** esporta il risultato mostrato.
+- **Clic destro su un'intestazione** blocca le colonne fino a quella: restano
+  ferme a sinistra mentre si scorre in orizzontale, come il blocco riquadri di
+  Excel. Serve per non perdere di vista la chiave in una tabella larga.
+- **CSV** esporta il risultato mostrato; **Esporta…** apre la finestra con
+  tutti i formati (vedi più sotto).
+
+## Filtrare e guardare una riga per volta
+
+L'interruttore del **filtro** apre una riga di campi sotto l'intestazione: si
+scrive in quello di una colonna e la griglia mostra solo le righe che
+corrispondono. Il filtro lavora sulle righe **già caricate**, senza tornare al
+database, e si combina con l'ordinamento.
+
+| Si scrive | Tiene le righe |
+|---|---|
+| \`ross\` | che contengono «ross», maiuscole o minuscole che siano |
+| \`> 1000\` | con valore numerico maggiore di 1000 (anche \`>=\`, \`<\`, \`<=\`, \`=\`, \`!=\`) |
+| \`(null)\` | in cui la colonna è vuota |
+
+La **vista a record singolo** mostra una riga alla volta in verticale, con le
+frecce per scorrere: è il modo di leggere una tabella con quaranta colonne
+senza andare avanti e indietro in orizzontale. Se la griglia è modificabile, i
+campi si modificano anche da lì.
 
 ## Modificare i dati
 
@@ -409,6 +622,44 @@ annulla. Le celle cambiate restano evidenziate finché non si fa **Commit** (o
 **Rollback**) dalla barra sopra la griglia — la modifica passa dalla stessa
 sessione del foglio SQL, quindi nulla viene confermato a tua insaputa. Un campo
 svuotato viene scritto come \`NULL\`.
+
+Dalla barra sopra la griglia si lavora anche sulle righe intere:
+
+- **Nuova riga** apre il modulo a record singolo vuoto: si compilano solo le
+  colonne che servono, le altre restano al valore di default della tabella.
+- **Duplica** lo apre già compilato con i valori della riga selezionata —
+  resta da cambiare la chiave.
+- **Elimina** cancella le righe selezionate (si selezionano cliccando il
+  numero di riga, con \`Ctrl\` per aggiungerne e \`Maiusc\` per un intervallo).
+  Oltre una riga chiede conferma.
+
+Anche queste passano dalla sessione del foglio: fino al **Commit** si può
+tornare indietro con **Rollback**. Su una connessione aperta in sola lettura
+sono disattivate.
+
+## Esportare e importare
+
+**Esporta…** genera il file nel formato scelto:
+
+| Formato | Note |
+|---|---|
+| **CSV** / **TSV** | Separatore e riga di intestazione a scelta |
+| **Excel (.xlsx)** | Un foglio solo, scritto senza librerie esterne |
+| **JSON** | Un array di oggetti, una proprietà per colonna |
+| **INSERT** | Istruzioni pronte da rieseguire, con \`COMMIT\` ogni N righe |
+| **HTML** | Una pagina con la tabella, da aprire nel browser |
+
+L'ambito è **le righe caricate** oppure **tutte le righe della query**: nel
+secondo caso Orabridge rifà l'interrogazione sul server e supera il limite di
+*Righe max* (fino a 200 000 righe, che è anche il punto oltre il quale un file
+del genere smette di essere utile).
+
+Nella scheda **Dati** di una tabella c'è anche **Importa…**: si sceglie un file
+CSV o Excel, si controlla come è stato interpretato (separatore, intestazione),
+si abbinano le colonne del file a quelle della tabella — l'abbinamento
+automatico per nome di solito basta — e si carica a lotti. Le righe rifiutate
+vengono elencate con il motivo, e si può scegliere se fermarsi al primo errore
+o tirare dritto. Anche qui niente viene confermato senza **Commit**.
 
 ## Decodifica delle entità HTML
 
@@ -592,6 +843,47 @@ cronologia, marcate con ✨.
 `,
   },
   {
+    id: 'dba',
+    title: 'Monitor DBA',
+    summary: 'Sessioni, lock, tablespace, istanza, Top SQL e attese.',
+    md: `
+L'icona con l'onda, fra i comandi in alto, apre il **monitor** dell'istanza a
+cui è collegata la connessione selezionata. Sono tutte letture dalle viste
+dinamiche di Oracle: se l'utenza non ha i privilegi per una sezione, quella
+sezione lo dice e le altre continuano a funzionare.
+
+| Sezione | Cosa mostra |
+|---|---|
+| **Sessioni** | Chi è collegato, da quale macchina e programma, cosa sta eseguendo, su cosa aspetta e da chi è bloccato |
+| **Lock** | Chi blocca chi, su quale oggetto e da quanto |
+| **Tablespace** | Spazio usato e libero, con la barra colorata: gialla sopra il 75%, rossa sopra il 90% |
+| **Istanza** | Nome, host, versione, avvio, modalità di apertura, e i parametri diversi dal default |
+| **Top SQL** | Le istruzioni più costose, ordinabili per tempo, CPU, letture logiche o fisiche, esecuzioni |
+| **Attese** | Su cosa il database ha aspettato dall'avvio, e chi sta aspettando adesso |
+
+Il selettore in alto imposta l'**aggiornamento automatico** (5, 10 o 30
+secondi). Parte sempre da *Off* e si ferma da solo quando la scheda non è in
+primo piano: un monitor che interroga il database in sottofondo mentre si
+lavora ad altro è un modo per farsi notare dal DBA nel modo sbagliato.
+
+## Terminare una sessione
+
+Tasto destro su una riga delle sessioni → *Mostra SQL completo* per vedere cosa
+sta eseguendo, oppure *Termina sessione…*. La conferma ripete SID e utente, e
+la spunta **IMMEDIATE** decide se Oracle debba interrompere subito il lavoro in
+corso invece di aspettare che finisca.
+
+Due sessioni non si possono terminare in nessun caso: quella con cui Orabridge
+sta leggendo e quella del foglio SQL — con lei se ne andrebbe la transazione
+aperta. Su una connessione [in sola lettura](#connessioni) la voce è
+disattivata e il server rifiuta comunque la richiesta.
+
+Cliccando una riga di *Top SQL* si legge l'istruzione per intero, e **Apri in
+un foglio SQL** la porta in un foglio nuovo dove studiarla con
+[Piano e autotrace](#piano).
+`,
+  },
+  {
     id: 'cronologia',
     title: 'Cronologia',
     summary: 'Ritrovare, riaprire e ripulire le istruzioni già eseguite.',
@@ -623,6 +915,14 @@ connessione).
 | \`F5\` | Esegui tutto lo script |
 | \`Ctrl+Invio\` (scheda Sorgente) | Compila il sorgente PL/SQL |
 
+## File
+
+| Tasti | Azione |
+|---|---|
+| \`Ctrl+O\` | Apri un file \`.sql\` in una scheda nuova |
+| \`Ctrl+S\` | Salva il foglio |
+| \`Ctrl+Maiusc+S\` | Salva con nome… |
+
 ## Editor
 
 | Tasti | Azione |
@@ -634,12 +934,20 @@ connessione).
 | \`Alt+L\` | Limita la ricerca alle righe selezionate |
 | \`Ctrl+Maiusc+F\` | Formatta la selezione (fuori dall'editor: ricerca nel codice) |
 | \`Ctrl+Alt+F\` | Formatta tutto il foglio |
+| \`Ctrl+/\` / \`Ctrl+Maiusc+/\` | Commenta le righe / commento a blocco |
+| \`Ctrl+Maiusc+U\` / \`Ctrl+Maiusc+L\` | MAIUSCOLO / minuscolo |
+| \`Ctrl+Alt+U\` | Iniziali Maiuscole |
+| \`Ctrl+clic\` | Apri la scheda dell'oggetto sotto il cursore |
+| \`Maiusc+F4\` | Describe rapido dell'oggetto sotto il cursore |
+| Clic sulla freccia nel margine | Piega o riapre il blocco |
 
 ## Griglia
 
 | Tasti | Azione |
 |---|---|
 | Clic sull'intestazione | Ordina per quella colonna |
+| Clic destro sull'intestazione | Blocca o sblocca le colonne fino a quella |
+| Clic sul numero di riga | Seleziona la riga (\`Ctrl\` aggiunge, \`Maiusc\` estende) |
 | Trascinamento sulle celle | Seleziona un rettangolo |
 | \`Ctrl+A\` / \`Ctrl+C\` | Seleziona tutto / copia la selezione |
 | Doppio clic su una cella | Valore intero, oppure modifica (scheda Dati) |
@@ -746,6 +1054,15 @@ export const RELEASES_URL = 'https://github.com/riftbane/orabridge/releases';
 // bundle per quei casi, quindi cita solo le funzioni grosse — la storia
 // completa è nel CHANGELOG.md e sulla pagina delle release.
 export const RELEASE_HIGHLIGHTS = [
+  {
+    version: '1.31',
+    text: `**Il lavoro quotidiano sui dati**: variabili di bind e di sostituzione nel
+foglio, righe da aggiungere ed eliminare nella griglia, esportazione in Excel,
+JSON, INSERT e HTML anche oltre le righe caricate, importazione da CSV, file
+\`.sql\` da aprire e salvare, piano di esecuzione ad albero con autotrace,
+connessioni TNS/SYSDBA/wallet e in sola lettura, e un monitor DBA con sessioni,
+lock e tablespace.`,
+  },
   {
     version: '1.19',
     text: `**Modello locale**: Gemma 4 gira dentro Orabridge, gratis e senza API key. Il

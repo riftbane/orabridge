@@ -1,0 +1,317 @@
+/* Foglio SQL: aggiunte alla barra (file .sql, autotrace, sola lettura), la
+   finestra delle variabili e il piano di esecuzione ad albero. Il resto della
+   scheda sta in styles.css e non cambia. */
+
+/* Interruttore in barra: acceso si comporta come una linguetta scelta, non
+   come un pulsante premuto per sbaglio. */
+.ws-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ws-toggle.on svg {
+  color: var(--accent);
+}
+
+/* Nome del file legato al foglio, con il pallino delle modifiche non salvate.
+   Il testo resta nello store anche chiudendo l'app, quindi il pallino non è un
+   allarme: dice solo che su disco c'è ancora la versione di prima. */
+.ws-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-file-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.ws-readonly {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px 9px;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+/* Valori restituiti dai bind OUT di un blocco PL/SQL: sono un risultato, non
+   un avviso. */
+.msg.binds {
+  color: var(--fg);
+}
+.msg.binds pre {
+  color: var(--accent);
+}
+
+/* ---------- finestra delle variabili ---------- */
+
+.binds-modal {
+  width: 620px;
+  max-width: 92vw;
+}
+.binds-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bind-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bind-group-head {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.bind-hint {
+  font-size: 11px;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+.bind-hint code {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+.bind-hint.err {
+  color: var(--err);
+}
+.bind-hint.foot {
+  align-self: center;
+}
+
+.bind-row {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) minmax(120px, 1fr) 96px auto;
+  gap: 8px;
+  align-items: center;
+}
+.bind-row.plsql {
+  grid-template-columns: minmax(110px, auto) minmax(120px, 1fr) 96px 84px auto;
+}
+.bind-row.sub {
+  grid-template-columns: minmax(110px, auto) minmax(120px, 1fr) auto;
+}
+.bind-row input,
+.bind-row select {
+  width: 100%;
+  min-width: 0;
+}
+.bind-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bind-row input.bad {
+  border-color: var(--err);
+}
+.bind-badge {
+  font-size: 10px;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+/* Nel corpo di una modale le etichette sono in colonna: questa no, la spunta
+   sta accanto alla parola. */
+.bind-null {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 5px !important;
+  white-space: nowrap;
+}
+.bind-null input[type='checkbox'] {
+  width: auto;
+}
+
+/* ---------- piano di esecuzione ---------- */
+
+.plan-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-note {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--warn);
+  background: #3a2d1e66;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 10px;
+}
+
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.plan-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 5px 10px;
+  text-align: left;
+  font-weight: 500;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.plan-table td {
+  padding: 3px 10px;
+  border-bottom: 1px solid #ffffff08;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.plan-table tbody tr:hover {
+  background: var(--bg-hover);
+  cursor: pointer;
+}
+.plan-table tbody tr.on {
+  background: var(--bg-active);
+}
+.plan-table .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+}
+/* Il motivo per cui si guarda un piano: dove la stima e la realtà divergono
+   di più di dieci volte, l'ottimizzatore stava lavorando su numeri sbagliati. */
+.plan-table .num.off {
+  color: var(--err);
+  font-weight: 600;
+}
+.plan-table .plan-obj {
+  color: var(--fg-dim);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-indent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.plan-fold {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  width: 14px;
+  flex-shrink: 0;
+}
+.plan-fold:hover {
+  color: var(--fg);
+}
+.plan-fold.empty {
+  cursor: default;
+}
+.plan-name {
+  color: var(--fg);
+}
+.plan-opt {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.plan-detail td {
+  white-space: normal;
+  background: var(--bg-editor);
+  padding: 8px 10px 8px 26px;
+}
+.plan-preds {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 12px;
+  font-size: 11.5px;
+}
+.plan-preds dt {
+  color: var(--fg-dim);
+}
+.plan-preds dd {
+  font-family: var(--mono);
+  word-break: break-word;
+}
+.plan-empty {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.plan-block-head {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  padding: 10px 10px 4px;
+}
+.plan-stats-table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  margin: 0 10px;
+}
+.plan-stats-table td {
+  padding: 2px 14px 2px 0;
+  border-bottom: 1px solid #ffffff08;
+}
+.plan-stats-table .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-text {
+  margin: 10px 10px 0;
+}
+.plan-text > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  padding: 4px 0;
+}
+.plan-text > summary:hover {
+  color: var(--fg);
+}
+.plan-text pre {
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre;
+  overflow-x: auto;
+  padding: 8px 10px;
+  background: var(--bg-editor);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}

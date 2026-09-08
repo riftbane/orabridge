@@ -11,7 +11,15 @@ const pendingMeta = new Map();
 
 // I tipi di scheda che l'app sa disegnare (vedi App.jsx): quello che è stato
 // salvato e non è più fra questi viene scartato al riavvio.
-const KNOWN_TAB_KINDS = new Set(['worksheet', 'object', 'history', 'diff', 'guide']);
+const KNOWN_TAB_KINDS = new Set([
+  'worksheet',
+  'object',
+  'sysobject',
+  'history',
+  'diff',
+  'guide',
+  'dba',
+]);
 
 // Ogni richiesta di salto a una riga porta un numero progressivo: riaprendo lo
 // stesso risultato la scheda è già aperta, e senza qualcosa che cambia la
@@ -32,6 +40,15 @@ export const useStore = create(
       tabs: [],
       activeTabId: null,
       drafts: {}, // tabId -> sql text
+      // Fogli aperti da un file .sql: tabId -> { path, name, savedText }.
+      // `savedText` è il testo com'è su disco: confrontandolo con la bozza si
+      // sa se il foglio ha modifiche non salvate (vedi Worksheet.jsx).
+      // `path` esiste solo nell'app desktop; nel browser si salva ogni volta
+      // con la finestra del sistema (o scaricando il file).
+      files: {},
+      // Ultimi valori dati alle variabili di bind/sostituzione di un foglio:
+      // rieseguendo la stessa query non vanno ridigitati.
+      bindValues: {},
       toasts: [],
       maxRows: 500,
 
@@ -53,6 +70,12 @@ export const useStore = create(
         // `à`): serve con i dati scritti da applicativi web legacy. Spento di
         // default — la griglia deve mostrare il dato com'è nel database.
         decodeEntities: false,
+        // Esegue davvero l'istruzione e ne mostra il piano con le statistiche
+        // reali (autotrace) invece del solo EXPLAIN PLAN, che non la esegue.
+        autotrace: false,
+        // Ultimo formato scelto nella finestra di esportazione, così la volta
+        // dopo è già selezionato.
+        exportFormat: 'csv',
       },
       setUi(patch) {
         set((s) => ({ ui: { ...s.ui, ...patch } }));
@@ -114,6 +137,12 @@ export const useStore = create(
           const active = { ...s.active };
           for (const c of list) {
             if (!c.connected) delete active[c.id];
+            // La sola lettura si può cambiare su una connessione già aperta e
+            // il server la applica subito: qui si riallinea quello che vede
+            // l'interfaccia, che decide cosa disabilitare.
+            else if (active[c.id] && active[c.id].readOnly !== !!c.readOnly) {
+              active[c.id] = { ...active[c.id], readOnly: !!c.readOnly };
+            }
           }
           return { conns: list, active };
         });
@@ -363,15 +392,25 @@ export const useStore = create(
       },
 
       // ---- tabs ----
-      openWorksheet(connId, initialSql) {
+      // `opts.file` = { path, name, savedText }: il foglio nasce legato a un
+      // file .sql aperto da disco e ne prende il nome come titolo.
+      openWorksheet(connId, initialSql, opts = {}) {
         const id = `ws-${Date.now()}-${wsCounter++}`;
         const conn = get().conns.find((c) => c.id === connId);
-        const tab = { id, kind: 'worksheet', connId, title: conn ? conn.name : 'Foglio' };
+        const file = opts.file || null;
+        const tab = {
+          id,
+          kind: 'worksheet',
+          connId,
+          title: file ? file.name : conn ? conn.name : 'Foglio',
+        };
         set((s) => ({
           tabs: [...s.tabs, tab],
           activeTabId: id,
           drafts: initialSql ? { ...s.drafts, [id]: initialSql } : s.drafts,
+          files: file ? { ...s.files, [id]: file } : s.files,
         }));
+        return id;
       },
 
       // Tab singleton: riapre semplicemente lo stesso se già presente.
@@ -434,17 +473,61 @@ export const useStore = create(
         set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
       },
 
+      // Oggetti che non stanno in ALL_OBJECTS o che non appartengono a uno
+      // schema (vedi systemObjects.js): stessa scheda di dettaglio, ma le
+      // linguette e le query le decide il tipo.
+      openSystemObject(connId, type, name, owner = '') {
+        const id = `sys-${connId}-${type}-${owner}.${name}`;
+        if (get().tabs.find((t) => t.id === id)) {
+          set({ activeTabId: id });
+          return;
+        }
+        const tab = { id, kind: 'sysobject', connId, owner, name, type, title: name };
+        set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }));
+      },
+
+      // Monitor DBA: una scheda per connessione (i dati sono quelli di quella
+      // istanza), riaperta sulla sezione chiesta.
+      openDba(connId, section) {
+        const id = `dba-${connId}`;
+        const conn = get().conns.find((c) => c.id === connId);
+        const exists = get().tabs.find((t) => t.id === id);
+        if (!exists) {
+          set((s) => ({
+            tabs: [
+              ...s.tabs,
+              {
+                id,
+                kind: 'dba',
+                connId,
+                title: `DBA — ${conn ? conn.name : connId}`,
+                section: section || 'sessions',
+              },
+            ],
+          }));
+        } else if (section) {
+          set((s) => ({
+            tabs: s.tabs.map((t) => (t.id === id ? { ...t, section } : t)),
+          }));
+        }
+        set({ activeTabId: id });
+      },
+
       closeTab(id) {
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           const tabs = s.tabs.filter((t) => t.id !== id);
           const drafts = { ...s.drafts };
           delete drafts[id];
+          const files = { ...s.files };
+          delete files[id];
+          const bindValues = { ...s.bindValues };
+          delete bindValues[id];
           let activeTabId = s.activeTabId;
           if (activeTabId === id) {
             activeTabId = tabs[Math.min(idx, tabs.length - 1)]?.id ?? null;
           }
-          return { tabs, drafts, activeTabId };
+          return { tabs, drafts, files, bindValues, activeTabId };
         });
       },
 
@@ -454,6 +537,22 @@ export const useStore = create(
 
       setDraft(tabId, text) {
         set((s) => ({ drafts: { ...s.drafts, [tabId]: text } }));
+      },
+
+      // ---- fogli legati a un file .sql ----
+      // `file`: { path, name, savedText }. Senza `file` il legame si scioglie
+      // (il foglio torna a essere una bozza senza nome).
+      setTabFile(tabId, file) {
+        set((s) => {
+          const files = { ...s.files };
+          if (file) files[tabId] = file;
+          else delete files[tabId];
+          return { files };
+        });
+      },
+
+      setBindValues(tabId, values) {
+        set((s) => ({ bindValues: { ...s.bindValues, [tabId]: values } }));
       },
 
       setMaxRows(n) {
@@ -468,6 +567,8 @@ export const useStore = create(
         tabs: s.tabs.map(({ focus, ...t }) => t),
         activeTabId: s.activeTabId,
         drafts: s.drafts,
+        files: s.files,
+        bindValues: s.bindValues,
         maxRows: s.maxRows,
         ui: s.ui,
         selectedConnId: s.selectedConnId,

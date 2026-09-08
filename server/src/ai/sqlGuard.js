@@ -52,7 +52,11 @@ function hasMultipleStatements(clean) {
   return body.includes(';');
 }
 
-const FIRST_WORD = /^\s*(\w+)/;
+// Le parentesi aperte iniziali si saltano insieme agli spazi: `(SELECT …)
+// UNION ALL (SELECT …)` è legittimo, e senza questo la prima parola non si
+// troverebbe affatto — l'istruzione finirebbe fra quelle non classificabili.
+// Nessuna scrittura può cominciare con una parentesi.
+const FIRST_WORD = /^[\s(]*(\w+)/;
 
 export function classifySql(sql) {
   const clean = stripSql(sql).trim();

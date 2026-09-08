@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import oracledb from 'oracledb';
-import { withPooled } from '../pools.js';
+import { runExclusive, withPooled } from '../pools.js';
 import { gridQuery, gridResult, qi } from '../oracle.js';
 
 const router = Router({ mergeParams: true });
@@ -258,6 +258,12 @@ router.get(
     // rowid=1 (Dati tab of a TABLE): also fetch ROWID so the grid can build
     // per-row UPDATE statements for inline cell editing.
     const withRowid = req.query.rowid === '1';
+    // session=1: leggi dalla sessione del foglio invece che dal pool. Serve
+    // alla scheda «Dati» quando è modificabile: righe nuove ed eliminate
+    // vivono nella transazione aperta di quella sessione, e una connessione
+    // qualunque del pool non le vedrebbe — la griglia mostrerebbe lo stato di
+    // prima come se la modifica non fosse mai avvenuta.
+    const onSession = req.query.session === '1';
     let inner = withRowid
       ? `SELECT t.*, t.ROWID "__orabridge_rowid__" FROM ${qi(owner)}.${qi(name)} t`
       : `SELECT * FROM ${qi(owner)}.${qi(name)}`;
@@ -270,15 +276,29 @@ router.get(
                      FROM (${inner}) q
                     WHERE ROWNUM <= :maxrow
                  ) WHERE "__orabridge_rn__" > :off`;
+    const read = async (c) => {
+      const r = await c.execute(
+        sql,
+        { maxrow: offset + limit + 1, off: offset },
+        { outFormat: oracledb.OUT_FORMAT_ARRAY, maxRows: limit + 1 }
+      );
+      return gridResult(r, limit);
+    };
     try {
-      const grid = await withPooled(req.oraEntry, async (c) => {
-        const r = await c.execute(
-          sql,
-          { maxrow: offset + limit + 1, off: offset },
-          { outFormat: oracledb.OUT_FORMAT_ARRAY, maxRows: limit + 1 }
-        );
-        return gridResult(r, limit);
-      });
+      const grid = onSession
+        ? await runExclusive(req.oraEntry, async () => {
+            // Segnalare l'esecuzione è quello che rende la lettura
+            // interrompibile con «Annulla» del foglio (che chiama
+            // session.break()) e permette a /status di rispondere subito
+            // invece di accodarsi.
+            req.oraEntry.executing = true;
+            try {
+              return await read(req.oraEntry.session);
+            } finally {
+              req.oraEntry.executing = false;
+            }
+          })
+        : await withPooled(req.oraEntry, read);
       dropLastColumn(grid); // la colonna di servizio ROWNUM
       if (withRowid) {
         const idx = grid.columns.length - 1;
@@ -298,8 +318,20 @@ router.get(
     const { owner, name, where } = req.query;
     let sql = `SELECT COUNT(*) FROM ${qi(owner)}.${qi(name)}`;
     if (where?.trim()) sql += ` WHERE ${where}`;
+    // Stesso motivo di /table/data: contare dal pool ignorerebbe le righe
+    // ancora nella transazione del foglio.
+    const onSession = req.query.session === '1';
     try {
-      const r = await withPooled(req.oraEntry, (c) => c.execute(sql));
+      const r = onSession
+        ? await runExclusive(req.oraEntry, async () => {
+            req.oraEntry.executing = true;
+            try {
+              return await req.oraEntry.session.execute(sql);
+            } finally {
+              req.oraEntry.executing = false;
+            }
+          })
+        : await withPooled(req.oraEntry, (c) => c.execute(sql));
       res.json({ count: r.rows[0][0] });
     } catch (err) {
       res.json({ error: err.message });
@@ -552,6 +584,245 @@ router.get(
         { owner, name }
       )
     );
+  })
+);
+
+// Schede comuni a più tipi di oggetto (dipendenze, permessi, statistiche,
+// partizioni). Si leggono solo viste ALL_*, perché un'utenza normale sulle
+// DBA_* non arriva, e ogni rotta ha il suo try/catch: un dizionario non
+// leggibile deve diventare un messaggio dentro la scheda, non una richiesta
+// esplosa che porta via anche il resto della pagina.
+const dictError = (view, err) => ({ error: `Impossibile leggere ${view}: ${err.message}` });
+
+// Griglia con le sole intestazioni: è la risposta giusta quando l'oggetto non
+// ha semplicemente niente da mostrare (una tabella non partizionata, una vista
+// senza statistiche), che non è un errore e non va segnalato come tale.
+const emptyGrid = (...names) => ({
+  columns: names.map((name) => ({ name, type: 'VARCHAR2' })),
+  rows: [],
+  truncated: false,
+});
+
+router.get(
+  '/dependencies',
+  a(async (req, res) => {
+    const { owner, name, type, direction } = req.query;
+    if (!owner || !name) return res.status(400).json({ error: 'Schema o nome mancante' });
+    const usedBy = direction === 'usedby';
+    // Il tipo restringe la ricerca ma non è obbligatorio: senza, si vedono
+    // tutte le righe con quel nome (PACKAGE e PACKAGE BODY insieme, per dire).
+    const sql = usedBy
+      ? `SELECT owner "Schema", name "Nome", type "Tipo",
+                dependency_type "Tipo dipendenza"
+           FROM all_dependencies
+          WHERE referenced_owner = :owner AND referenced_name = :name
+                ${type ? 'AND referenced_type = :type' : ''}
+          ORDER BY owner, name, type`
+      : `SELECT referenced_owner "Schema riferito", referenced_name "Nome",
+                referenced_type "Tipo", dependency_type "Tipo dipendenza"
+           FROM all_dependencies
+          WHERE owner = :owner AND name = :name
+                ${type ? 'AND type = :type' : ''}
+          ORDER BY referenced_owner, referenced_name, referenced_type`;
+    const binds = type ? { owner, name, type } : { owner, name };
+    try {
+      // Tetto basso apposta: un package di sistema può avere migliaia di
+      // dipendenti e la scheda serve a farsi un'idea, non a esportarli tutti.
+      res.json(await gridQuery(req.oraEntry, sql, binds, 2000));
+    } catch (err) {
+      res.json(dictError('ALL_DEPENDENCIES', err));
+    }
+  })
+);
+
+router.get(
+  '/grants',
+  a(async (req, res) => {
+    const { owner, name } = req.query;
+    if (!owner || !name) return res.status(400).json({ error: 'Schema o nome mancante' });
+    try {
+      res.json(
+        await gridQuery(
+          req.oraEntry,
+          // I permessi di colonna stanno in una vista a parte e non hanno la
+          // gerarchia: si uniscono qui perché nella scheda si vuole leggere
+          // «chi può fare cosa su questo oggetto» in un elenco solo. I NULL
+          // del ramo che non ha la colonna sono castati apposta, altrimenti
+          // Oracle può rifiutare la UNION con ORA-01790.
+          `SELECT grantee "Concessionario", privilege "Privilegio",
+                  CAST(NULL AS VARCHAR2(128)) "Colonna", grantor "Concesso da",
+                  grantable "Con GRANT OPTION", hierarchy "Gerarchia"
+             FROM all_tab_privs
+            WHERE table_schema = :owner AND table_name = :name
+           UNION ALL
+           SELECT grantee, privilege, column_name, grantor, grantable,
+                  CAST(NULL AS VARCHAR2(3))
+             FROM all_col_privs
+            WHERE table_schema = :owner AND table_name = :name
+            ORDER BY 1, 2, 3`,
+          { owner, name }
+        )
+      );
+    } catch (err) {
+      res.json(dictError('ALL_TAB_PRIVS/ALL_COL_PRIVS', err));
+    }
+  })
+);
+
+// Le statistiche di un oggetto stanno su una riga sola del dizionario, mentre
+// la scheda le vuole in verticale: invece di una UNION ALL per voce si ribalta
+// la riga qui, così l'ordine delle voci è quello degli alias della SELECT e
+// aggiungerne una costa una parola.
+const STAT_COLUMNS = [
+  { name: 'Statistica', type: 'VARCHAR2' },
+  { name: 'Valore', type: 'VARCHAR2' },
+];
+
+function verticalGrid(grid) {
+  const row = grid.rows[0] || [];
+  return {
+    columns: STAT_COLUMNS,
+    rows: row.map((v, i) => [grid.columns[i].name, v == null ? null : String(v)]),
+    truncated: false,
+  };
+}
+
+const TABLE_STATS_SQL = `SELECT num_rows "Righe", blocks "Blocchi",
+       empty_blocks "Blocchi vuoti", avg_row_len "Lunghezza media riga",
+       sample_size "Righe campionate", last_analyzed "Ultima analisi",
+       partitioned "Partizionata", tablespace_name "Tablespace",
+       logging "Logging", temporary "Temporanea"
+  FROM all_tables
+ WHERE owner = :owner AND table_name = :name`;
+
+const INDEX_STATS_SQL = `SELECT blevel "Livello (BLEVEL)", leaf_blocks "Blocchi foglia",
+       distinct_keys "Chiavi distinte", clustering_factor "Clustering factor",
+       num_rows "Righe indicizzate", sample_size "Righe campionate",
+       last_analyzed "Ultima analisi", uniqueness "Unicità",
+       tablespace_name "Tablespace", status "Stato"
+  FROM all_indexes
+ WHERE owner = :owner AND index_name = :name`;
+
+const PART_TYPE_SQL = `SELECT partitioning_type, subpartitioning_type
+  FROM all_part_tables
+ WHERE owner = :owner AND table_name = :name`;
+
+const COLUMN_STATS_SQL = `SELECT s.column_name "Colonna",
+       s.num_distinct "Valori distinti", s.num_nulls "Nulli",
+       s.density "Densità", s.avg_col_len "Lunghezza media",
+       s.last_analyzed "Ultima analisi"
+  FROM all_tab_col_statistics s
+  JOIN all_tab_columns c
+    ON c.owner = s.owner AND c.table_name = s.table_name
+   AND c.column_name = s.column_name
+ WHERE s.owner = :owner AND s.table_name = :name
+ ORDER BY c.column_id`;
+
+router.get(
+  '/stats',
+  a(async (req, res) => {
+    const { owner, name } = req.query;
+    // Senza tipo si prova la tabella: è il caso di gran lunga più frequente e
+    // se l'oggetto è altro la griglia esce vuota, che è la risposta giusta.
+    const type = String(req.query.type || 'TABLE').toUpperCase();
+    if (!owner || !name) return res.status(400).json({ error: 'Schema o nome mancante' });
+    const entry = req.oraEntry;
+    const binds = { owner, name };
+    const isTable = type === 'TABLE' || type === 'MATERIALIZED VIEW';
+    try {
+      if (type === 'INDEX') {
+        return res.json(verticalGrid(await gridQuery(entry, INDEX_STATS_SQL, binds, 1)));
+      }
+      // Solo tabelle e viste materializzate (che nel dizionario hanno la loro
+      // tabella contenitore, stesso nome) hanno statistiche di segmento.
+      if (!isTable) return res.json(emptyGrid('Statistica', 'Valore'));
+
+      const grid = verticalGrid(await gridQuery(entry, TABLE_STATS_SQL, binds, 1));
+      // Il tipo di partizionamento sta in un'altra vista: se non c'è o non è
+      // leggibile si va avanti senza quelle due righe, non è un errore.
+      const part = await gridQuery(entry, PART_TYPE_SQL, binds, 1).catch(() => null);
+      const partRow = part?.rows[0];
+      if (partRow) {
+        grid.rows.push(['Tipo partizionamento', partRow[0]]);
+        if (partRow[1] && partRow[1] !== 'NONE') {
+          grid.rows.push(['Tipo sottopartizionamento', partRow[1]]);
+        }
+      }
+      // Statistiche di colonna in coda. La griglia ha due sole colonne, quindi
+      // ogni colonna della tabella diventa una riga sola con i suoi valori
+      // scritti di seguito: le etichette arrivano dagli alias della query, così
+      // non vanno ripetute qui.
+      const cols = await gridQuery(entry, COLUMN_STATS_SQL, binds, 500).catch(() => null);
+      for (const row of cols?.rows || []) {
+        const detail = cols.columns
+          .slice(1)
+          .map((c, i) => `${c.name.toLowerCase()} ${row[i + 1] ?? '—'}`)
+          .join(' · ');
+        grid.rows.push([`Colonna ${row[0]}`, detail]);
+      }
+      res.json(grid);
+    } catch (err) {
+      res.json(dictError(type === 'INDEX' ? 'ALL_INDEXES' : 'ALL_TABLES', err));
+    }
+  })
+);
+
+// Le stesse statistiche di colonna per intero, per chi le vuole in una griglia
+// tutta loro invece che compattate in coda a /stats.
+router.get(
+  '/stats/columns',
+  a(async (req, res) => {
+    const { owner, name } = req.query;
+    if (!owner || !name) return res.status(400).json({ error: 'Schema o nome mancante' });
+    try {
+      res.json(await gridQuery(req.oraEntry, COLUMN_STATS_SQL, { owner, name }, 2000));
+    } catch (err) {
+      res.json(dictError('ALL_TAB_COL_STATISTICS', err));
+    }
+  })
+);
+
+const PARTITIONS_SQL = `SELECT partition_name "Partizione", partition_position "#",
+       high_value "Valore alto", tablespace_name "Tablespace",
+       num_rows "Righe", last_analyzed "Ultima analisi",
+       subpartition_count "Sottopartizioni"
+  FROM all_tab_partitions
+ WHERE table_owner = :owner AND table_name = :name
+ ORDER BY partition_position`;
+
+const SUBPARTITIONS_SQL = `SELECT subpartition_name "Sottopartizione",
+       subpartition_position "#", high_value "Valore alto",
+       tablespace_name "Tablespace", num_rows "Righe", last_analyzed "Ultima analisi"
+  FROM all_tab_subpartitions
+ WHERE table_owner = :owner AND table_name = :name AND partition_name = :partition
+ ORDER BY subpartition_position`;
+
+const PART_KEY_SQL = `SELECT column_name
+  FROM all_part_key_columns
+ WHERE owner = :owner AND name = :name AND object_type = 'TABLE'
+ ORDER BY column_position`;
+
+router.get(
+  '/partitions',
+  a(async (req, res) => {
+    const { owner, name, partition } = req.query;
+    if (!owner || !name) return res.status(400).json({ error: 'Schema o nome mancante' });
+    const entry = req.oraEntry;
+    try {
+      if (partition) {
+        const sub = await gridQuery(entry, SUBPARTITIONS_SQL, { owner, name, partition });
+        return res.json(sub);
+      }
+      const grid = await gridQuery(entry, PARTITIONS_SQL, { owner, name });
+      // Le colonne di chiave non stanno nella griglia (hanno un'altra forma):
+      // viaggiano a parte, la scheda le mostra sopra l'elenco. Se la vista non
+      // è leggibile si perde solo quell'informazione.
+      const keys = await gridQuery(entry, PART_KEY_SQL, { owner, name }, 100).catch(() => null);
+      grid.keyColumns = (keys?.rows || []).map((r) => r[0]);
+      res.json(grid);
+    } catch (err) {
+      res.json(dictError('ALL_TAB_PARTITIONS', err));
+    }
   })
 );
 

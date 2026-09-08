@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitCompare, History, Sparkles } from 'lucide-react';
+import { Activity, GitCompare, History, Sparkles } from 'lucide-react';
 import { useStore } from '../store.js';
 import { CUSTOM_TITLE_BAR } from '../appInfo.js';
 import ConnectionsView from './ConnectionsView.jsx';
@@ -15,6 +15,9 @@ export default function Sidebar({ onNewConnection, onImportConnections }) {
   const toggleUi = useStore((s) => s.toggleUi);
   const openHistory = useStore((s) => s.openHistory);
   const openDiff = useStore((s) => s.openDiff);
+  const dbaConnId = useStore((s) =>
+    s.active[s.selectedConnId]?.status === 'connected' ? s.selectedConnId : null
+  );
 
   return (
     <aside className="sidebar" style={{ width, minWidth: width }}>
@@ -38,6 +41,18 @@ export default function Sidebar({ onNewConnection, onImportConnections }) {
           </button>
           <button className="icon-btn" title="Cronologia query" onClick={() => openHistory(null)}>
             <History size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            title={
+              dbaConnId
+                ? 'Monitor DBA — sessioni, lock, tablespace'
+                : 'Monitor DBA — richiede una connessione attiva'
+            }
+            disabled={!dbaConnId}
+            onClick={() => useStore.getState().openDba(dbaConnId)}
+          >
+            <Activity size={14} />
           </button>
         </div>
       )}

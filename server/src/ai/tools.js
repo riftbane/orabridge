@@ -3,6 +3,7 @@ import { pools, runExclusive, withPooled } from '../pools.js';
 import { gridResult } from '../oracle.js';
 import { history } from '../history.js';
 import { classifySql } from './sqlGuard.js';
+import { assertWritable } from '../readonly.js';
 
 // Strumenti messi a disposizione del modello. Ogni voce dichiara il permesso
 // minimo richiesto; `execute_sql` lo calcola dall'istruzione stessa.
@@ -525,6 +526,13 @@ const handlers = {
     }
     const maxRows = Math.min(1000, Math.max(1, Number(input.maxRows) || ctx.maxRows));
     const sql = String(input.sql).trim().replace(/;\s*$/, '');
+    // `classifySql` lascia passare come lettura anche un SELECT … FOR UPDATE,
+    // che invece blocca righe: su una connessione in sola lettura va fermato.
+    try {
+      assertWritable(entry, sql);
+    } catch (err) {
+      throw new ToolError(err.message);
+    }
     const r = await runExclusive(entry, async () => {
       const t0 = performance.now();
       entry.executing = true;
@@ -555,6 +563,14 @@ const handlers = {
 
   async execute_sql(entry, input) {
     const sql = String(input.sql || '').trim().replace(/;\s*$/, '');
+    // La sola lettura è una proprietà della connessione, non dell'interfaccia:
+    // vale anche quando a scrivere è l'assistente. Senza questo, i permessi
+    // della sessione AI sarebbero l'unica difesa, e sono un'altra cosa.
+    try {
+      assertWritable(entry, sql);
+    } catch (err) {
+      throw new ToolError(err.message);
+    }
     // Una CREATE/DROP cambia l'inventario che sta nel prompt: tenerlo com'era
     // farebbe negare al modello l'esistenza di una tabella appena creata.
     overviewCache.delete(entry.id);

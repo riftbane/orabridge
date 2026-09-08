@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('orabridge', {
   customTitleBar,
   getAppInfo: () => ipcRenderer.invoke('orabridge:app-info'),
   checkForUpdates: () => ipcRenderer.invoke('orabridge:check-for-updates'),
+  // Apertura e salvataggio dei fogli .sql: il percorso scelto torna al client,
+  // che lo ripassa al salvataggio successivo per scrivere senza richiedere la
+  // finestra. Ricopiamo i tre campi invece di inoltrare l'oggetto ricevuto:
+  // quello che arriva dalla UI può portarsi dietro roba non serializzabile,
+  // che farebbe fallire l'invio sul canale.
+  openSqlFile: () => ipcRenderer.invoke('orabridge:open-sql'),
+  saveSqlFile: ({ path, suggestedName, text } = {}) =>
+    ipcRenderer.invoke('orabridge:save-sql', { path, suggestedName, text }),
   onUpdateStatus: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on('orabridge:update-status', handler);

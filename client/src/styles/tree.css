@@ -1,0 +1,74 @@
+/* Albero degli oggetti — le parti nuove: le cartelle degli oggetti «di
+   sistema» (DB link, job, code AQ, cestino, directory, utenti, ruoli,
+   tablespace, sinonimi pubblici, edition) e i dialoghi del cestino. Le classi
+   di base dell'albero (.tree-row, .tree-children, .tree-info, .type-icon…)
+   restano in styles.css. */
+
+/* Il gruppo «Database» chiude l'albero e non dipende dallo schema: una riga di
+   stacco lo separa dalle cartelle dello schema, che sono quelle che si
+   guardano tutti i giorni. */
+.tree-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+/* Le voci di sistema portano a destra la nota che dice cosa sono senza doverle
+   aprire (l'host di un DB link, l'oggetto dietro un sinonimo, la tabella di
+   una coda, l'originale nel cestino). Non deve mai rubare spazio al nome:
+   quello si legge sempre per intero, la nota si accorcia. */
+.sys-leaf .leaf-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.leaf-extra {
+  margin-left: auto;
+  padding-left: 10px;
+  max-width: 55%;
+  color: var(--fg-dim);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* La nota del server spiega perché un elenco è vuoto o parziale (quasi sempre
+   un privilegio che manca): va letta, non confusa con un «Caricamento…». */
+.tree-note {
+  color: var(--warn);
+  font-style: normal;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+/* Dialoghi del cestino (ripristino ed eliminazione definitiva). */
+.bin-modal {
+  min-width: 460px;
+}
+.bin-target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Il nome che l'utente riconosce è quello originale: il BIN$… sta sotto, in
+   piccolo, perché serve solo a dire quale copia si sta toccando. */
+.bin-orig {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg);
+}
+.bin-bin {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  word-break: break-all;
+}
+.bin-hint {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+.bin-hint.danger {
+  color: var(--warn);
+}

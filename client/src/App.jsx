@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, GitCompare, History, X } from 'lucide-react';
+import { Activity, BookOpen, GitCompare, History, X } from 'lucide-react';
 import { useStore } from './store.js';
 import { CUSTOM_TITLE_BAR } from './appInfo.js';
 import Sidebar from './components/Sidebar.jsx';
@@ -16,6 +16,8 @@ import AiPanel from './components/AiPanel.jsx';
 import Resizer from './components/Resizer.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import GuideView from './components/GuideView.jsx';
+import DbaView from './components/DbaView.jsx';
+import SystemObjectDetail from './components/SystemObjectDetail.jsx';
 import PasswordPrompt from './components/PasswordPrompt.jsx';
 import { TypeIcon } from './components/ObjectTree.jsx';
 
@@ -48,6 +50,10 @@ function TabBar() {
             ) : t.kind === 'guide' ? (
               <span className="type-icon" style={{ color: '#6cb6ff', borderColor: '#6cb6ff' }}>
                 <BookOpen size={10} />
+              </span>
+            ) : t.kind === 'dba' ? (
+              <span className="type-icon" style={{ color: '#e5c07b', borderColor: '#e5c07b' }}>
+                <Activity size={10} />
               </span>
             ) : (
               <TypeIcon type={t.type} />
@@ -245,6 +251,10 @@ export default function App() {
                   <DbDiff tab={t} />
                 ) : t.kind === 'guide' ? (
                   <GuideView />
+                ) : t.kind === 'dba' ? (
+                  <DbaView tab={t} />
+                ) : t.kind === 'sysobject' ? (
+                  <SystemObjectDetail tab={t} />
                 ) : (
                   <ObjectDetail tab={t} />
                 )}

@@ -294,6 +294,76 @@ ipcMain.handle('orabridge:check-for-updates', async () => {
   }
 });
 
+// Apertura e salvataggio dei fogli come file .sql. I comandi stanno nella
+// barra del foglio, con le scorciatoie Ctrl+O / Ctrl+S: non c'è (e non deve
+// tornare) una barra dei menu di sistema da cui invocarli — vedi
+// Menu.setApplicationMenu(null) più sotto, è una scelta esplicita. Le due
+// scorciatoie arrivano intatte al renderer perché blockBrowserShortcuts
+// intercetta soltanto DevTools e Ctrl+R.
+const SQL_FILE_FILTERS = [
+  { name: 'Script SQL', extensions: ['sql', 'pks', 'pkb', 'plsql', 'txt'] },
+  { name: 'Tutti i file', extensions: ['*'] },
+];
+
+// SQL Developer e Toad salvano volentieri in UTF-8 con BOM: se non lo
+// togliamo, il primo carattere del foglio è uno spazio invisibile che fa
+// fallire il parser alla prima istruzione. In scrittura non lo rimettiamo mai.
+const stripBom = (text) => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+
+// Il nome proposto arriva dal titolo della scheda, che può contenere
+// caratteri che Windows non accetta in un nome di file (lo schema davanti al
+// nome dell'oggetto, per esempio): ripulirlo qui evita una finestra di
+// salvataggio che si rifiuta di aprirsi.
+function suggestedFileName(name) {
+  const clean = String(name || '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim();
+  const base = clean || 'script';
+  return path.extname(base) ? base : `${base}.sql`;
+}
+
+ipcMain.handle('orabridge:open-sql', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Apri script SQL',
+    filters: SQL_FILE_FILTERS,
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths || !filePaths.length) return null;
+  const filePath = filePaths[0];
+  try {
+    const text = stripBom(await fs.promises.readFile(filePath, 'utf8'));
+    return { path: filePath, name: path.basename(filePath), text };
+  } catch (err) {
+    log('apertura del file .sql fallita,', err && err.stack ? err.stack : err);
+    return { error: `Impossibile leggere «${path.basename(filePath)}»: ${shortErrorMessage(err)}` };
+  }
+});
+
+ipcMain.handle('orabridge:save-sql', async (_event, payload) => {
+  const { path: knownPath, suggestedName, text } = payload || {};
+  let target = knownPath || null;
+  // Un foglio già legato a un file si salva in silenzio: chiedere ogni volta
+  // dove scrivere renderebbe Ctrl+S inutilizzabile.
+  if (!target) {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Salva script SQL',
+      defaultPath: suggestedFileName(suggestedName),
+      filters: SQL_FILE_FILTERS,
+    });
+    if (canceled || !filePath) return null;
+    // Con il filtro «Tutti i file» il sistema non aggiunge nulla: senza questa
+    // riga un foglio salvato come «query» resterebbe un file senza estensione.
+    target = path.extname(filePath) ? filePath : `${filePath}.sql`;
+  }
+  try {
+    await fs.promises.writeFile(target, stripBom(String(text ?? '')), 'utf8');
+    return { path: target, name: path.basename(target) };
+  } catch (err) {
+    log('salvataggio del file .sql fallito,', err && err.stack ? err.stack : err);
+    return { error: `Impossibile salvare «${path.basename(target)}»: ${shortErrorMessage(err)}` };
+  }
+});
+
 app.whenReady().then(async () => {
   try {
     // Niente barra dei menu: File/Modifica/Visualizza/Finestra è cromo da

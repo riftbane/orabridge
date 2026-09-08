@@ -37,6 +37,8 @@ export const api = {
   updateConnection: (id, body) => j('PUT', `/api/connections/${id}`, body),
   deleteConnection: (id) => j('DELETE', `/api/connections/${id}`),
   testConnection: (body) => j('POST', '/api/connections/test', body),
+  // Alias di tnsnames.ora leggibili dal server (TNS_ADMIN o cartella indicata).
+  tnsAliases: (dir) => j('GET', `/api/connections/tns?${q({ dir })}`),
   previewImportConnections: (content) => j('POST', '/api/connections/import/preview', { content }),
   importConnections: (body) => j('POST', '/api/connections/import', body),
   // `password` solo quando l'utente la digita al volo: il server la salva
@@ -72,6 +74,23 @@ export const api = {
   synonymDetails: (id, owner, name) =>
     j('GET', `/api/conn/${id}/synonym?${q({ owner, name })}`),
   indexDetails: (id, owner, name) => j('GET', `/api/conn/${id}/index?${q({ owner, name })}`),
+  // schede di dettaglio comuni a più tipi di oggetto
+  dependencies: (id, params) => j('GET', `/api/conn/${id}/dependencies?${q(params)}`),
+  grants: (id, params) => j('GET', `/api/conn/${id}/grants?${q(params)}`),
+  objectStats: (id, params) => j('GET', `/api/conn/${id}/stats?${q(params)}`),
+  objectColumnStats: (id, params) => j('GET', `/api/conn/${id}/stats/columns?${q(params)}`),
+  partitions: (id, params) => j('GET', `/api/conn/${id}/partitions?${q(params)}`),
+
+  // oggetti di sistema dell'albero (DB link, directory, job, code, cestino,
+  // utenti, ruoli, tablespace, sinonimi pubblici, edition)
+  extraObjects: (id, params) => j('GET', `/api/conn/${id}/objects/extra?${q(params)}`),
+  extraDetail: (id, params) => j('GET', `/api/conn/${id}/objects/extra/detail?${q(params)}`),
+  recyclebinFlashback: (id, body) => j('POST', `/api/conn/${id}/recyclebin/flashback`, body),
+  recyclebinPurge: (id, body) => j('POST', `/api/conn/${id}/recyclebin/purge`, body),
+
+  // ambito DBA: sessioni, lock, tablespace, istanza, report
+  dba: (id, section, params) => j('GET', `/api/conn/${id}/dba/${section}?${q(params || {})}`),
+  dbaKillSession: (id, body) => j('POST', `/api/conn/${id}/dba/kill-session`, body),
 
   // ricerca globale dentro il codice PL/SQL (ALL_SOURCE)
   searchCode: (id, params) => j('GET', `/api/conn/${id}/search/code?${q(params)}`),
@@ -79,6 +98,10 @@ export const api = {
   // sql
   execute: (id, body) => j('POST', `/api/conn/${id}/execute`, body),
   explain: (id, body) => j('POST', `/api/conn/${id}/explain`, body),
+  autotrace: (id, body) => j('POST', `/api/conn/${id}/autotrace`, body),
+  // esportazione oltre le righe già caricate e caricamento da file
+  exportData: (id, body) => j('POST', `/api/conn/${id}/export`, body),
+  importData: (id, body) => j('POST', `/api/conn/${id}/import`, body),
   commit: (id) => j('POST', `/api/conn/${id}/commit`, {}),
   rollback: (id) => j('POST', `/api/conn/${id}/rollback`, {}),
   cancel: (id) => j('POST', `/api/conn/${id}/cancel`, {}),
