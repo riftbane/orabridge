@@ -13,6 +13,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   per i tipi. Come in SQL*Plus il comando finisce a fine riga anche senza
   punto e virgola.
 
+- Build: [`Orabridge-Setup-1.32.1.exe`](https://github.com/riftbane/orabridge/releases/download/v1.32.1/Orabridge-Setup-1.32.1.exe) (2026-09-25).
+
 ## v1.32.0 — 2026-09-25
 
 - **Nuovo:** ordinamento della scheda Dati eseguito dal database
