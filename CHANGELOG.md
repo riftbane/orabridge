@@ -2,6 +2,21 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.33.0 — 2026-09-25
+
+- **Nuovo:** inserimento righe nella griglia e copia/incolla di righe intere
+
+  La «Nuova riga» non apre più il pannello laterale: come in SQL Developer
+  aggiunge in cima alla griglia una riga segnata con «+», da compilare nelle
+  celle (Tab fra le colonne, vuoto = DEFAULT, Ctrl+Canc = NULL). «Salva» o
+  Invio la scrivono; il Commit salva prima le righe nuove in sospeso, il
+  Rollback le scarta. Duplica mette le righe selezionate fra le righe nuove.
+
+  Il clic su una cella evidenzia tutta la riga e Ctrl+C la copia intera
+  (tabulazioni, come Excel); Ctrl+V su una riga nuova incolla i valori nelle
+  stesse colonne da cui erano stati copiati, sulla griglia crea righe nuove.
+  Il clic destro offre anche «Copia solo la cella».
+
 ## v1.32.1 — 2026-09-25
 
 - **Fix:** DESC/DESCRIBE nel foglio SQL
