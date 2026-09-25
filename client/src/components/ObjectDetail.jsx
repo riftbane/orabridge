@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { EditorView } from '@codemirror/view';
-import { AlertTriangle, Hammer, Lock, Pencil, RefreshCw, Upload, X } from 'lucide-react';
+import { AlertTriangle, Hammer, Lock, Pencil, RefreshCw, Upload } from 'lucide-react';
 import { api } from '../api.js';
 import { useStore } from '../store.js';
 import Grid, { DecodeEntitiesToggle } from './Grid.jsx';
@@ -114,102 +114,6 @@ export function GridTab({ loader, emptyText }) {
   );
 }
 
-// Maschera di inserimento con i valori di una riga già dentro. Duplicare una
-// riga scrivendola subito fallirebbe quasi sempre sulla chiave primaria: prima
-// di eseguire l'INSERT si passa di qui e si cambia quel che deve cambiare.
-function DuplicateRowDialog({ columns, values, onCancel, onConfirm }) {
-  // Stesso tri-stato del modulo a record singolo della griglia: 'set' scrive
-  // il testo, 'null' scrive NULL, 'omit' tiene la colonna fuori dall'INSERT
-  // (ci pensa il DEFAULT della tabella, o la sequenza della chiave). Una cella
-  // vuota nell'originale parte da 'null': una copia deve restare una copia.
-  const [draft, setDraft] = useState(() =>
-    columns.map((_, i) =>
-      values[i] == null ? { state: 'null', text: '' } : { state: 'set', text: String(values[i]) }
-    )
-  );
-  const [busy, setBusy] = useState(false);
-
-  const setField = (i, patch) =>
-    setDraft((d) => d.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-
-  const confirm = async () => {
-    if (busy) return;
-    setBusy(true);
-    const r = await onConfirm(
-      draft.map((f) => (f.state === 'omit' ? undefined : f.state === 'null' ? null : f.text))
-    );
-    if (r?.error) setBusy(false);
-  };
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <div className="modal-head">
-          <span>Duplica riga</span>
-          <button className="icon-btn" onClick={onCancel}>
-            <X size={14} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="pane-info">
-            I valori arrivano dalla riga scelta: cambia quelli che devono essere diversi (di solito
-            la chiave). «NULL» scrive un vuoto esplicito, «DEFAULT» lascia la colonna fuori
-            dall&apos;INSERT e il valore lo decide il database.
-          </div>
-          <div className="dup-form">
-            {columns.map((c, i) => {
-              const f = draft[i];
-              return (
-                <div className="dup-field" key={`${c.name}-${i}`}>
-                  <span className="dup-name" title={`${c.name} (${c.type})`}>
-                    {c.name}
-                  </span>
-                  <input
-                    value={f.text}
-                    disabled={busy || f.state !== 'set'}
-                    placeholder={f.state === 'null' ? '(null)' : '(valore predefinito)'}
-                    onChange={(e) =>
-                      setField(i, {
-                        text: e.target.value,
-                        state: e.target.value === '' ? 'omit' : 'set',
-                      })
-                    }
-                  />
-                  <button
-                    className={`mini-btn ${f.state === 'null' ? 'on' : ''}`}
-                    disabled={busy}
-                    title="NULL esplicito, invece del valore predefinito"
-                    onClick={() => setField(i, { state: f.state === 'null' ? 'set' : 'null' })}
-                  >
-                    NULL
-                  </button>
-                  <button
-                    className={`mini-btn ${f.state === 'omit' ? 'on' : ''}`}
-                    disabled={busy}
-                    title="Non scrivere questa colonna: prende il valore predefinito (o la sequenza) del database"
-                    onClick={() => setField(i, { state: f.state === 'omit' ? 'set' : 'omit' })}
-                  >
-                    DEFAULT
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="modal-foot">
-          <div style={{ flex: 1 }} />
-          <button className="btn" onClick={onCancel} disabled={busy}>
-            Annulla
-          </button>
-          <button className="btn primary" onClick={confirm} disabled={busy}>
-            {busy ? 'Inserimento…' : 'Inserisci'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Due elenchi di colonne che descrivono la stessa cosa: nome e tipo uguali,
 // nello stesso ordine. Serve a non cambiare l'identità dell'array quando non è
 // cambiato niente — è l'identità di `columns` che dice alla griglia se ha
@@ -231,8 +135,12 @@ function DataTab({ tab, readOnly }) {
   // (fatta di indici, che dopo una rilettura puntano ad altre righe) senza
   // perdere filtro, ordinamento e colonne bloccate.
   const [datasetSeq, setDatasetSeq] = useState(0);
-  // Una finestra per volta: { kind: 'export' | 'import' | 'dup', … }
+  // Una finestra per volta: { kind: 'export' | 'import', … }
   const [dlg, setDlg] = useState(null);
+  // Righe nuove compilate nella griglia e non ancora salvate: tengono acceso
+  // il Commit (che le salva) e il Rollback (che le butta).
+  const gridRef = useRef(null);
+  const [pendingNew, setPendingNew] = useState(0);
   // Ordinamento fatto dal database ({ name, dir } o null): la griglia mostra
   // solo le pagine caricate, e ordinare quelle in memoria darebbe un
   // risultato che cambia premendo «Carica altre». Si tiene per nome di
@@ -277,7 +185,11 @@ function DataTab({ tab, readOnly }) {
           // — dopo un inserimento la griglia mostrerebbe lo stato di prima.
           // …ma solo a transazione aperta: altrimenti si legge dal pool come
           // sempre, senza mettersi in coda dietro una query lunga del foglio.
-          session: editable && txnOpen ? 1 : undefined,
+          // Lo stato si legge dallo store e non dalla chiusura: la rilettura
+          // subito dopo il primo INSERT parte da un `load` creato quando la
+          // transazione non era ancora aperta, e leggerebbe dal pool senza
+          // vedere la riga appena scritta.
+          session: editable && useStore.getState().active[tab.connId]?.txnOpen ? 1 : undefined,
         });
         if (r.error) {
           toast(r.error, 'error');
@@ -444,34 +356,42 @@ function DataTab({ tab, readOnly }) {
     [data, tab.connId, tab.owner, tab.name, toast, runWrite]
   );
 
-  const onRowInsert = useCallback(
-    async (values) => {
-      if (!data) return { error: true };
-      let sql;
-      try {
-        sql = buildRowInsertSql(tab.owner, tab.name, data.columns, values);
-      } catch (err) {
-        toast(err.message, 'error');
-        return { error: true };
-      }
-      if (!sql) {
-        toast('Nessuna colonna valorizzata: niente da inserire', 'error');
-        return { error: true };
-      }
-      try {
-        const r = await runWrite(sql);
-        if (r.error) {
-          toast(r.error.message, 'error');
-          return { error: true };
+  // Righe nuove compilate nella griglia: un INSERT per riga, in sequenza. Al
+  // primo errore ci si ferma e si dice quale riga è stata rifiutata — le
+  // precedenti restano scritte nella transazione, e la griglia tiene da
+  // correggere solo quella e le successive (vedi `done`).
+  const onRowsInsert = useCallback(
+    async (list) => {
+      if (!data || !list?.length) return { ok: false, done: 0 };
+      let done = 0;
+      const fail = async (message) => {
+        toast(list.length > 1 ? `Riga nuova ${done + 1}: ${message}` : message, 'error');
+        if (done) await reload();
+        return { ok: false, done };
+      };
+      for (const values of list) {
+        let sql;
+        try {
+          sql = buildRowInsertSql(tab.owner, tab.name, data.columns, values);
+        } catch (err) {
+          return fail(err.message);
         }
-        toast('Riga inserita (da confermare con Commit)', 'ok');
-        await reload();
-        return { ok: true };
-      } catch (err) {
-        toast(err.message, 'error');
-        if (err.status === 409) useStore.getState().markDisconnected(tab.connId);
-        return { error: true };
+        if (!sql) return fail('Nessuna colonna valorizzata: niente da inserire');
+        try {
+          const r = await runWrite(sql);
+          if (r.error) return fail(r.error.message);
+        } catch (err) {
+          if (err.status === 409) useStore.getState().markDisconnected(tab.connId);
+          return fail(err.message);
+        }
+        done++;
       }
+      toast(
+        done === 1 ? 'Riga inserita (da confermare con Commit)' : `${done} righe inserite (da confermare con Commit)`,
+        'ok'
+      );
+      await reload();
+      return { ok: true, done };
     },
     [data, tab.connId, tab.owner, tab.name, toast, runWrite, reload]
   );
@@ -517,28 +437,14 @@ function DataTab({ tab, readOnly }) {
     [data, tab.connId, tab.owner, tab.name, toast, runWrite, reload]
   );
 
-  // La duplicazione non scrive subito: apre l'inserimento con i valori
-  // copiati e la promessa resta in sospeso finché l'utente non conferma o
-  // annulla, così la griglia sa com'è finita.
-  const onRowDuplicate = useCallback(
-    (origIndex) => {
-      const row = data?.rows?.[origIndex];
-      if (!row) return Promise.resolve({ error: true });
-      return new Promise((resolve) => {
-        setDlg({ kind: 'dup', values: row.slice(), resolve });
-      });
-    },
-    [data]
-  );
-
-  // Chi ha chiesto la duplicazione sta aspettando la promessa: chiudere la
-  // finestra senza risolverla lascerebbe la griglia in attesa per sempre.
-  const closeDup = (result) => {
-    if (dlg?.kind === 'dup') dlg.resolve?.(result);
-    setDlg(null);
-  };
-
   const doCommit = async () => {
+    // Come in SQL Developer il Commit porta con sé le righe nuove ancora da
+    // salvare: confermare la transazione lasciandole lì sarebbe una sorpresa.
+    // Se una viene rifiutata non si conferma niente.
+    if (gridRef.current?.pendingCount()) {
+      const r = await gridRef.current.saveNew();
+      if (!r.ok) return;
+    }
     try {
       await api.commit(tab.connId);
       useStore.getState().setTxnOpen(tab.connId, false);
@@ -554,6 +460,12 @@ function DataTab({ tab, readOnly }) {
   };
 
   const doRollback = async () => {
+    // Solo righe nuove mai salvate: nel database non c'è niente da annullare.
+    if (!txnOpen) {
+      setDirtyResetSeq((n) => n + 1);
+      toast('Righe nuove scartate', 'ok');
+      return;
+    }
     try {
       await api.rollback(tab.connId);
       useStore.getState().setTxnOpen(tab.connId, false);
@@ -585,13 +497,23 @@ function DataTab({ tab, readOnly }) {
         {editable && (
           <>
             <span className="ws-sep" />
-            <button className="btn" onClick={doCommit} disabled={!txnOpen} title="Commit">
+            <button
+              className="btn"
+              onClick={doCommit}
+              disabled={!txnOpen && !pendingNew}
+              title={pendingNew ? 'Salva le righe nuove e fa Commit' : 'Commit'}
+            >
               Commit
             </button>
-            <button className="btn" onClick={doRollback} disabled={!txnOpen} title="Rollback">
+            <button
+              className="btn"
+              onClick={doRollback}
+              disabled={!txnOpen && !pendingNew}
+              title={pendingNew ? 'Rollback (scarta anche le righe nuove non salvate)' : 'Rollback'}
+            >
               Rollback
             </button>
-            {txnOpen && <span className="txn-dot" title="Modifiche non ancora committate" />}
+            {(txnOpen || pendingNew > 0) && <span className="txn-dot" title="Modifiche non ancora committate" />}
           </>
         )}
         {isTable && (
@@ -626,6 +548,7 @@ function DataTab({ tab, readOnly }) {
       </div>
       {data ? (
         <Grid
+          ref={gridRef}
           columns={data.columns}
           rows={data.rows}
           editable={editable}
@@ -633,9 +556,9 @@ function DataTab({ tab, readOnly }) {
           onCellEdit={onCellEdit}
           dirtyResetKey={dirtyResetSeq}
           datasetKey={datasetSeq}
-          onRowInsert={editable ? onRowInsert : undefined}
+          onRowsInsert={editable ? onRowsInsert : undefined}
           onRowDelete={editable ? onRowDelete : undefined}
-          onRowDuplicate={editable ? onRowDuplicate : undefined}
+          onPendingChange={setPendingNew}
           onExport={(columns, rows) => setDlg({ kind: 'export', columns, rows })}
           columnTypes={columnTypes}
           sort={gridSort}
@@ -664,18 +587,6 @@ function DataTab({ tab, readOnly }) {
           table={tab.name}
           onClose={() => setDlg(null)}
           onDone={() => reload()}
-        />
-      )}
-      {dlg?.kind === 'dup' && data && (
-        <DuplicateRowDialog
-          columns={data.columns}
-          values={dlg.values}
-          onCancel={() => closeDup({ error: true })}
-          onConfirm={async (values) => {
-            const r = await onRowInsert(values);
-            if (r.ok) closeDup(r);
-            return r;
-          }}
         />
       )}
     </div>

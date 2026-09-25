@@ -1,5 +1,14 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +24,9 @@ import {
 } from 'lucide-react';
 import { EDITABLE_CELL_TYPES } from '../ddl.js';
 import { decodeEntities } from '../htmlEntities.js';
+import { isMultiCell, pasteIntoRows, resolvePaste, toTsv } from '../gridClipboard.js';
 import { useStore } from '../store.js';
+import ContextMenu from './ContextMenu.jsx';
 
 const ROW_H = 26;
 const HEADER_H = 28;
@@ -23,6 +34,7 @@ const HEADER_H = 28;
 // somma a HEADER_H in tutti i calcoli di posizione (vedi `headH`).
 const FILTER_H = 28;
 const ROWNUM_W = 46;
+const MAX_PASTE_ROWS = 500;
 // Matches the "…(N caratteri)" suffix serializeValue() appends when a CLOB
 // is too long to fetch in full: editing that truncated preview would corrupt
 // the real value, so those cells fall back to the read-only value modal.
@@ -112,13 +124,20 @@ function makeFilterTest(raw) {
 // se il chiamante passa almeno una delle callback di riga o di esportazione:
 // la griglia è usata da sei posti diversi e chi non chiede niente di nuovo
 // deve continuare a vedere esattamente la griglia di prima.
-// `onRowInsert(values)` riceve un array parallelo a `columns` (undefined =
-// colonna omessa), `onRowDelete(origIndexes)` gli indici **originali** delle
-// righe scelte, `onRowDuplicate(origIndex)` una riga sola; tutte risolvono a
-// `{ ok:true }` o `{ error:true }`. `onExport(columns, rows)` riceve le righe
-// così come si vedono, cioè già filtrate e ordinate. `columnTypes` (parallelo
-// a `columns`) è facoltativo e serve solo ad arricchire la vista a record
-// singolo con default e obbligatorietà.
+// `onRowsInsert(list)` riceve un array di righe, ognuna parallela a `columns`
+// (undefined = colonna omessa), e risolve a `{ ok, done }` con quante ne sono
+// state scritte prima dell'eventuale errore. `onRowDelete(origIndexes)` riceve
+// gli indici **originali** delle righe scelte e risolve a `{ ok:true }` o
+// `{ error:true }`. `onExport(columns, rows)` riceve le righe così come si
+// vedono, cioè già filtrate e ordinate. `columnTypes` (parallelo a `columns`)
+// è facoltativo e serve solo ad arricchire la vista a record singolo e le
+// righe nuove con default e obbligatorietà.
+//
+// Righe nuove: come in SQL Developer si compilano dentro la griglia, in righe
+// segnate con «+» sopra i dati, e vanno nel database solo con «Salva» (o
+// Invio). Il chiamante può salvarle da fuori — il Commit lo fa prima di
+// confermare — tramite il ref: `saveNew()` e `pendingCount()`; con
+// `onPendingChange(n)` sa quante ce ne sono in sospeso.
 //
 // Ordinamento sul server: se il chiamante passa `onSortChange`, il clic
 // sull'intestazione non riordina le righe in memoria ma chiama
@@ -127,28 +146,42 @@ function makeFilterTest(raw) {
 // quelle metterebbe in fila le righe caricate, mentre chi clicca vuole le
 // prime della tabella intera per quella colonna — il chiamante rifà la query
 // con un ORDER BY.
-export default function Grid({
-  columns,
-  rows,
-  emptyText = 'Nessuna riga',
-  editable = false,
-  rowIds,
-  onCellEdit,
-  dirtyResetKey,
-  datasetKey,
-  onRowInsert,
-  onRowDelete,
-  onRowDuplicate,
-  onExport,
-  columnTypes,
-  sort: extSort,
-  onSortChange,
-}) {
+// Ultima copia fatta da una griglia: se negli appunti c'è ancora quel testo,
+// l'incolla usa i valori grezzi invece di rileggerlo (vedi resolvePaste).
+let lastCopy = null;
+
+function copyRows(rawRows, show) {
+  const text = toTsv(rawRows.map((r) => r.map((v) => (v == null ? null : show(v)))));
+  lastCopy = { text, rows: rawRows.map((r) => r.slice()) };
+  navigator.clipboard?.writeText(text);
+}
+
+const Grid = forwardRef(function Grid(
+  {
+    columns,
+    rows,
+    emptyText = 'Nessuna riga',
+    editable = false,
+    rowIds,
+    onCellEdit,
+    dirtyResetKey,
+    datasetKey,
+    onRowsInsert,
+    onRowDelete,
+    onPendingChange,
+    onExport,
+    columnTypes,
+    sort: extSort,
+    onSortChange,
+  },
+  ref
+) {
   // Decodifica opt-in delle entità HTML (vedi ui.decodeEntities): riguarda
   // solo ciò che si vede — celle, modale del valore e copia della selezione.
   // Ordinamento, editing ed export CSV lavorano sempre sul valore grezzo che
   // arriva dal database.
   const decode = useStore((s) => s.ui.decodeEntities);
+  const toast = useStore((s) => s.toast);
   const show = useCallback((v) => (decode ? decodeEntities(String(v)) : String(v)), [decode]);
 
   const scrollRef = useRef(null);
@@ -174,12 +207,27 @@ export default function Grid({
   const rowAnchorRef = useRef(null);
   const [filterOn, setFilterOn] = useState(false);
   const [filters, setFilters] = useState(() => ({})); // { indiceColonna: testo }
-  const [record, setRecord] = useState(null); // { mode: 'view'|'insert', at }
+  const [record, setRecord] = useState(null); // { at }
   const [frozen, setFrozen] = useState(0); // quante colonne restano ferme a sinistra
   const [headMenu, setHeadMenu] = useState(null); // { x, y, col }
+  const [cellMenu, setCellMenu] = useState(null); // { x, y, r, c }
   const [busy, setBusy] = useState(false);
+  const wrapRef = useRef(null);
 
-  const enhanced = !!(onRowInsert || onRowDelete || onRowDuplicate || onExport);
+  // Righe nuove non ancora scritte: `values` è parallelo a `columns`, con
+  // undefined = colonna omessa (prende il DEFAULT), null = NULL esplicito.
+  // `newAt` è la riga nuova su cui va un incolla fatto dalla griglia (clic sul
+  // suo «+» o su una sua cella).
+  const [pending, setPending] = useState([]); // [{ key, values }]
+  const [newAt, setNewAt] = useState(null);
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  const newKeyRef = useRef(0);
+  const focusNewRef = useRef(null); // { key, c } da mettere a fuoco dopo il render
+  const pasteTimerRef = useRef(null);
+  const savingRef = useRef(false);
+
+  const enhanced = !!(onRowsInsert || onRowDelete || onExport);
 
   // Only reset on a genuine new dataset (new `columns` identity), not on the
   // in-place row patch a successful cell edit applies — that would otherwise
@@ -195,18 +243,44 @@ export default function Grid({
     setFilters({});
     setFrozen(0);
     setHeadMenu(null);
+    setCellMenu(null);
     setRecord(null);
+    // Colonne diverse (un ALTER TABLE, un'altra tabella): i valori delle righe
+    // nuove, che sono per posizione, finirebbero nelle colonne sbagliate.
+    setPending([]);
+    setNewAt(null);
     rowAnchorRef.current = null;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setRange([0, 80]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columns]);
 
+  // Commit e Rollback: il Commit salva le righe nuove prima di confermare,
+  // quindi qui ne restano solo dopo un Rollback, che le deve buttare come
+  // butta tutto il resto.
   useEffect(() => {
     setDirtyCells(new Set());
     setDirtyRows(new Set());
+    setPending([]);
+    setNewAt(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirtyResetKey]);
+
+  useEffect(() => {
+    onPendingChange?.(pending.length);
+  }, [pending.length, onPendingChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => onPendingChange?.(0), []);
+
+  useEffect(() => {
+    const want = focusNewRef.current;
+    if (!want) return;
+    focusNewRef.current = null;
+    const el = scrollRef.current?.querySelector(`[data-new="${want.key}:${want.c}"]`);
+    el?.focus();
+  }, [pending]);
+
+  useEffect(() => () => clearTimeout(pasteTimerRef.current), []);
 
   // Righe rilette dal database: sono le stesse colonne (quindi filtro,
   // ordinamento e colonne bloccate restano, ed è quello che si vuole dopo un
@@ -293,6 +367,8 @@ export default function Grid({
   }, [tests, sort]);
 
   const headH = HEADER_H + (filterOn ? FILTER_H : 0);
+  // Le righe nuove stanno fra l'intestazione e i dati: spostano in giù tutto.
+  const pendH = pending.length * ROW_H;
   const totalW = useMemo(() => widths.reduce((a, b) => a + b, ROWNUM_W), [widths]);
   // Ascissa a cui incollare ogni colonna bloccata: il numero di riga è già
   // fermo a sinistra, quindi si parte dalla sua larghezza.
@@ -309,11 +385,11 @@ export default function Grid({
   const onScroll = useCallback(
     (e) => {
       const el = e.target;
-      const from = Math.max(0, Math.floor(el.scrollTop / ROW_H) - 10);
+      const from = Math.max(0, Math.floor((el.scrollTop - pendH) / ROW_H) - 10);
       const to = Math.min(sorted.length, from + Math.ceil(el.clientHeight / ROW_H) + 25);
       setRange([from, to]);
     },
-    [sorted.length]
+    [sorted.length, pendH]
   );
 
   const startResize = (e, i) => {
@@ -336,43 +412,220 @@ export default function Grid({
     document.addEventListener('mouseup', up);
   };
 
-  const onKeyDown = (e) => {
-    if (edit) return; // let the in-cell input handle its own keys
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-      e.preventDefault();
-      if (sorted.length) setSel({ r1: 0, c1: 0, r2: sorted.length - 1, c2: columns.length - 1 });
-      return;
+  // ---- righe nuove ----
+
+  // Nelle righe nuove si scrivono gli stessi tipi dell'editor in linea: per
+  // gli altri (BLOB, RAW…) non c'è un letterale da mettere nell'INSERT e la
+  // colonna resta al suo default.
+  const canSetNew = useCallback((c) => EDITABLE_CELL_TYPES.has(columns[c]?.type), [columns]);
+  const blankNew = useCallback(
+    () => ({ key: ++newKeyRef.current, values: columns.map(() => undefined) }),
+    [columns]
+  );
+  const firstSettable = () => Math.max(0, columns.findIndex((_, c) => canSetNew(c)));
+
+  // Aggiunge righe nuove in fondo a quelle già in sospeso (vuote, o con i
+  // valori di righe esistenti per Duplica) e mette il fuoco sulla prima.
+  const addNew = (valuesList = [null]) => {
+    if (!onRowsInsert || busy) return;
+    const made = valuesList.map((vals) => {
+      const row = blankNew();
+      if (vals) row.values = columns.map((_, c) => (canSetNew(c) ? vals[c] : undefined));
+      return row;
+    });
+    focusNewRef.current = { key: made[0].key, c: firstSettable() };
+    setNewAt(pendingRef.current.length);
+    setPending((p) => [...p, ...made]);
+    setSel(null);
+    setRowSel(new Set());
+  };
+
+  const setNewValue = (key, c, v) =>
+    setPending((list) =>
+      list.map((p) => (p.key === key ? { ...p, values: p.values.map((x, j) => (j === c ? v : x)) } : p))
+    );
+
+  const discardNew = (key) => {
+    setPending((list) => list.filter((p) => p.key !== key));
+    setNewAt(null);
+  };
+
+  // Incolla sulle righe nuove a partire dalla riga `at` (null = in coda, cioè
+  // righe tutte nuove) e dalla colonna `c`. Vedi pasteIntoRows per la regola
+  // delle «stesse posizioni».
+  const pasteNew = (text, at, c = 0) => {
+    if (!onRowsInsert || savingRef.current) return false;
+    const cells = resolvePaste(text, lastCopy);
+    if (!cells.length) return false;
+    // Le righe nuove non sono virtualizzate: migliaia di righe incollate
+    // bloccherebbero la griglia, e per quello c'è l'importazione da file.
+    if (cells.length > MAX_PASTE_ROWS) {
+      toast(`Troppe righe da incollare (${cells.length}): per più di ${MAX_PASTE_ROWS} usa «Importa…»`, 'error');
+      return true;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && sel) {
+    const list = pendingRef.current;
+    const start = at != null && at < list.length ? at : list.length;
+    setPending(pasteIntoRows(list, start, c, cells, columns.length, canSetNew, blankNew));
+    setNewAt(start);
+    setSel(null);
+    setRowSel(new Set());
+    return true;
+  };
+
+  // Scrive le righe nuove, in ordine. Al primo errore ci si ferma: quelle
+  // già passate spariscono dall'elenco (sono nel database, nella transazione
+  // aperta), quella rifiutata e le successive restano lì da correggere.
+  const saveNew = useCallback(async () => {
+    const list = pendingRef.current;
+    if (!onRowsInsert || !list.length) return { ok: true, done: 0 };
+    if (savingRef.current) return { ok: false, done: 0 };
+    // Una riga lasciata vuota non ha niente da scrivere (Oracle non ha un
+    // INSERT … DEFAULT VALUES): si butta e basta.
+    const isFull = (p) => p.values.some((v) => v !== undefined);
+    const full = list.filter(isFull);
+    if (!full.length) {
+      setPending([]);
+      setNewAt(null);
+      return { ok: true, done: 0 };
+    }
+    savingRef.current = true;
+    setBusy(true);
+    try {
+      const r = await onRowsInsert(full.map((p) => p.values));
+      const done = r?.done ?? 0;
+      const gone = new Set(full.slice(0, done).map((p) => p.key));
+      if (done < full.length) focusNewRef.current = { key: full[done].key, c: firstSettable() };
+      setPending((cur) => cur.filter((p) => !gone.has(p.key) && isFull(p)));
+      setNewAt(null);
+      return { ok: !!r?.ok && done === full.length, done };
+    } finally {
+      savingRef.current = false;
+      setBusy(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRowsInsert, columns]);
+
+  useImperativeHandle(ref, () => ({ saveNew, pendingCount: () => pendingRef.current.length }), [saveNew]);
+
+  // ---- selezione e appunti ----
+
+  // Copia: un rettangolo di celle trascinato si copia così com'è; altrimenti
+  // (un clic su una cella o sul numero di riga) si copiano le righe intere
+  // selezionate, nell'ordine in cui si vedono — è quello che serve per
+  // incollarle in una riga nuova o in un foglio di calcolo.
+  const copySelection = (what) => {
+    const rect = sel && (sel.r1 !== sel.r2 || sel.c1 !== sel.c2);
+    if (rect && what !== 'row') {
       const r1 = Math.min(sel.r1, sel.r2);
       const r2 = Math.max(sel.r1, sel.r2);
       const c1 = Math.min(sel.c1, sel.c2);
       const c2 = Math.max(sel.c1, sel.c2);
-      const text = [];
-      for (let r = r1; r <= r2; r++) {
-        const cells = [];
-        for (let c = c1; c <= c2; c++) {
-          const v = sorted[r]?.[c];
-          cells.push(v == null ? '' : show(v));
-        }
-        text.push(cells.join('\t'));
-      }
-      navigator.clipboard?.writeText(text.join('\n'));
+      const out = [];
+      for (let r = r1; r <= r2; r++) out.push((sorted[r] || []).slice(c1, c2 + 1));
+      copyRows(out, show);
+      return true;
+    }
+    if (enhanced && rowSel.size) {
+      copyRows(order.filter((i) => rowSel.has(i)).map((i) => rows[i]), show);
+      return true;
+    }
+    if (sel) {
+      const v = sorted[sel.r1]?.[sel.c1];
+      lastCopy = null;
+      navigator.clipboard?.writeText(v == null ? '' : show(v));
+      return true;
+    }
+    return false;
+  };
+
+  const onKeyDown = (e) => {
+    if (edit) return; // let the in-cell input handle its own keys
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (mod && key === 'a') {
       e.preventDefault();
+      if (sorted.length) setSel({ r1: 0, c1: 0, r2: sorted.length - 1, c2: columns.length - 1 });
+      setRowSel(new Set());
+      return;
+    }
+    if (mod && key === 'c') {
+      if (copySelection()) e.preventDefault();
+      return;
+    }
+    if (mod && key === 'v' && onRowsInsert) {
+      // Di norma arriva l'evento `paste` (vedi onPaste), che non chiede
+      // permessi. Se il browser non lo manda a un elemento non modificabile,
+      // si ripiega sulla lettura degli appunti.
+      clearTimeout(pasteTimerRef.current);
+      const at = newAt;
+      pasteTimerRef.current = setTimeout(async () => {
+        pasteTimerRef.current = null;
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) pasteNew(text, at);
+        } catch {
+          /* appunti non leggibili: niente da incollare */
+        }
+      }, 80);
     }
   };
 
-  const startSel = (r, c) => {
-    setDragging(true);
+  const onPaste = (e) => {
+    clearTimeout(pasteTimerRef.current);
+    pasteTimerRef.current = null;
+    if (!onRowsInsert) return;
+    // Filtri, editor in linea e celle delle righe nuove incollano da sé.
+    if (e.target.closest?.('input, textarea')) return;
+    const text = e.clipboardData?.getData('text/plain');
+    if (text && pasteNew(text, newAt)) e.preventDefault();
+  };
+
+  const pasteFromMenu = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || !pasteNew(text, null)) toast("Negli appunti non c'è niente da incollare", 'error');
+    } catch {
+      toast('Appunti non leggibili: usa Ctrl+V', 'error');
+    }
+  };
+
+  const rowsBetween = (a, b) => {
+    const out = new Set();
+    for (let i = Math.max(0, Math.min(a, b)); i <= Math.min(order.length - 1, Math.max(a, b)); i++) {
+      if (order[i] != null) out.add(order[i]);
+    }
+    return out;
+  };
+
+  // Clic su una cella: nelle griglie con la barra sceglie anche la riga
+  // intera (evidenziata, ed è quella che copiano Ctrl+C, Duplica ed Elimina);
+  // Ctrl+clic aggiunge righe, Maiusc+clic estende dalla cella di partenza.
+  // Il tasto destro dentro la selezione non la cambia, così il menu agisce su
+  // quello che si vede evidenziato.
+  const startSel = (e, r, c) => {
+    const orig = order[r];
+    if (e.button === 2 && (inSel(r, c) || (enhanced && rowSel.has(orig)))) return;
+    setNewAt(null);
+    if (e.shiftKey && sel) {
+      setSel({ ...sel, r2: r, c2: c });
+      if (enhanced) setRowSel(rowsBetween(sel.r1, r));
+      return;
+    }
+    if (e.button === 0) setDragging(true);
     setSel({ r1: r, c1: c, r2: r, c2: c });
-    // Le due selezioni (celle e righe intere) sono alternative: tenerle
-    // accese insieme renderebbe impossibile capire su cosa agisce «Elimina».
-    if (rowSel.size) setRowSel(new Set());
-    if (record?.mode === 'view') setRecord({ mode: 'view', at: r });
+    if (enhanced) {
+      const additive = e.ctrlKey || e.metaKey;
+      const next = additive ? new Set(rowSel) : new Set();
+      next.add(orig);
+      setRowSel(next);
+      rowAnchorRef.current = r;
+    }
+    if (record) setRecord({ at: r });
   };
   const extendSel = (r, c) => {
-    if (!dragging) return;
-    setSel((s) => (s ? { ...s, r2: r, c2: c } : { r1: r, c1: c, r2: r, c2: c }));
+    if (!dragging || !sel) return;
+    setSel({ ...sel, r2: r, c2: c });
+    if (enhanced) setRowSel(rowsBetween(sel.r1, r));
   };
   const inSel = (r, c) => {
     if (!sel) return false;
@@ -385,6 +638,10 @@ export default function Grid({
 
   const selectRow = (e, r) => {
     e.preventDefault();
+    // Il preventDefault evita la selezione del testo ma toglie anche il fuoco
+    // alla griglia: senza, Ctrl+C subito dopo non arriverebbe a onKeyDown.
+    wrapRef.current?.focus({ preventScroll: true });
+    setNewAt(null);
     const orig = order[r];
     const additive = e.ctrlKey || e.metaKey;
     let next;
@@ -392,13 +649,8 @@ export default function Grid({
       // L'ancora può essere rimasta indietro rispetto all'elenco filtrato:
       // fuori dai limiti `order[i]` è `undefined`, e un `undefined` in
       // `rowSel` renderebbe impossibile eliminare (nessun ROWID corrisponde).
-      const a = Math.max(0, Math.min(rowAnchorRef.current, r));
-      const b = Math.min(order.length - 1, Math.max(rowAnchorRef.current, r));
       next = additive ? new Set(rowSel) : new Set();
-      for (let i = a; i <= b; i++) {
-        const oi = order[i];
-        if (oi != null) next.add(oi);
-      }
+      for (const oi of rowsBetween(rowAnchorRef.current, r)) next.add(oi);
     } else {
       next = additive ? new Set(rowSel) : new Set();
       if (additive && next.has(orig)) next.delete(orig);
@@ -407,7 +659,16 @@ export default function Grid({
     }
     setRowSel(next);
     setSel(null);
-    if (record?.mode === 'view') setRecord({ mode: 'view', at: r });
+    if (record) setRecord({ at: r });
+  };
+
+  // Clic sul «+» di una riga nuova: diventa la destinazione di Ctrl+V.
+  const selectNew = (e, p) => {
+    e.preventDefault();
+    wrapRef.current?.focus({ preventScroll: true });
+    setNewAt(p);
+    setSel(null);
+    setRowSel(new Set());
   };
 
   // Scrittura di una cella comune all'editor in linea e a quello a record
@@ -501,29 +762,12 @@ export default function Grid({
     }
   };
 
-  const doDuplicate = async () => {
-    if (!onRowDuplicate || rowSel.size !== 1 || !rowIds || busy) return;
-    const only = [...rowSel][0];
-    // Stessa cautela dell'eliminazione: se la riga selezionata è finita fuori
-    // dal filtro, duplicarla senza vederla non aiuta nessuno.
-    if (!order.includes(only)) return;
-    setBusy(true);
-    try {
-      await onRowDuplicate(only);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doInsert = async (values) => {
-    if (!onRowInsert || busy) return;
-    setBusy(true);
-    try {
-      const r = await onRowInsert(values);
-      if (r?.ok) setRecord(null);
-    } finally {
-      setBusy(false);
-    }
+  // Duplica non scrive niente: mette le righe selezionate fra le righe nuove,
+  // dove si cambia quel che deve cambiare (di solito la chiave) prima di
+  // salvare. Come per l'eliminazione, quello che il filtro nasconde non conta.
+  const doDuplicate = () => {
+    const picked = order.filter((i) => rowSel.has(i));
+    if (picked.length) addNew(picked.map((i) => rows[i]));
   };
 
   // Bloccare più colonne di quante ne stanno a video lascerebbe lo
@@ -539,38 +783,63 @@ export default function Grid({
   const [from, to] = range;
   const visible = sorted.slice(from, to);
   const recAt = record ? Math.min(Math.max(record.at ?? 0, 0), Math.max(sorted.length - 1, 0)) : null;
-  const recOrig = record?.mode === 'view' && sorted.length ? order[recAt] : null;
+  const recOrig = record && sorted.length ? order[recAt] : null;
 
   const frozenClass = (i) => (i < frozen ? ` grid-frozen${i === frozen - 1 ? ' grid-frozen-edge' : ''}` : '');
   const frozenStyle = (i, base) => (i < frozen ? { ...base, left: lefts[i] } : base);
 
   return (
-    <div className={`grid-wrap ${dragging ? 'dragging' : ''}`} tabIndex={0} onKeyDown={onKeyDown}>
+    <div
+      ref={wrapRef}
+      className={`grid-wrap ${dragging ? 'dragging' : ''}`}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+    >
       {enhanced && (
         <div className="grid-bar">
-          {onRowInsert && (
+          {onRowsInsert && (
             <button
               className="mini-btn"
-              onClick={() => setRecord({ mode: 'insert', at: 0 })}
+              onClick={() => addNew()}
               disabled={busy}
-              title="Compila una nuova riga nel modulo a record singolo"
+              title="Aggiunge una riga vuota da compilare nella griglia (Ctrl+V vi incolla una riga copiata)"
             >
               <Plus size={12} /> Nuova riga
             </button>
           )}
-          {onRowDuplicate && (
+          {onRowsInsert && (
             <button
               className="mini-btn"
               onClick={doDuplicate}
-              disabled={busy || rowSel.size !== 1 || selVisible !== 1 || !rowIds}
-              title={
-                rowIds
-                  ? 'Duplica la riga selezionata (seleziona il numero di riga)'
-                  : 'Senza ROWID non si sa quale riga duplicare'
-              }
+              disabled={busy || !selVisible}
+              title="Copia le righe selezionate fra le righe nuove, da modificare prima di salvare"
             >
               <CopyPlus size={12} /> Duplica
             </button>
+          )}
+          {pending.length > 0 && (
+            <>
+              <button
+                className="mini-btn primary"
+                onClick={saveNew}
+                disabled={busy}
+                title="Scrive le righe nuove nel database (Invio da una cella); restano da confermare con Commit"
+              >
+                <Check size={12} /> Salva {pending.length === 1 ? 'riga nuova' : `${pending.length} righe nuove`}
+              </button>
+              <button
+                className="mini-btn"
+                onClick={() => {
+                  setPending([]);
+                  setNewAt(null);
+                }}
+                disabled={busy}
+                title="Butta le righe nuove non ancora salvate"
+              >
+                <X size={12} /> Scarta
+              </button>
+            </>
           )}
           {onRowDelete && (
             <button
@@ -581,7 +850,7 @@ export default function Grid({
                 !selVisible && rowSel.size
                   ? 'Le righe selezionate non sono a video per via del filtro'
                   : rowIds
-                  ? 'Elimina le righe selezionate (seleziona il numero di riga)'
+                  ? 'Elimina le righe selezionate (clic su una riga; Ctrl aggiunge, Maiusc estende)'
                   : 'Senza ROWID non si sa quale riga eliminare'
               }
             >
@@ -601,7 +870,7 @@ export default function Grid({
           </button>
           <button
             className={`mini-btn ${record ? 'on' : ''}`}
-            onClick={() => setRecord((s) => (s ? null : { mode: 'view', at: sel ? sel.r1 : 0 }))}
+            onClick={() => setRecord((s) => (s ? null : { at: sel ? sel.r1 : 0 }))}
             disabled={!sorted.length && !record}
             title="Vista a record singolo: una riga alla volta, in verticale"
           >
@@ -630,7 +899,7 @@ export default function Grid({
       )}
       <div className="grid-body">
         <div className="grid-scroll" ref={scrollRef} onScroll={onScroll}>
-          <div style={{ width: totalW, height: headH + sorted.length * ROW_H, position: 'relative' }}>
+          <div style={{ width: totalW, height: headH + pendH + sorted.length * ROW_H, position: 'relative' }}>
             <div className="grid-header" style={{ width: totalW, height: HEADER_H }}>
               <div className="grid-cell grid-rownum" style={{ width: ROWNUM_W }}>
                 #
@@ -696,6 +965,103 @@ export default function Grid({
                 ))}
               </div>
             )}
+            {pending.map((p, pi) => (
+              <div
+                key={`new-${p.key}`}
+                className={`grid-row row-new ${newAt === pi ? 'row-picked' : ''}`}
+                style={{ top: headH + pi * ROW_H, height: ROW_H, width: totalW }}
+              >
+                <div
+                  className="grid-cell grid-rownum grid-new-num"
+                  style={{ width: ROWNUM_W }}
+                  onMouseDown={(e) => selectNew(e, pi)}
+                  title="Riga nuova, non ancora nel database: clic per incollarci con Ctrl+V"
+                >
+                  <Plus size={11} />
+                  <button
+                    className="grid-new-drop"
+                    title="Scarta questa riga nuova"
+                    disabled={busy}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => discardNew(p.key)}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+                {columns.map((col, c) => {
+                  const v = p.values[c];
+                  if (!canSetNew(c)) {
+                    return (
+                      <div
+                        key={c}
+                        className={`grid-cell grid-new-cell${frozenClass(c)}`}
+                        style={frozenStyle(c, { width: widths[c] })}
+                        title={`Tipo ${col.type}: non compilabile da qui, prende il valore predefinito`}
+                      >
+                        <span className="null">(default)</span>
+                      </div>
+                    );
+                  }
+                  const meta = columnTypes?.[c];
+                  const req = meta && (meta.nullable === false || meta.nullable === 'N');
+                  return (
+                    <div
+                      key={c}
+                      className={`grid-cell grid-new-cell grid-new-edit${frozenClass(c)}`}
+                      style={frozenStyle(c, { width: widths[c] })}
+                    >
+                      <input
+                        className={`grid-edit-input${v === null ? ' is-null' : ''}`}
+                        data-new={`${p.key}:${c}`}
+                        value={v == null ? '' : String(v)}
+                        disabled={busy}
+                        // Vuoto = colonna omessa (prende il DEFAULT); «(null)» =
+                        // NULL esplicito, che arriva incollando una cella vuota
+                        // o con Ctrl+Canc.
+                        placeholder={
+                          v === null
+                            ? '(null)'
+                            : meta?.dataDefault
+                            ? String(meta.dataDefault).trim()
+                            : req
+                            ? 'obbligatoria'
+                            : ''
+                        }
+                        title={`${col.name} (${meta?.type || col.type})${req ? ' — obbligatoria' : ''}`}
+                        onFocus={() => setNewAt(pi)}
+                        onChange={(e) => setNewValue(p.key, c, e.target.value === '' ? undefined : e.target.value)}
+                        onPaste={(e) => {
+                          const text = e.clipboardData?.getData('text/plain');
+                          // Un valore solo lo incolla il campo; più celle (una
+                          // riga copiata) si distribuiscono sulle colonne.
+                          if (text && isMultiCell(text) && pasteNew(text, pi, c)) e.preventDefault();
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            saveNew();
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            if (p.values.every((x) => x === undefined)) discardNew(p.key);
+                            else e.currentTarget.blur();
+                          } else if (e.key === 'Delete' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            setNewValue(p.key, c, v === null ? undefined : null);
+                          } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            const to = pending[pi + (e.key === 'ArrowUp' ? -1 : 1)];
+                            if (to) {
+                              e.preventDefault();
+                              scrollRef.current?.querySelector(`[data-new="${to.key}:${c}"]`)?.focus();
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
             {visible.map((row, vi) => {
               const r = from + vi;
               const origIndex = order[r];
@@ -707,7 +1073,7 @@ export default function Grid({
                   className={`grid-row ${r % 2 ? 'odd' : ''} ${rowDirty ? 'row-dirty' : ''} ${
                     rowPicked ? 'row-picked' : ''
                   } ${recOrig === origIndex ? 'row-current' : ''}`}
-                  style={{ top: headH + r * ROW_H, height: ROW_H, width: totalW }}
+                  style={{ top: headH + pendH + r * ROW_H, height: ROW_H, width: totalW }}
                 >
                   <div
                     className="grid-cell grid-rownum"
@@ -727,7 +1093,15 @@ export default function Grid({
                           isEditingThis ? 'editing' : ''
                         }${frozenClass(c)}`}
                         style={frozenStyle(c, { width: widths[c] })}
-                        onMouseDown={() => !isEditingThis && startSel(r, c)}
+                        onMouseDown={(e) => !isEditingThis && startSel(e, r, c)}
+                        onContextMenu={
+                          enhanced && !isEditingThis
+                            ? (e) => {
+                                e.preventDefault();
+                                setCellMenu({ x: e.clientX, y: e.clientY, r, c });
+                              }
+                            : undefined
+                        }
                         onMouseEnter={() => extendSel(r, c)}
                         onDoubleClick={() => handleDoubleClick(r, c, v)}
                       >
@@ -775,18 +1149,15 @@ export default function Grid({
             columns={columns}
             columnTypes={columnTypes}
             show={show}
-            mode={record.mode}
-            values={record.mode === 'view' ? sorted[recAt] : null}
+            values={sorted[recAt]}
             rowKey={recOrig}
             position={{ n: sorted.length ? recAt + 1 : 0, total: sorted.length }}
-            busy={busy}
-            onPrev={() => setRecord({ mode: 'view', at: Math.max(0, recAt - 1) })}
-            onNext={() => setRecord({ mode: 'view', at: Math.min(sorted.length - 1, recAt + 1) })}
+            onPrev={() => setRecord({ at: Math.max(0, recAt - 1) })}
+            onNext={() => setRecord({ at: Math.min(sorted.length - 1, recAt + 1) })}
             canEdit={(c, v) =>
               editable && !!onCellEdit && canEditCell(columns[c], v) && rowIds?.[recOrig] != null
             }
             onSaveCell={(c, v) => saveCell(recOrig, c, v)}
-            onInsert={doInsert}
             onClose={() => setRecord(null)}
           />
         )}
@@ -822,6 +1193,35 @@ export default function Grid({
           </div>
         </div>
       )}
+      {cellMenu && (
+        <ContextMenu
+          x={cellMenu.x}
+          y={cellMenu.y}
+          onClose={() => setCellMenu(null)}
+          items={[
+            {
+              label: rowSel.size > 1 ? `Copia ${rowSel.size} righe` : 'Copia riga',
+              hint: 'Ctrl+C',
+              onClick: () => copySelection(rowSel.size ? 'row' : undefined),
+            },
+            {
+              label: 'Copia solo la cella',
+              onClick: () => {
+                const v = sorted[cellMenu.r]?.[cellMenu.c];
+                lastCopy = null;
+                navigator.clipboard?.writeText(v == null ? '' : show(v));
+              },
+            },
+            ...(onRowsInsert
+              ? [
+                  { separator: true },
+                  { label: 'Duplica come riga nuova', disabled: busy, onClick: doDuplicate },
+                  { label: 'Incolla come riga nuova', hint: 'Ctrl+V', disabled: busy, onClick: pasteFromMenu },
+                ]
+              : []),
+          ]}
+        />
+      )}
       {modal && (
         <div className="modal-overlay">
           <div className="modal value-modal">
@@ -845,70 +1245,43 @@ export default function Grid({
       )}
     </div>
   );
-}
+});
 
-// Pannello laterale con una riga alla volta in verticale. È l'unica vista
-// utilizzabile con cento colonne (l'elenco scorre) ed è anche il modulo con
-// cui si compila una riga nuova: le due modalità condividono la stessa
-// impaginazione perché è la stessa cosa, una volta piena e una volta vuota.
+export default Grid;
+
+// Pannello laterale con una riga alla volta in verticale: è l'unica vista
+// utilizzabile con cento colonne (l'elenco scorre). Le righe nuove invece si
+// compilano dentro la griglia.
 function RecordPanel({
   columns,
   columnTypes,
   show,
-  mode,
   values,
   rowKey,
   position,
-  busy,
   onPrev,
   onNext,
   canEdit,
   onSaveCell,
-  onInsert,
   onClose,
 }) {
-  const insert = mode === 'insert';
-  // Tri-stato per colonna: 'omit' = non toccata (prenderà il DEFAULT della
-  // tabella), 'null' = NULL esplicito, 'set' = il testo scritto. Cancellare
-  // il testo riporta a 'omit': in Oracle la stringa vuota è NULL, quindi non
-  // si perde nessun valore rappresentabile.
-  const [draft, setDraft] = useState(() => columns.map(() => ({ state: 'omit', text: '' })));
-
-  useEffect(() => {
-    setDraft(columns.map(() => ({ state: 'omit', text: '' })));
-  }, [columns, insert]);
-
-  const setField = (i, patch) =>
-    setDraft((d) => d.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-
-  const submit = () =>
-    onInsert(draft.map((f) => (f.state === 'omit' ? undefined : f.state === 'null' ? null : f.text)));
-
-  const filled = draft.some((f) => f.state !== 'omit');
-
   return (
     <div className="grid-record" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="grid-record-head">
-        {insert ? (
-          <span className="grid-record-title">Nuova riga</span>
-        ) : (
-          <>
-            <button className="icon-btn" onClick={onPrev} disabled={position.n <= 1} title="Riga precedente">
-              <ChevronLeft size={14} />
-            </button>
-            <span className="grid-record-title">
-              {position.total ? `${position.n} / ${position.total}` : 'Nessuna riga'}
-            </span>
-            <button
-              className="icon-btn"
-              onClick={onNext}
-              disabled={position.n >= position.total}
-              title="Riga successiva"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </>
-        )}
+        <button className="icon-btn" onClick={onPrev} disabled={position.n <= 1} title="Riga precedente">
+          <ChevronLeft size={14} />
+        </button>
+        <span className="grid-record-title">
+          {position.total ? `${position.n} / ${position.total}` : 'Nessuna riga'}
+        </span>
+        <button
+          className="icon-btn"
+          onClick={onNext}
+          disabled={position.n >= position.total}
+          title="Riga successiva"
+        >
+          <ChevronRight size={14} />
+        </button>
         <div style={{ flex: 1 }} />
         <button className="icon-btn" onClick={onClose} title="Chiudi il pannello">
           <X size={14} />
@@ -925,40 +1298,18 @@ function RecordPanel({
                 {req && <span className="grid-record-req" title="Colonna obbligatoria"> *</span>}
                 <span className="grid-record-type">{meta?.type || col.type}</span>
               </label>
-              {insert ? (
-                <InsertField
-                  col={col}
-                  meta={meta}
-                  field={draft[i]}
-                  disabled={busy}
-                  onChange={(patch) => setField(i, patch)}
-                />
-              ) : (
-                <ViewField
-                  key={`${rowKey}:${i}`}
-                  value={values?.[i]}
-                  editable={!!values && canEdit(i, values[i])}
-                  show={show}
-                  onCommit={(v) => onSaveCell(i, v)}
-                />
-              )}
+              <ViewField
+                key={`${rowKey}:${i}`}
+                value={values?.[i]}
+                editable={!!values && canEdit(i, values[i])}
+                show={show}
+                onCommit={(v) => onSaveCell(i, v)}
+              />
             </div>
           );
         })}
-        {!insert && !values && <div className="grid-record-none">Nessuna riga da mostrare.</div>}
+        {!values && <div className="grid-record-none">Nessuna riga da mostrare.</div>}
       </div>
-      {insert && (
-        <div className="grid-record-foot">
-          <span className="pane-info">Vuoto = valore di default</span>
-          <div style={{ flex: 1 }} />
-          <button className="btn" onClick={onClose} disabled={busy}>
-            Annulla
-          </button>
-          <button className="btn primary" onClick={submit} disabled={busy || !filled}>
-            Inserisci
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1009,42 +1360,6 @@ function ViewField({ value, editable, show, onCommit }) {
         }}
       />
       <button className="mini-btn" disabled={saving || value == null} title="Imposta a NULL" onClick={() => commit('')}>
-        NULL
-      </button>
-    </div>
-  );
-}
-
-// Un campo della riga da inserire. I tipi che l'editor non sa riportare in SQL
-// (BLOB, RAW, timestamp con fuso…) restano fuori: la colonna si omette e
-// prende il default, che è l'unica cosa sensata da fare senza un letterale.
-function InsertField({ col, meta, field, disabled, onChange }) {
-  const supported = EDITABLE_CELL_TYPES.has(col.type);
-  if (!supported) {
-    return (
-      <div className="grid-record-value" title={`Tipo ${col.type}: non compilabile da qui`}>
-        <span className="null">(default)</span>
-      </div>
-    );
-  }
-  const isNull = field.state === 'null';
-  return (
-    <div className="grid-record-edit">
-      <input
-        value={isNull ? '' : field.text}
-        disabled={disabled || isNull}
-        placeholder={isNull ? '(null)' : meta?.dataDefault ? String(meta.dataDefault) : '(default)'}
-        onChange={(e) =>
-          onChange({ text: e.target.value, state: e.target.value === '' ? 'omit' : 'set' })
-        }
-        onKeyDown={(e) => e.stopPropagation()}
-      />
-      <button
-        className={`mini-btn ${isNull ? 'on' : ''}`}
-        disabled={disabled}
-        title="NULL esplicito (invece del valore di default)"
-        onClick={() => onChange({ state: isNull ? 'omit' : 'null', text: '' })}
-      >
         NULL
       </button>
     </div>

@@ -589,9 +589,10 @@ La griglia è virtualizzata: regge decine di migliaia di righe senza rallentare.
   una terza volta per togliere l'ordinamento).
 - **Trascina il bordo** dell'intestazione per cambiare la larghezza di una
   colonna.
-- **Trascina sulle celle** per selezionare un rettangolo; \`Ctrl+A\` seleziona
-  tutto e \`Ctrl+C\` copia la selezione (separata da tabulazioni: si incolla in
-  Excel così com'è).
+- **Clic su una cella** evidenzia tutta la riga, e \`Ctrl+C\` la copia intera;
+  **trascina sulle celle** per selezionare invece un rettangolo. \`Ctrl+A\`
+  seleziona tutto. La copia è separata da tabulazioni: si incolla in Excel
+  così com'è.
 - **Doppio clic su una cella** apre il valore intero in una finestra, con il
   tasto *Copia*: serve per CLOB e testi lunghi.
 - **Clic destro su un'intestazione** blocca le colonne fino a quella: restano
@@ -629,17 +630,27 @@ svuotato viene scritto come \`NULL\`.
 
 Dalla barra sopra la griglia si lavora anche sulle righe intere:
 
-- **Nuova riga** apre il modulo a record singolo vuoto: si compilano solo le
-  colonne che servono, le altre restano al valore di default della tabella.
-- **Duplica** lo apre già compilato con i valori della riga selezionata —
-  resta da cambiare la chiave.
-- **Elimina** cancella le righe selezionate (si selezionano cliccando il
-  numero di riga, con \`Ctrl\` per aggiungerne e \`Maiusc\` per un intervallo).
-  Oltre una riga chiede conferma.
+- **Nuova riga** aggiunge in cima alla griglia una riga vuota, segnata con
+  **+**, da compilare direttamente nelle celle come in SQL Developer: \`Tab\`
+  passa alla colonna dopo, una cella lasciata vuota prende il valore di default
+  della tabella, \`Ctrl+Canc\` la imposta a \`NULL\` esplicito. **Salva** (o
+  \`Invio\` da una cella) scrive le righe nuove; **Scarta** le butta.
+- **Duplica** mette fra le righe nuove una copia delle righe selezionate —
+  resta da cambiare la chiave prima di salvare.
+- **Elimina** cancella le righe selezionate. Oltre una riga chiede conferma.
 
-Anche queste passano dalla sessione del foglio: fino al **Commit** si può
-tornare indietro con **Rollback**. Su una connessione aperta in sola lettura
-sono disattivate.
+Un clic su una cella seleziona ed evidenzia **tutta la riga** (\`Ctrl\` ne
+aggiunge, \`Maiusc\` estende l'intervallo). \`Ctrl+C\` copia le righe intere,
+con le celle separate da tabulazione come in Excel; trascinando su più celle si
+copia invece solo il rettangolo scelto, e il clic destro offre anche *Copia
+solo la cella*. \`Ctrl+V\` su una riga nuova incolla i valori nelle **stesse
+colonne** da cui erano stati copiati; sulla griglia crea tante righe nuove
+quante ne sono state copiate.
+
+Il **Commit** salva anche le righe nuove rimaste in sospeso prima di
+confermare; il **Rollback** le scarta. Tutte le scritture passano dalla
+sessione del foglio: fino al **Commit** si può tornare indietro con
+**Rollback**. Su una connessione aperta in sola lettura sono disattivate.
 
 ## Esportare e importare
 
@@ -951,9 +962,11 @@ connessione).
 |---|---|
 | Clic sull'intestazione | Ordina per quella colonna |
 | Clic destro sull'intestazione | Blocca o sblocca le colonne fino a quella |
-| Clic sul numero di riga | Seleziona la riga (\`Ctrl\` aggiunge, \`Maiusc\` estende) |
+| Clic su una cella o sul numero di riga | Seleziona la riga (\`Ctrl\` aggiunge, \`Maiusc\` estende) |
 | Trascinamento sulle celle | Seleziona un rettangolo |
-| \`Ctrl+A\` / \`Ctrl+C\` | Seleziona tutto / copia la selezione |
+| \`Ctrl+A\` / \`Ctrl+C\` | Seleziona tutto / copia le righe selezionate (o il rettangolo) |
+| \`Ctrl+V\` | Incolla le righe copiate come righe nuove (scheda Dati) |
+| \`Invio\` in una riga nuova | Salva le righe nuove |
 | Doppio clic su una cella | Valore intero, oppure modifica (scheda Dati) |
 
 ## Finestra
