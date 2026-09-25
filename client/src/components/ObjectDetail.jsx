@@ -233,6 +233,13 @@ function DataTab({ tab, readOnly }) {
   const [datasetSeq, setDatasetSeq] = useState(0);
   // Una finestra per volta: { kind: 'export' | 'import' | 'dup', … }
   const [dlg, setDlg] = useState(null);
+  // Ordinamento fatto dal database ({ name, dir } o null): la griglia mostra
+  // solo le pagine caricate, e ordinare quelle in memoria darebbe un
+  // risultato che cambia premendo «Carica altre». Si tiene per nome di
+  // colonna (la griglia ragiona per indice) e anche in un ref, perché `load`
+  // lo legge per le pagine successive senza doversi ricreare.
+  const [sort, setSort] = useState(null);
+  const sortRef = useRef(null);
   const toast = useStore((s) => s.toast);
   const txnOpen = useStore((s) => s.active[tab.connId]?.txnOpen);
   const PAGE = 200;
@@ -243,7 +250,12 @@ function DataTab({ tab, readOnly }) {
   const editable = isTable && !readOnly;
 
   const load = useCallback(
-    async (offset = 0, append = false, limit = PAGE) => {
+    // `nextSort` (se passato) è un ordinamento nuovo da provare: diventa
+    // quello corrente solo se la query riesce, così un ORDER BY rifiutato
+    // (es. su una colonna LOB) non lascia la freccia su una colonna che non
+    // ordina niente.
+    async (offset = 0, append = false, limit = PAGE, nextSort) => {
+      const s = nextSort === undefined ? sortRef.current : nextSort;
       setLoading(true);
       try {
         const r = await api.tableData(tab.connId, {
@@ -252,6 +264,12 @@ function DataTab({ tab, readOnly }) {
           offset,
           limit,
           where,
+          orderBy: s?.name,
+          dir: s ? s.dir : undefined,
+          // Sulle tabelle il ROWID fa da spareggio: con un ORDER BY su una
+          // colonna con duplicati, ROWNUM da solo può restituire in pagine
+          // diverse la stessa riga (o saltarne una).
+          stable: s && isTable ? 1 : undefined,
           rowid: editable ? 1 : undefined,
           // Sulle tabelle modificabili si legge dalla sessione del foglio, non
           // dal pool: righe appena inserite o eliminate vivono nella
@@ -264,6 +282,10 @@ function DataTab({ tab, readOnly }) {
         if (r.error) {
           toast(r.error, 'error');
           return;
+        }
+        if (nextSort !== undefined) {
+          sortRef.current = nextSort;
+          setSort(nextSort);
         }
         setData((prev) => {
           // La griglia riparte da zero (filtro, ordinamento, colonne bloccate)
@@ -286,7 +308,22 @@ function DataTab({ tab, readOnly }) {
         setLoading(false);
       }
     },
-    [tab.connId, tab.owner, tab.name, where, editable, txnOpen, toast]
+    [tab.connId, tab.owner, tab.name, where, isTable, editable, txnOpen, toast]
+  );
+
+  const gridSort = useMemo(() => {
+    if (!sort || !data) return null;
+    const col = data.columns.findIndex((c) => c.name === sort.name);
+    return col === -1 ? null : { col, dir: sort.dir };
+  }, [sort, data]);
+
+  const onSortChange = useCallback(
+    (next) => {
+      if (!data) return;
+      const name = next ? data.columns[next.col]?.name : null;
+      load(0, false, PAGE, name ? { name, dir: next.dir } : null);
+    },
+    [data, load]
   );
 
   useEffect(() => {
@@ -601,6 +638,8 @@ function DataTab({ tab, readOnly }) {
           onRowDuplicate={editable ? onRowDuplicate : undefined}
           onExport={(columns, rows) => setDlg({ kind: 'export', columns, rows })}
           columnTypes={columnTypes}
+          sort={gridSort}
+          onSortChange={onSortChange}
         />
       ) : (
         <div className="grid-empty">{loading ? 'Caricamento…' : 'Nessun dato'}</div>
@@ -612,8 +651,8 @@ function DataTab({ tab, readOnly }) {
           columns={dlg.columns}
           rows={dlg.rows}
           // Con `source` la finestra può andare oltre le righe già caricate e
-          // rifare la query sul server: il filtro WHERE deve viaggiare con lei.
-          source={{ kind: 'table', owner: tab.owner, name: tab.name, where }}
+          // rifare la query sul server: filtro WHERE e ordinamento viaggiano con lei.
+          source={{ kind: 'table', owner: tab.owner, name: tab.name, where, orderBy: sort?.name, dir: sort?.dir }}
           defaultName={tab.name}
           onClose={() => setDlg(null)}
         />

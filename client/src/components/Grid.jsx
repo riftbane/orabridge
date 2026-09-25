@@ -119,6 +119,14 @@ function makeFilterTest(raw) {
 // così come si vedono, cioè già filtrate e ordinate. `columnTypes` (parallelo
 // a `columns`) è facoltativo e serve solo ad arricchire la vista a record
 // singolo con default e obbligatorietà.
+//
+// Ordinamento sul server: se il chiamante passa `onSortChange`, il clic
+// sull'intestazione non riordina le righe in memoria ma chiama
+// `onSortChange({ col, dir } | null)`, e la freccia segue `sort` (stessa
+// forma). Serve quando le righe a video sono solo la prima pagina: ordinare
+// quelle metterebbe in fila le righe caricate, mentre chi clicca vuole le
+// prime della tabella intera per quella colonna — il chiamante rifà la query
+// con un ORDER BY.
 export default function Grid({
   columns,
   rows,
@@ -133,6 +141,8 @@ export default function Grid({
   onRowDuplicate,
   onExport,
   columnTypes,
+  sort: extSort,
+  onSortChange,
 }) {
   // Decodifica opt-in delle entità HTML (vedi ui.decodeEntities): riguarda
   // solo ciò che si vede — celle, modale del valore e copia della selezione.
@@ -144,7 +154,9 @@ export default function Grid({
   const scrollRef = useRef(null);
   const [range, setRange] = useState([0, 80]);
   const [widths, setWidths] = useState(() => computeWidths(columns, rows, show));
-  const [sort, setSort] = useState(null); // { col, dir }
+  const [localSort, setLocalSort] = useState(null); // { col, dir }
+  const serverSort = !!onSortChange;
+  const sort = serverSort ? extSort || null : localSort;
   const [sel, setSel] = useState(null); // { r1, c1, r2, c2 }
   const [dragging, setDragging] = useState(false);
   const [modal, setModal] = useState(null);
@@ -174,7 +186,7 @@ export default function Grid({
   // wipe sort/selection/scroll and the dirty highlight right after every edit.
   useEffect(() => {
     setWidths(computeWidths(columns, rows, show));
-    setSort(null);
+    setLocalSort(null);
     setSel(null);
     setEdit(null);
     setDirtyCells(new Set());
@@ -243,13 +255,16 @@ export default function Grid({
       if (t) active.push([c, t]);
     });
     if (active.length) idx = idx.filter((i) => active.every(([c, t]) => t(rows[i][c])));
-    if (sort) {
+    // Con l'ordinamento sul server le righe arrivano già in ordine: riordinarle
+    // qui con `cmp` rischierebbe solo di contraddire le regole di Oracle
+    // (collazione, NLS) sulle stesse righe.
+    if (sort && !serverSort) {
       const mul = sort.dir === 'desc' ? -1 : 1;
       const col = sort.col;
       idx.sort((x, y) => mul * cmp(rows[x][col], rows[y][col]) || x - y);
     }
     return idx;
-  }, [rows, sort, tests]);
+  }, [rows, sort, tests, serverSort]);
 
   const sorted = useMemo(() => order.map((i) => rows[i]), [order, rows]);
   const filtering = sorted.length !== rows.length;
@@ -626,15 +641,16 @@ export default function Grid({
                   className={`grid-cell grid-head-cell${frozenClass(i)}`}
                   style={frozenStyle(i, { width: widths[i] })}
                   title={`${c.name} (${c.type})`}
-                  onClick={() =>
-                    setSort((s) =>
-                      s?.col === i
-                        ? s.dir === 'asc'
+                  onClick={() => {
+                    const next =
+                      sort?.col === i
+                        ? sort.dir === 'asc'
                           ? { col: i, dir: 'desc' }
                           : null
-                        : { col: i, dir: 'asc' }
-                    )
-                  }
+                        : { col: i, dir: 'asc' };
+                    if (serverSort) onSortChange(next);
+                    else setLocalSort(next);
+                  }}
                   onContextMenu={
                     enhanced
                       ? (e) => {

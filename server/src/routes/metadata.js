@@ -268,7 +268,14 @@ router.get(
       ? `SELECT t.*, t.ROWID "__orabridge_rowid__" FROM ${qi(owner)}.${qi(name)} t`
       : `SELECT * FROM ${qi(owner)}.${qi(name)}`;
     if (where?.trim()) inner += ` WHERE ${where}`;
-    if (orderBy) inner += ` ORDER BY ${qi(orderBy)} ${dir === 'desc' ? 'DESC' : 'ASC'}`;
+    if (orderBy) {
+      inner += ` ORDER BY ${qi(orderBy)} ${dir === 'desc' ? 'DESC' : 'ASC'}`;
+      // stable=1 (solo tabelle: una vista complessa non ha ROWID): spareggio
+      // sui duplicati, altrimenti Oracle può restituire gli uguali in un
+      // ordine diverso a ogni query e «Carica altre» ripeterebbe o salterebbe
+      // righe al confine fra una pagina e l'altra.
+      if (req.query.stable === '1') inner += withRowid ? ', t.ROWID' : ', ROWID';
+    }
     // Paginazione con ROWNUM invece di OFFSET/FETCH: quest'ultima esiste solo
     // da Oracle 12c e su 11g fa fallire la SELECT con ORA-00933.
     const sql = `SELECT * FROM (
