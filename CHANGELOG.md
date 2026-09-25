@@ -14,6 +14,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
 
   Claude-Session: https://claude.ai/code/session_01DM8yEdJy1EJfUStXTgn155
 
+- Build: [`Orabridge-Setup-1.32.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.32.0/Orabridge-Setup-1.32.0.exe) (2026-09-25).
+
 ## v1.31.0 — 2026-09-08
 
 - **Nuovo:** bind, righe nella griglia, esportazioni, file .sql, piano ad albero e monitor DBA
