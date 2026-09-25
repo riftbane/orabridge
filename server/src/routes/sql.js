@@ -4,6 +4,7 @@ import { runExclusive } from '../pools.js';
 import { gridResult, serializeValue } from '../oracle.js';
 import { history } from '../history.js';
 import { assertWritable } from '../readonly.js';
+import { parseDescribe, describe } from '../describe.js';
 
 const router = Router({ mergeParams: true });
 const a = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -167,16 +168,29 @@ router.post(
       entry.executing = true;
       let out;
       try {
-        const r = await entry.session.execute(sql, binds, {
-          outFormat: oracledb.OUT_FORMAT_ARRAY,
-          maxRows: maxRows + 1,
-          autoCommit: false,
-        });
-        out = { elapsedMs: Math.round(performance.now() - t0) };
-        if (r.metaData) Object.assign(out, gridResult(r, maxRows));
-        else out.rowsAffected = r.rowsAffected ?? 0;
-        const outBinds = serializeOutBinds(r);
-        if (outBinds) out.outBinds = outBinds;
+        // DESC è un comando di SQL*Plus, non SQL: si risponde dal dizionario.
+        const desc = parseDescribe(sql);
+        if (desc) {
+          const d = await describe(entry.session, desc);
+          out = {
+            elapsedMs: Math.round(performance.now() - t0),
+            columns: d.columns,
+            rows: d.rows,
+            truncated: false,
+            describe: d.title,
+          };
+        } else {
+          const r = await entry.session.execute(sql, binds, {
+            outFormat: oracledb.OUT_FORMAT_ARRAY,
+            maxRows: maxRows + 1,
+            autoCommit: false,
+          });
+          out = { elapsedMs: Math.round(performance.now() - t0) };
+          if (r.metaData) Object.assign(out, gridResult(r, maxRows));
+          else out.rowsAffected = r.rowsAffected ?? 0;
+          const outBinds = serializeOutBinds(r);
+          if (outBinds) out.outBinds = outBinds;
+        }
       } catch (err) {
         out = {
           elapsedMs: Math.round(performance.now() - t0),

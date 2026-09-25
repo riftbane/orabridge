@@ -1,6 +1,8 @@
 // Splits an editor buffer into executable statements.
 // SQL statements end with ";". PL/SQL blocks (DECLARE/BEGIN/CREATE PROCEDURE…)
 // end with a line containing only "/", like in SQL*Plus / SQL Developer.
+// DESC / DESCRIBE è un comando di SQL*Plus su una riga sola: finisce a capo
+// anche senza ";", così `desc emp` seguito da una SELECT resta separato.
 
 const PLSQL_START =
   /^(DECLARE|BEGIN|CREATE\s+(OR\s+REPLACE\s+)?((NON)?EDITIONABLE\s+)?(FUNCTION|PROCEDURE|PACKAGE|TRIGGER|TYPE|LIBRARY))\b/;
@@ -20,6 +22,7 @@ export function splitStatements(text) {
   let i = 0;
   let stmtStart = -1;
   let plsql = null;
+  let lineCmd = false;
 
   const push = (end) => {
     if (stmtStart === -1) return;
@@ -29,6 +32,7 @@ export function splitStatements(text) {
     }
     stmtStart = -1;
     plsql = null;
+    lineCmd = false;
   };
 
   while (i < n) {
@@ -82,7 +86,16 @@ export function splitStatements(text) {
       continue;
     }
 
-    if (stmtStart === -1 && !/\s/.test(ch)) stmtStart = i;
+    if (ch === '\n' && lineCmd) {
+      push(i);
+      i++;
+      continue;
+    }
+
+    if (stmtStart === -1 && !/\s/.test(ch)) {
+      stmtStart = i;
+      lineCmd = /^DESC(RIBE)?\b/i.test(text.slice(i, i + 9));
+    }
     i++;
   }
   push(n);

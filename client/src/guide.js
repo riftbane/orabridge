@@ -355,6 +355,10 @@ END;
 /
 \`\`\`
 
+\`DESC nome\` (o \`DESCRIBE\`) funziona come in SQL*Plus: una riga sola, il
+\`;\` è facoltativo. Per tabelle e viste mostra colonne, \`NOT NULL\` e tipo; per
+procedure, funzioni e package gli argomenti; segue i sinonimi, anche pubblici.
+
 ## Transazioni
 
 Orabridge **non fa commit da solo**. Dopo una modifica il pallino arancione

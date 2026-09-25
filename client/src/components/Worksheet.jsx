@@ -216,7 +216,9 @@ export default function Worksheet({ tab }) {
     }
     if (r.columns) {
       setRes(r);
-      setLastRun(prepared || null);
+      // Il risultato di un DESC non si riesegue per esportarlo: si esporta
+      // la griglia com'è.
+      setLastRun(r.describe ? null : prepared || null);
       setPane('results');
       addMsg(
         `${firstLine(stmt?.text || '')} — ${r.rows.length} righe${r.truncated ? ' (limite raggiunto)' : ''} in ${r.elapsedMs} ms`,
@@ -283,7 +285,7 @@ export default function Worksheet({ tab }) {
             log += `    ERRORE: ${r.error.message}\n`;
           } else if (r.columns) {
             log += `    ${r.rows.length} righe (${r.elapsedMs} ms)\n`;
-            lastGrid = { result: r, prepared: { sql, binds } };
+            lastGrid = { result: r, prepared: r.describe ? null : { sql, binds } };
           } else {
             log += `    OK — ${r.rowsAffected} righe interessate (${r.elapsedMs} ms)\n`;
           }
