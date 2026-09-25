@@ -2,6 +2,18 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.32.0 — 2026-09-25
+
+- **Nuovo:** ordinamento della scheda Dati eseguito dal database
+
+  Il clic sull'intestazione di colonna nella scheda Dati rifà la query con
+  ORDER BY invece di riordinare solo le righe già caricate: la prima pagina
+  è quella giusta sull'intera tabella e «Carica altre» prosegue nello stesso
+  ordine (sulle tabelle il ROWID fa da spareggio fra valori uguali).
+  L'esportazione oltre le righe caricate segue lo stesso ordinamento.
+
+  Claude-Session: https://claude.ai/code/session_01DM8yEdJy1EJfUStXTgn155
+
 ## v1.31.0 — 2026-09-08
 
 - **Nuovo:** bind, righe nella griglia, esportazioni, file .sql, piano ad albero e monitor DBA
