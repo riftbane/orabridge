@@ -17,6 +17,8 @@ Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono 
   stesse colonne da cui erano stati copiati, sulla griglia crea righe nuove.
   Il clic destro offre anche «Copia solo la cella».
 
+- Build: [`Orabridge-Setup-1.33.0.exe`](https://github.com/riftbane/orabridge/releases/download/v1.33.0/Orabridge-Setup-1.33.0.exe) (2026-09-25).
+
 ## v1.32.1 — 2026-09-25
 
 - **Fix:** DESC/DESCRIBE nel foglio SQL
