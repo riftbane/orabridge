@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a Orabridge sono documentate qui. Le versioni sono allineate tra `client/`, `server/` ed `electron/` (stesso numero ovunque).
 
+## v1.32.1 — 2026-09-25
+
+- **Fix:** DESC/DESCRIBE nel foglio SQL
+
+  DESC è un comando di SQL*Plus, non SQL: mandato al database tornava
+  ORA-00900. Ora il server lo risolve dal dizionario (schema corrente,
+  sinonimi privati e pubblici) e risponde con una griglia: colonne per
+  tabelle e viste, argomenti per procedure, funzioni e package, attributi
+  per i tipi. Come in SQL*Plus il comando finisce a fine riga anche senza
+  punto e virgola.
+
 ## v1.32.0 — 2026-09-25
 
 - **Nuovo:** ordinamento della scheda Dati eseguito dal database
